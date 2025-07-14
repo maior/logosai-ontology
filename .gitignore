@@ -1,0 +1,97 @@
+# ───────────────────────────────────────────────────────────────
+# Python: Byte-compiled, env, test, IDE, logfile, packaging
+# ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Test / coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache/
+.tox/
+pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Django / Flask specific
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+instance/
+# static files artifact (e.g. collectstatic output)
+static_collected/
+
+# ───────────────────────────────────────────────────────────────
+# Node.js: dependencies, logs, runtime, environment
+# ───────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+.pids/
+*.pid
+*.seed
+.eslintcache
+.node_repl_history
+.lock-wscript
+build/Release/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# ───────────────────────────────────────────────────────────────
+# IDE / OS / Editor files
+# ───────────────────────────────────────────────────────────────
+# macOS
+.DS_Store
+__MACOSX
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# IDEs and Editors
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.code-workspace
+
+# Others
+*.tmp
+
