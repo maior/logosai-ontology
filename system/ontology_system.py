@@ -197,22 +197,144 @@ class OntologySystem:
                 "quality_score": quality_score
             }
             
-            # 최종 응답 구성
-            final_response = {
-                "query": query_text,
-                "response": integrated_result.get("integrated_content", "응답을 생성할 수 없습니다."),
-                "execution_summary": integrated_result.get("execution_summary", {}),
-                "performance_metrics": performance_metrics,
-                "workflow_visualization": integrated_result.get("workflow_visualization", ""),
-                "confidence_score": integrated_result.get("confidence_score", 0.7),
-                "sources": integrated_result.get("sources", []),
-                "processing_metadata": {
-                    "unified_analysis": unified_result.get('query_analysis', {}),
-                    "agent_mappings": unified_result.get('agent_mappings', []),
-                    "execution_plan": unified_result.get('execution_plan', {}),
-                    "fallback_mode": unified_result.get('fallback_mode', False)
+            # 지식그래프 시각화 데이터 생성
+            knowledge_graph_data = {}
+            try:
+                # 지식그래프 업데이트
+                await self._update_knowledge_graph(semantic_query, workflow_plan, execution_results, integrated_result)
+                
+                # 시각화 데이터 가져오기
+                knowledge_graph_data = self.get_knowledge_graph_visualization(max_nodes=100)
+                logger.info(f"📊 지식그래프 생성 완료: 노드 {len(knowledge_graph_data.get('nodes', []))}개, 엣지 {len(knowledge_graph_data.get('edges', []))}개")
+            except Exception as kg_error:
+                logger.error(f"지식그래프 생성 실패: {kg_error}")
+                # 실패시 기본 구조
+                knowledge_graph_data = {
+                    "nodes": [],
+                    "edges": [],
+                    "metadata": {"error": str(kg_error)}
                 }
-            }
+            
+            # 최종 응답 구성 - 구조화된 응답 처리
+            logger.info("📦 [구조화 응답] 최종 응답 구성 시작")
+            logger.info(f"  - integrated_result 타입: {type(integrated_result)}")
+            if isinstance(integrated_result, dict):
+                logger.info(f"  - integrated_result 키: {list(integrated_result.keys())}")
+            
+            # integrated_result가 이미 구조화된 응답인지 확인
+            # 주의: ontology_enhanced_multi_agent_system에서 오는 경우 'result' 키 사용
+            # result_processor에서 오는 경우 'content' 키 사용
+            if isinstance(integrated_result, dict) and (
+                ('result' in integrated_result and 'reasoning' in integrated_result) or
+                ('content' in integrated_result and 'reasoning' in integrated_result and 'agent_results' in integrated_result)
+            ):
+                logger.info("✅ [구조화 응답] 구조화된 응답 형식 감지")
+                
+                # result_processor에서 온 경우 content를 result로 변환
+                if 'content' in integrated_result and 'result' not in integrated_result:
+                    logger.info(f"  - content를 result로 변환")
+                    final_response = {
+                        "result": integrated_result.get("content", ""),
+                        "reasoning": integrated_result.get("reasoning", ""),
+                        "success": integrated_result.get("status") == "success",
+                        "category": "general",
+                        "source_agent": integrated_result.get("agent_results", [{}])[0].get("agent_id") if integrated_result.get("agent_results") else None,
+                        "execution_time": integrated_result.get("metadata", {}).get("total_execution_time", 0),
+                        "single_purpose": len(integrated_result.get("agent_results", [])) == 1,
+                        "knowledge_graph_visualization": knowledge_graph_data,
+                        "agent_results": integrated_result.get("agent_results", []),
+                        "query": query_text,
+                        "execution_summary": integrated_result.get("metadata", {}),
+                        "performance_metrics": performance_metrics,
+                        "workflow_visualization": integrated_result.get("workflow_visualization", ""),
+                        "confidence_score": integrated_result.get("metadata", {}).get("average_confidence", 0.7),
+                        "sources": integrated_result.get("sources", []),
+                        "processing_metadata": {
+                            "unified_analysis": unified_result.get('query_analysis', {}),
+                            "agent_mappings": unified_result.get('agent_mappings', []),
+                            "execution_plan": unified_result.get('execution_plan', {}),
+                            "fallback_mode": unified_result.get('fallback_mode', False)
+                        }
+                    }
+                else:
+                    # 기존 형식 그대로 사용
+                    logger.info(f"  - result: {integrated_result.get('result', '')[:100]}...")
+                    logger.info(f"  - reasoning: {integrated_result.get('reasoning', '')}")
+                    logger.info(f"  - agent_results 개수: {len(integrated_result.get('agent_results', []))}")
+                    logger.info(f"  - single_purpose: {integrated_result.get('single_purpose', False)}")
+                    
+                    final_response = integrated_result.copy()
+                    # 추가 필드 병합
+                    final_response.update({
+                        "query": query_text,
+                        "knowledge_graph_visualization": knowledge_graph_data,
+                        "performance_metrics": performance_metrics,
+                        "processing_metadata": {
+                            "unified_analysis": unified_result.get('query_analysis', {}),
+                            "agent_mappings": unified_result.get('agent_mappings', []),
+                            "execution_plan": unified_result.get('execution_plan', {}),
+                            "fallback_mode": unified_result.get('fallback_mode', False)
+                        }
+                    })
+            else:
+                logger.info("⚠️ [구조화 응답] 기본 응답 형식 사용")
+                logger.info(f"  - content: {integrated_result.get('content', '')[:100]}...")
+                
+                # ResultProcessor가 반환한 구조화된 결과 처리
+                if isinstance(integrated_result, dict) and 'reasoning' in integrated_result and 'agent_results' in integrated_result:
+                    logger.info("✅ [구조화 응답] ResultProcessor 구조화 응답 감지")
+                    logger.info(f"  - reasoning: {integrated_result.get('reasoning', '')[:100]}...")
+                    logger.info(f"  - agent_results 개수: {len(integrated_result.get('agent_results', []))}")
+                    
+                    # 구조화된 응답으로 변환
+                    final_response = {
+                        "result": integrated_result.get("content", "응답을 생성할 수 없습니다."),
+                        "reasoning": integrated_result.get("reasoning", ""),
+                        "success": True,
+                        "category": "general",  # TODO: 카테고리 추출 로직 필요
+                        "source_agent": integrated_result.get("agent_results", [{}])[0].get("agent_id") if integrated_result.get("agent_results") else None,
+                        "execution_time": integrated_result.get("metadata", {}).get("total_execution_time", 0),
+                        "single_purpose": len(integrated_result.get("agent_results", [])) == 1,
+                        "knowledge_graph_visualization": knowledge_graph_data,
+                        "agent_results": integrated_result.get("agent_results", []),
+                        "query": query_text,
+                        "execution_summary": integrated_result.get("metadata", {}),
+                        "performance_metrics": performance_metrics,
+                        "workflow_visualization": integrated_result.get("workflow_visualization", ""),
+                        "confidence_score": integrated_result.get("metadata", {}).get("average_confidence", 0.7),
+                        "sources": integrated_result.get("sources", []),
+                        "processing_metadata": {
+                            "unified_analysis": unified_result.get('query_analysis', {}),
+                            "agent_mappings": unified_result.get('agent_mappings', []),
+                            "execution_plan": unified_result.get('execution_plan', {}),
+                            "fallback_mode": unified_result.get('fallback_mode', False)
+                        }
+                    }
+                else:
+                    # 기본 형식
+                    final_response = {
+                        "result": integrated_result.get("content", "응답을 생성할 수 없습니다."),
+                        "reasoning": integrated_result.get("reasoning", ""),  # reasoning도 확인
+                        "success": integrated_result.get("status") == "success",
+                        "category": "general",
+                        "source_agent": None,
+                        "execution_time": integrated_result.get("metadata", {}).get("total_execution_time", 0),
+                        "single_purpose": False,
+                        "knowledge_graph_visualization": knowledge_graph_data,
+                        "agent_results": [],
+                        "query": query_text,
+                        "execution_summary": integrated_result.get("metadata", {}),
+                        "performance_metrics": performance_metrics,
+                        "workflow_visualization": integrated_result.get("workflow_visualization", ""),
+                        "confidence_score": integrated_result.get("metadata", {}).get("average_confidence", 0.7),
+                        "sources": integrated_result.get("sources", []),
+                        "processing_metadata": {
+                            "unified_analysis": unified_result.get('query_analysis', {}),
+                            "agent_mappings": unified_result.get('agent_mappings', []),
+                            "execution_plan": unified_result.get('execution_plan', {}),
+                            "fallback_mode": unified_result.get('fallback_mode', False)
+                        }
+                    }
             
             logger.info(f"✅ 온톨로지 쿼리 처리 완료 (총 {total_time:.2f}초, 품질: {performance_metrics['quality_score']:.2f})")
             
@@ -258,6 +380,9 @@ class OntologySystem:
                 execution_results, workflow_plan, semantic_query
             )
             
+            # 폴백 모드에서도 지식그래프 생성
+            knowledge_graph_data = self.get_knowledge_graph_visualization(max_nodes=50)
+            
             return {
                 "query": query_text,
                 "response": integrated_result.get("content", "죄송합니다. 처리 중 오류가 발생했습니다."),
@@ -268,11 +393,30 @@ class OntologySystem:
                 },
                 "confidence_score": 0.5,
                 "sources": [],
+                "knowledge_graph": knowledge_graph_data,  # 지식그래프 추가
                 "processing_metadata": {"fallback_processing": True}
             }
             
         except Exception as e:
             logger.error(f"폴백 처리도 실패: {e}")
+            
+            # 최소한의 지식그래프 구조
+            minimal_knowledge_graph = {
+                "nodes": [
+                    {
+                        "id": f"error_{uuid.uuid4().hex[:8]}",
+                        "label": "처리 실패",
+                        "type": "error",
+                        "properties": {"error": str(e)[:100]}
+                    }
+                ],
+                "edges": [],
+                "metadata": {
+                    "generated_at": datetime.now().isoformat(),
+                    "error": True
+                }
+            }
+            
             return {
                 "query": query_text,
                 "response": "시스템 오류로 인해 요청을 처리할 수 없습니다. 나중에 다시 시도해주세요.",
@@ -280,6 +424,7 @@ class OntologySystem:
                 "performance_metrics": {"error": True},
                 "confidence_score": 0.0,
                 "sources": [],
+                "knowledge_graph": minimal_knowledge_graph,  # 에러 시에도 지식그래프 포함
                 "processing_metadata": {"system_error": True, "error_message": str(e)}
             }
     

@@ -361,13 +361,15 @@ class UnifiedQueryProcessor:
             examples = {
                 'sequential': '"금 시세 확인하고 1온스당 원화 가격 계산" → 1단계: 금시세 조회 → 2단계: 금시세 결과를 받아서 원화 계산',
                 'parallel': '"날씨와 환율 알려줘" → 날씨 조회 || 환율 조회 (동시 실행)',
-                'hybrid': '"날씨와 환율 확인하고 여행 경비 계산" → 1단계: (날씨 || 환율) → 2단계: 두 결과를 받아서 경비 계산'
+                'hybrid': '"날씨와 환율 확인하고 여행 경비 계산" → 1단계: (날씨 || 환율) → 2단계: 두 결과를 받아서 경비 계산',
+                'visualization': '"제주도 여행 5일 일정을 플로우차트로" → 여행 계획 생성 에이전트 + 플로우차트 시각화 에이전트'
             }
         else:
             examples = {
                 'sequential': '"check gold price and calculate ounce to won" → Step1: get gold price → Step2: calculate won price using gold price result',
                 'parallel': '"tell me weather and exchange rate" → weather query || exchange rate query (simultaneous execution)',
-                'hybrid': '"check weather and exchange rate then calculate travel cost" → Step1: (weather || exchange rate) → Step2: calculate cost using both results'
+                'hybrid': '"check weather and exchange rate then calculate travel cost" → Step1: (weather || exchange rate) → Step2: calculate cost using both results',
+                'visualization': '"create flowchart for 5-day Jeju trip" → travel planning agent + flowchart visualization agent'
             }
         
         # LLM 기반 완전 통합 프롬프트
@@ -392,6 +394,9 @@ class UnifiedQueryProcessor:
 3. **하이브리드 처리 (Hybrid)**: 병렬 수집 후 통합 분석
    - 예: {examples['hybrid']}
 
+4. **시각화 처리 (Visualization)**: 데이터 생성 후 시각화
+   - 예: {examples['visualization']}
+
 📋 **중요 지시사항:**
 1. 각 작업에 **특화된 개별 쿼리**를 생성하세요 (원본 쿼리 그대로 사용 금지)
 2. **데이터 전달 흐름**을 명확히 정의하세요
@@ -405,6 +410,12 @@ class UnifiedQueryProcessor:
 - 작업 도메인과 에이전트 특성의 일치도
 - 에이전트 간 협업 가능성 고려
 
+⚠️ **특별 지침:**
+- "플로우차트", "차트", "표", "다이어그램" 등의 시각화 키워드가 있으면 visualization, chart, table 관련 에이전트 우선 선택
+- "여행 일정", "계획", "스케줄" 등이 있으면 planning, schedule, travel 관련 에이전트 선택
+- 계산이 주목적이 아닌 경우 calculator_agent를 첫 번째로 선택하지 마세요
+- 쿼리의 주요 의도를 파악하여 가장 적합한 에이전트를 선택하세요
+
 아래 JSON 형식으로 정확히 응답하세요:
 
 {{
@@ -414,8 +425,9 @@ class UnifiedQueryProcessor:
         "complexity": "simple|moderate|complex",
         "multi_task": true|false,
         "task_count": 숫자,
-        "primary_intent": "정보검색|계산|분석|기타",
+        "primary_intent": "정보검색|계산|분석|시각화|계획수립|기타",
         "domains": ["도메인1", "도메인2", ...],
+        "output_format": "text|table|chart|flowchart|list|json",
         "dependency_detected": true|false,
         "sequential_required": true|false,
         "reasoning": "분석 근거"
@@ -430,7 +442,7 @@ class UnifiedQueryProcessor:
             "complexity": "simple|moderate|complex",
             "depends_on": ["의존하는_작업_ID들"],
             "data_requirements": ["필요한_데이터_필드들"],
-            "expected_output_type": "text|number|json|url",
+            "expected_output_type": "text|number|json|url|table|chart|flowchart",
             "output_fields": ["필드1", "필드2"]
         }}
     ],

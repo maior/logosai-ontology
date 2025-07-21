@@ -312,6 +312,7 @@ class ExecutionContext:
     # 호환성을 위한 추가 속성
     user_profile: Dict[str, Any] = field(default_factory=dict)
     available_agents: Dict[str, Any] = field(default_factory=dict)  # 사용 가능한 에이전트들
+    progress_callback: Any = None  # ProgressCallback 인터페이스
     
     def __post_init__(self):
         """초기화 후 처리"""
@@ -355,6 +356,7 @@ class AgentExecutionResult:
     
     # 추가 속성들 (호환성을 위해)
     agent_id: str = ""
+    agent_name: str = ""  # 에이전트의 표시 이름
     data: Any = None
     confidence: float = 0.8
     success: bool = field(default=False)

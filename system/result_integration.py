@@ -13,9 +13,12 @@ from loguru import logger
 
 from ..core.models import (
     SemanticQuery, WorkflowPlan, AgentExecutionResult,
-    ExecutionStatus, get_system_metrics
+    ExecutionStatus, get_system_metrics, ExecutionContext
 )
 from ..core.llm_manager import get_ontology_llm_manager, OntologyLLMType
+from ..services.agent_detector import get_agent_detector
+from ..services.mermaid_fallback_service import get_mermaid_fallback_service
+from ..services.visualization_response_formatter import get_visualization_response_formatter
 
 
 class ResultIntegrator:
@@ -77,6 +80,48 @@ class ResultIntegrator:
                 'partial_results': execution_results
             }
     
+    async def integrate_agent_results_with_visualization(self, 
+                                                       original_query: str,
+                                                       agent_results: List[Dict[str, Any]],
+                                                       execution_context: ExecutionContext) -> Dict[str, Any]:
+        """에이전트 결과 통합 - 시각화 처리 포함"""
+        try:
+            logger.info(f"🔄 에이전트 결과 통합 시작 (시각화 포함) - {len(agent_results)}개 결과")
+            
+            # 1. 시각화 필요성 검토
+            needs_visualization = self._needs_visualization(original_query, agent_results)
+            
+            if needs_visualization:
+                logger.info("📊 시각화 필요 감지 - 시각화 에이전트 확인")
+                
+                # 2. 시각화 capability를 가진 에이전트 확인
+                detector = get_agent_detector(execution_context)
+                
+                if detector.has_visualization_capability():
+                    # 3-A. 시각화 기능을 가진 에이전트 호출
+                    best_agent = detector.get_best_visualization_agent()
+                    logger.info(f"✅ 시각화 기능 에이전트 사용: {best_agent}")
+                    
+                    # 시각화 에이전트 결과가 이미 있는지 확인
+                    viz_result = next((r for r in agent_results if r.get('agent_id') == best_agent), None)
+                    if not viz_result:
+                        logger.warning(f"⚠️ {best_agent} 결과가 없음 - 폴백 시스템 사용")
+                        viz_result = await self._create_visualization_fallback(original_query, agent_results)
+                        agent_results.append(viz_result)
+                else:
+                    # 3-B. Mermaid 폴백 시스템 사용
+                    logger.info("🔄 시각화 기능 에이전트 없음 - Mermaid 폴백 사용")
+                    viz_result = await self._create_visualization_fallback(original_query, agent_results)
+                    agent_results.append(viz_result)
+            
+            # 4. 기존 통합 로직 실행
+            return await self.integrate_agent_results(original_query, agent_results)
+            
+        except Exception as e:
+            logger.error(f"시각화 포함 결과 통합 실패: {e}")
+            # 폴백: 기존 통합 로직만 실행
+            return await self.integrate_agent_results(original_query, agent_results)
+
     async def integrate_agent_results(self, 
                                     original_query: str,
                                     agent_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -282,23 +327,32 @@ class ResultIntegrator:
         return integrated_calc
     
     async def _integrate_visualization_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """시각화 결과 통합"""
+        """시각화 결과 통합 - 향상된 버전"""
         logger.info(f"📈 시각화 결과 통합 시작 - {len(results)}개 결과")
         
         visualizations = []
+        formatter = get_visualization_response_formatter()
         
         for result in results:
             agent_id = result["agent_id"]
             data = result["data"]
             
-            viz_data = self._extract_visualization_data(data, agent_id)
-            if viz_data:
-                visualizations.append({
-                    'agent': agent_id,
-                    'data': viz_data,
-                    'type': self._detect_visualization_type(viz_data),
-                    'confidence': result.get('confidence', 0.8)
-                })
+            # 시각화 기능 에이전트 결과 처리
+            if self._is_visualization_agent_result(agent_id, data):
+                viz_result = formatter.format_data_visualization_agent_result(
+                    result, result.get('original_query', '')
+                )
+                visualizations.append(viz_result)
+            else:
+                # 기존 시각화 데이터 처리
+                viz_data = self._extract_visualization_data(data, agent_id)
+                if viz_data:
+                    visualizations.append({
+                        'agent': agent_id,
+                        'data': viz_data,
+                        'type': self._detect_visualization_type(viz_data),
+                        'confidence': result.get('confidence', 0.8)
+                    })
         
         if not visualizations:
             return {"error": "시각화 결과를 찾을 수 없습니다."}
@@ -306,11 +360,140 @@ class ResultIntegrator:
         integrated_viz = {
             'visualizations': visualizations,
             'summary': f"{len(visualizations)}개의 시각화 생성됨",
-            'types': [viz['type'] for viz in visualizations]
+            'types': [viz.get('type', 'unknown') for viz in visualizations],
+            'formatted': True  # 새로운 포맷팅 시스템 사용
         }
         
         logger.info(f"📈 시각화 결과 통합 완료")
         return integrated_viz
+    
+    def _needs_visualization(self, query: str, agent_results: List[Dict[str, Any]]) -> bool:
+        """시각화 필요성 판단"""
+        query_lower = query.lower()
+        
+        # 1. 쿼리에 시각화 키워드가 있는지 확인
+        viz_keywords = [
+            '시각화', '차트', '그래프', '플로우차트', '순서도', '다이어그램',
+            'visualization', 'chart', 'graph', 'flowchart', 'diagram', 'mermaid'
+        ]
+        
+        if any(keyword in query_lower for keyword in viz_keywords):
+            logger.info(f"📊 쿼리에서 시각화 키워드 발견: {query}")
+            return True
+        
+        # 2. 에이전트 결과에 시각화 가능한 구조화된 데이터가 있는지 확인
+        for result in agent_results:
+            data = result.get('data', {})
+            if self._has_visualizable_data(data):
+                logger.info(f"📊 {result.get('agent_id')} 결과에서 시각화 가능한 데이터 발견")
+                return True
+        
+        # 3. 다중 에이전트 실행 시 프로세스 시각화 고려
+        if len(agent_results) > 2:
+            logger.info(f"📊 다중 에이전트 실행 감지 ({len(agent_results)}개) - 프로세스 시각화 고려")
+            return True
+        
+        return False
+    
+    def _has_visualizable_data(self, data: Any) -> bool:
+        """데이터가 시각화 가능한지 확인"""
+        if isinstance(data, dict):
+            # 숫자 데이터 확인
+            numeric_keys = []
+            for key, value in data.items():
+                if isinstance(value, (int, float)):
+                    numeric_keys.append(key)
+            
+            if len(numeric_keys) >= 2:
+                return True
+            
+            # 리스트 데이터 확인
+            list_keys = []
+            for key, value in data.items():
+                if isinstance(value, list) and len(value) > 1:
+                    list_keys.append(key)
+            
+            if len(list_keys) >= 1:
+                return True
+        
+        return False
+    
+    async def _create_visualization_fallback(self, 
+                                           original_query: str,
+                                           agent_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """시각화 폴백 생성"""
+        try:
+            logger.info("🔄 시각화 폴백 생성 시작")
+            
+            # Mermaid 폴백 서비스 사용
+            fallback_service = get_mermaid_fallback_service()
+            mermaid_result = await fallback_service.generate_mermaid_from_agent_results(
+                original_query, agent_results
+            )
+            
+            # 에이전트 결과 형식으로 변환
+            return {
+                'agent_id': 'mermaid_fallback_service',
+                'data': mermaid_result,
+                'success': True,
+                'execution_time': 0.5,
+                'confidence': 0.7,
+                'metadata': {
+                    'fallback': True,
+                    'visualization_type': mermaid_result.get('format', 'mermaid')
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"시각화 폴백 생성 실패: {e}")
+            return {
+                'agent_id': 'visualization_error',
+                'data': {
+                    'type': 'error',
+                    'content': f'시각화 생성 실패: {str(e)}',
+                    'title': '시각화 오류',
+                    'fallback': True
+                },
+                'success': False,
+                'execution_time': 0.1,
+                'confidence': 0.1,
+                'metadata': {'error': str(e)}
+            }
+    
+    def _is_visualization_agent_result(self, agent_id: str, data: Any) -> bool:
+        """에이전트 결과가 시각화 에이전트의 결과인지 확인"""
+        try:
+            # 1. 에이전트 ID로 시각화 기능 확인
+            if any(keyword in agent_id.lower() for keyword in [
+                'visual', 'chart', 'graph', 'plot', 'diagram', 'mermaid'
+            ]):
+                return True
+            
+            # 2. 결과 데이터 구조로 확인
+            if isinstance(data, dict):
+                # HTML 컨텐츠 확인
+                content = data.get('content', '')
+                if isinstance(content, str):
+                    if any(tag in content for tag in ['<svg', '<mermaid', 'mermaid', 'graph TD', 'graph LR']):
+                        return True
+                
+                # 메타데이터 확인
+                metadata = data.get('metadata', {})
+                if isinstance(metadata, dict):
+                    viz_type = metadata.get('visualization_type', '')
+                    if viz_type or metadata.get('contains_mermaid', False) or metadata.get('contains_svg', False):
+                        return True
+                
+                # 시각화 관련 키 확인
+                viz_keys = ['chart_data', 'mermaid_code', 'svg_content', 'visualization_type']
+                if any(key in data for key in viz_keys):
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.warning(f"시각화 에이전트 결과 확인 실패 {agent_id}: {e}")
+            return False
     
     def _extract_content_from_data(self, data: Any, agent_id: str) -> Optional[str]:
         """데이터에서 텍스트 콘텐츠 추출 - 개선된 버전"""
@@ -486,6 +669,96 @@ class ResultIntegrator:
         
         return 'unknown'
     
+    async def _generate_user_focused_response(self, 
+                                            user_query: str, 
+                                            integration_result: Dict[str, Any],
+                                            semantic_query: SemanticQuery,
+                                            workflow_plan: WorkflowPlan) -> Optional[str]:
+        """사용자 쿼리에 맞춘 최종 응답 생성"""
+        try:
+            logger.info(f"🤖 사용자 맞춤 응답 생성 시작 - 쿼리: {user_query[:50]}...")
+            
+            # 에이전트 결과 수집
+            agent_results = []
+            
+            # information 결과
+            if integration_result.get('information'):
+                agent_results.append({
+                    "type": "information",
+                    "content": integration_result['information']
+                })
+            
+            # analysis 결과  
+            if integration_result.get('analysis'):
+                agent_results.append({
+                    "type": "analysis",
+                    "content": integration_result['analysis']
+                })
+                
+            # calculation 결과
+            if integration_result.get('calculation'):
+                calc_result = integration_result['calculation']
+                if isinstance(calc_result, dict) and 'summary' in calc_result:
+                    content = calc_result['summary']
+                else:
+                    content = str(calc_result)
+                agent_results.append({
+                    "type": "calculation",
+                    "content": content
+                })
+            
+            # visualization 결과
+            if integration_result.get('visualization'):
+                viz_result = integration_result['visualization']
+                agent_results.append({
+                    "type": "visualization",
+                    "content": str(viz_result)
+                })
+            
+            # 에이전트 결과가 없으면 None 반환
+            if not agent_results:
+                logger.warning("에이전트 결과가 없어 사용자 맞춤 응답 생성 건너뜀")
+                return None
+            
+            # 프롬프트 생성
+            agent_results_text = "\n\n".join([
+                f"[{r['type'].upper()}]\n{r['content']}" for r in agent_results
+            ])
+            
+            prompt = f"""사용자가 다음과 같은 요청을 했습니다:
+"{user_query}"
+
+다음은 여러 에이전트가 처리한 결과입니다:
+{agent_results_text}
+
+위 에이전트 결과들을 종합하여, 사용자의 원래 요청에 정확히 부합하는 응답을 작성해주세요.
+
+중요 지침:
+1. 사용자가 요청한 형식(플로우차트, 표, 리스트 등)이 있다면 반드시 그 형식으로 제공하세요
+2. "제주도 여행 5일 일정을 플로우차트로"와 같은 요청이면, 마크다운 플로우차트 형식으로 일정을 구성하세요
+3. 에이전트 결과를 단순 나열하지 말고, 사용자 요청에 맞게 재구성하세요
+4. 불필요한 설명은 제외하고 핵심 내용만 포함하세요
+5. 사용자 언어(한국어/영어)와 동일한 언어로 응답하세요
+
+응답:"""
+
+            # LLM 호출
+            llm = self.llm_manager.get_llm(OntologyLLMType.RESULT_INTEGRATOR)
+            response = await llm.ainvoke(prompt)
+            
+            # 응답 추출
+            if hasattr(response, 'content'):
+                result = response.content.strip()
+            else:
+                result = str(response).strip()
+            
+            logger.info(f"✅ 사용자 맞춤 응답 생성 완료 - 길이: {len(result)}자")
+            return result
+            
+        except Exception as e:
+            logger.error(f"사용자 맞춤 응답 생성 실패: {e}")
+            return None
+    
     def _create_calculation_summary(self, calculations: List[Dict[str, Any]]) -> str:
         """계산 결과 요약 생성"""
         if not calculations:
@@ -578,20 +851,28 @@ class ResultIntegrator:
                                       workflow_plan: WorkflowPlan) -> Dict[str, Any]:
         """최종 통합 결과 생성"""
         
-        # 메인 답변 생성
-        main_content = ""
-        if integration_result.get('information'):
-            main_content = integration_result['information']
-        elif integration_result.get('analysis'):
-            main_content = integration_result['analysis']
-        elif integration_result.get('calculation'):
-            calc_result = integration_result['calculation']
-            if isinstance(calc_result, dict) and 'summary' in calc_result:
-                main_content = calc_result['summary']
+        # 사용자 쿼리 추출
+        user_query = getattr(semantic_query, 'query_text', '') or getattr(semantic_query, 'natural_language', '')
+        
+        # LLM을 사용하여 사용자 쿼리에 맞춘 최종 답변 생성
+        main_content = await self._generate_user_focused_response(
+            user_query, integration_result, semantic_query, workflow_plan
+        )
+        
+        # 메인 답변이 생성되지 않은 경우 기본 처리
+        if not main_content:
+            if integration_result.get('information'):
+                main_content = integration_result['information']
+            elif integration_result.get('analysis'):
+                main_content = integration_result['analysis']
+            elif integration_result.get('calculation'):
+                calc_result = integration_result['calculation']
+                if isinstance(calc_result, dict) and 'summary' in calc_result:
+                    main_content = calc_result['summary']
+                else:
+                    main_content = str(calc_result)
             else:
-                main_content = str(calc_result)
-        else:
-            main_content = "요청하신 작업이 완료되었습니다."
+                main_content = "요청하신 작업이 완료되었습니다."
         
         # ontology_system.py에서 기대하는 형식으로 결과 구성
         final_result = {

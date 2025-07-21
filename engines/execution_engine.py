@@ -377,6 +377,11 @@ class RealAgentCaller(AgentCaller):
             # 에이전트 호출
             result_data = await self._call_installed_agent(agent, query, context)
             
+            # None 체크
+            if result_data is None:
+                logger.error(f"⚠️ _call_installed_agent가 None 반환: {agent.get('agent_id', 'unknown')}")
+                return self._create_fallback_result(agent_type, query, start_time)
+            
             # 성공적인 호출 기록
             self.call_history.append({
                 'agent_type': agent_type,
@@ -389,8 +394,18 @@ class RealAgentCaller(AgentCaller):
             execution_time = time.time() - start_time
             success = result_data.get('success', False)
             
-            return AgentExecutionResult(
-                result_data=self._extract_core_content(result_data.get('result', result_data)),
+            # 구조화된 응답인지 확인
+            raw_result = result_data.get('result', result_data)
+            if isinstance(raw_result, dict) and 'answer' in raw_result:
+                # 구조화된 응답은 그대로 보존
+                final_result = raw_result
+            else:
+                # 구조화되지 않은 응답만 핵심 내용 추출
+                final_result = self._extract_core_content(raw_result)
+            
+            # AgentExecutionResult 생성 시 data 필드에도 저장
+            result = AgentExecutionResult(
+                result_data=final_result,
                 execution_time=execution_time,
                 status=ExecutionStatus.COMPLETED if success else ExecutionStatus.FAILED,
                 agent_type=agent_type,
@@ -403,6 +418,17 @@ class RealAgentCaller(AgentCaller):
                     'target_agent_specified': target_agent is not None
                 }
             )
+            
+            # data 필드도 설정 (ResultProcessor 호환성)
+            result.data = final_result
+            result.agent_id = agent.get('agent_id', 'unknown')
+            # agent_name 설정 - agent_data에서 등록된 이름 사용
+            agent_data = agent.get('agent_data', {})
+            result.agent_name = agent_data.get('name', agent_data.get('agent_name', agent.get('agent_id', 'unknown')))
+            result.success = success
+            
+            # 결과 반환 (중요!)
+            return result
             
         except Exception as e:
             logger.error(f"❌ 에이전트 호출 실패 {getattr(agent_type, 'value', str(agent_type))}: {e}")
@@ -522,10 +548,19 @@ class RealAgentCaller(AgentCaller):
         
         logger.info(f"🔍 에이전트 ID 정규화: {agent_id} -> {base_agent_id}")
         
-        # 사용자 이메일 추출 (user_profile 대신 custom_config 사용)
-        user_email = context.custom_config.get('user_email', 'system@ontology.ai')
-        if not user_email and context.user_id:
-            user_email = f"{context.user_id}@system.ai"
+        # 사용자 이메일 추출 - 우선순위: custom_config의 email > user_email > user_id > 기본값
+        user_email = (
+            context.custom_config.get('email') or 
+            context.custom_config.get('user_email') or 
+            context.user_id or 
+            'default@logos.ai'
+        )
+        
+        # user_id가 이미 email 형식이 아닌 경우에만 @system.ai 추가
+        if user_email and '@' not in user_email:
+            user_email = f"{user_email}@system.ai"
+            
+        logger.info(f"📧 사용자 이메일 확인: {user_email} (from payload)")
         
         # 프로젝트 ID 추출
         project_id = context.custom_config.get('project_id')
@@ -587,16 +622,27 @@ class RealAgentCaller(AgentCaller):
                             logger.info(f"✅ 에이전트 호출 성공: {base_agent_id} (시도 {attempt + 1}/{max_retries})")
                             logger.debug(f"📋 원본 응답 구조: {type(result_data)}")
                             
-                            # 응답 데이터에서 핵심 내용 추출
-                            processed_result = self._extract_core_content(result_data)
-                            
-                            return {
-                                "success": True,
-                                "result": processed_result,
-                                "agent_id": base_agent_id,  # ✅ 깔끔한 이름 반환
-                                "confidence": 0.9,
-                                "attempts": attempt + 1
-                            }
+                            # 응답 데이터 처리 - 구조를 보존
+                            if isinstance(result_data, dict) and "answer" in result_data:
+                                # 구조화된 응답인 경우 전체 구조 보존
+                                logger.info(f"📋 구조화된 응답 감지 - answer, reasoning 등 보존")
+                                return {
+                                    "success": True,
+                                    "result": result_data,  # 전체 구조를 그대로 반환
+                                    "agent_id": base_agent_id,
+                                    "confidence": result_data.get("confidence", 0.9),
+                                    "attempts": attempt + 1
+                                }
+                            else:
+                                # 구조화되지 않은 응답은 기존 방식으로 처리
+                                processed_result = self._extract_core_content(result_data)
+                                return {
+                                    "success": True,
+                                    "result": processed_result,
+                                    "agent_id": base_agent_id,
+                                    "confidence": 0.9,
+                                    "attempts": attempt + 1
+                                }
                         else:
                             logger.error(f"❌ JSON-RPC 응답에 결과가 없습니다: {rpc_result}")
                             if attempt == max_retries - 1:  # 마지막 시도
@@ -1359,9 +1405,9 @@ class AdvancedExecutionEngine(ExecutionEngine):
             {
                 'agent_type': getattr(result.agent_type, 'value', str(result.agent_type)),
                 'result_data': result.result_data,
-                'success': result.is_successful()
+                'success': result.is_successful() if result else False
             }
-            for result in previous_results
+            for result in previous_results if result
         ]
         
         # 새로운 SemanticQuery 생성
@@ -1391,7 +1437,7 @@ class AdvancedExecutionEngine(ExecutionEngine):
             'strategy': strategy.value,
             'execution_time': execution_time,
             'agent_count': len(results),
-            'success_count': sum(1 for r in results if r.is_successful()),
+            'success_count': sum(1 for r in results if r and r.is_successful()),
             'timestamp': time.time()
         }
         
@@ -1505,11 +1551,11 @@ class AdvancedExecutionEngine(ExecutionEngine):
             # 워크플로우 단계들을 실행
             results = []
             
-            for step in workflow_plan.steps:
+            for step_index, step in enumerate(workflow_plan.steps):
                 # 🔧 실제 에이전트 ID 사용 (AgentType 변환 대신)
                 agent_id = step.agent_id if hasattr(step, 'agent_id') else 'general'
                 
-                logger.info(f"🤖 워크플로우 단계 실행: {agent_id}")
+                logger.info(f"🤖 워크플로우 단계 실행 [{step_index+1}/{len(workflow_plan.steps)}]: {agent_id}")
                 
                 # 설치된 에이전트에서 해당 에이전트 찾기
                 matching_agent = None
@@ -1544,12 +1590,21 @@ class AdvancedExecutionEngine(ExecutionEngine):
                         }
                     )
                     
+                    # 컨텍스트 관리자 사용 (있으면)
+                    if hasattr(context, 'progress_callback') and context.progress_callback:
+                        await context.progress_callback.on_agent_start(agent_id, step_index)
+                    
                     # RealAgentCaller를 통해 호출
                     result = await self.agent_caller.call_agent(
                         agent_type=agent_type,
                         query=semantic_query,
                         context=enhanced_context
                     )
+                    
+                    # 컨텍스트 관리자 사용 (있으면)
+                    if hasattr(context, 'progress_callback') and context.progress_callback:
+                        if result and hasattr(result, 'success'):
+                            await context.progress_callback.on_step_complete(step.step_id, result)
                 else:
                     # 매칭되는 에이전트가 없으면 폴백
                     logger.warning(f"⚠️ 매칭되는 에이전트 없음: {agent_id}")
@@ -1562,10 +1617,35 @@ class AdvancedExecutionEngine(ExecutionEngine):
                         context=context
                     )
                 
+                # None 체크 및 기본 결과 생성
+                if result is None:
+                    logger.error(f"⚠️ agent_caller가 None을 반환함: {agent_id}")
+                    # 매칭된 에이전트의 이름 가져오기
+                    agent_display_name = agent_id
+                    if matching_agent:
+                        agent_data = matching_agent.get('agent_data', {})
+                        agent_display_name = agent_data.get('name', agent_data.get('agent_name', agent_id))
+                    
+                    result = AgentExecutionResult(
+                        result_data={"error": f"에이전트 {agent_id} 호출 실패"},
+                        execution_time=0.0,
+                        status=ExecutionStatus.FAILED,
+                        agent_type=agent_type if 'agent_type' in locals() else AgentType.GENERAL,
+                        error_message=f"에이전트 {agent_id} 호출 중 None 반환",
+                        agent_id=agent_id,
+                        agent_name=agent_display_name,
+                        data={"error": f"에이전트 {agent_id} 호출 실패"},
+                        success=False,
+                        confidence=0.0
+                    )
+                
                 results.append(result)
                 
                 # 실행 진행 상황 로깅
-                logger.info(f"📊 워크플로우 단계 완료: {agent_id} - {'✅' if result.is_successful() else '❌'}")
+                if result:
+                    logger.info(f"📊 워크플로우 단계 완료: {agent_id} - {'✅' if result.is_successful() else '❌'}")
+                else:
+                    logger.error(f"❌ 워크플로우 단계 실패: {agent_id} - 결과가 None입니다")
             
             # 실행 기록
             execution_time = time.time() - start_time
@@ -1688,7 +1768,7 @@ class AdvancedExecutionEngine(ExecutionEngine):
             'workflow_id': workflow_plan.plan_id,
             'execution_time': execution_time,
             'step_count': len(workflow_plan.steps),
-            'success_count': sum(1 for r in results if r.is_successful()),
+            'success_count': sum(1 for r in results if r and r.is_successful()),
             'strategy': workflow_plan.optimization_strategy.value if hasattr(workflow_plan, 'optimization_strategy') else 'unknown',
             'timestamp': time.time()
         }

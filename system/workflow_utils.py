@@ -42,11 +42,13 @@ class WorkflowUtils:
                                          execution_context: ExecutionContext) -> WorkflowPlan:
         """통합 결과를 WorkflowPlan으로 변환"""
         try:
-            # 통합 결과에서 워크플로우 정보 추출
-            workflow_info = unified_result.get('workflow_design', {})
+            # 통합 결과에서 워크플로우 정보 추출 - 새로운 구조
+            agent_mappings = unified_result.get('agent_mappings', [])
+            task_breakdown = unified_result.get('task_breakdown', [])
+            execution_plan = unified_result.get('execution_plan', {})
             
-            if not workflow_info.get('steps'):
-                logger.warning("통합 결과에 워크플로우 정보가 없음. 최소 워크플로우 생성")
+            if not agent_mappings:
+                logger.warning("통합 결과에 에이전트 매핑이 없음. 최소 워크플로우 생성")
                 return self.create_minimal_workflow(query_text, execution_context)
             
             # SemanticQuery 생성 (통합 결과에서)
@@ -64,40 +66,59 @@ class WorkflowUtils:
                 metadata=semantic_info.get('metadata', {})
             )
             
-            # 워크플로우 단계들 변환
+            # 워크플로우 단계들 변환 - 새로운 구조에서
             steps = []
-            for step_info in workflow_info.get('steps', []):
-                steps.append({
-                    'agent_id': step_info.get('agent_id', 'unknown_agent'),
-                    'task': step_info.get('task', 'Execute task'),
-                    'expected_output': step_info.get('expected_output', 'Task result'),
-                    'dependencies': step_info.get('dependencies', []),
-                    'priority': step_info.get('priority', 1),
-                    'timeout': step_info.get('timeout', 30),
-                    'metadata': step_info.get('metadata', {})
-                })
+            for mapping in agent_mappings:
+                # 해당 태스크 정보 찾기
+                task_info = next((t for t in task_breakdown if t.get('task_id') == mapping.get('task_id')), {})
+                
+                step = WorkflowStep(
+                    step_id=mapping.get('task_id', f'step_{len(steps)+1}'),
+                    agent_id=mapping.get('selected_agent', 'unknown_agent'),
+                    semantic_purpose=task_info.get('task_description', mapping.get('individual_query', 'Execute task')),
+                    required_concepts=task_info.get('extracted_keywords', []),
+                    depends_on=task_info.get('depends_on', []),
+                    estimated_time=30.0,
+                    estimated_complexity=WorkflowComplexity.MODERATE,
+                    execution_context={
+                        "query": mapping.get('individual_query', query_text),
+                        "expected_output": mapping.get('expected_output', ''),
+                        "context_integration": mapping.get('context_integration', ''),
+                        "confidence": mapping.get('confidence', 0.8)
+                    }
+                )
+                steps.append(step)
             
-            # 실행 전략 결정
-            strategy_name = workflow_info.get('execution_strategy', 'parallel')
-            try:
-                execution_strategy = ExecutionStrategy(strategy_name)
-            except ValueError:
-                execution_strategy = ExecutionStrategy.PARALLEL
+            # 실행 전략 결정 - 새로운 구조에서
+            strategy_map = {
+                'single_agent': OptimizationStrategy.SPEED_FIRST,  # 단일 에이전트는 속도 우선
+                'parallel': OptimizationStrategy.BALANCED,
+                'sequential': OptimizationStrategy.QUALITY_FIRST,
+                'hybrid': OptimizationStrategy.BALANCED
+            }
+            
+            strategy_name = execution_plan.get('strategy', 'parallel')
+            optimization_strategy = strategy_map.get(strategy_name, OptimizationStrategy.BALANCED)
+            
+            # 실행 순서 및 의존성 처리
+            execution_order = execution_plan.get('execution_order', [])
+            if not execution_order and steps:
+                # 기본 실행 순서 생성
+                execution_order = [[step.step_id] for step in steps]
             
             # WorkflowPlan 생성
             workflow_plan = WorkflowPlan(
-                workflow_id=f'workflow_{uuid.uuid4().hex[:8]}',
+                plan_id=f'workflow_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
                 query=semantic_query,
                 steps=steps,
-                optimization_strategy=execution_strategy,
-                estimated_time=workflow_info.get('estimated_time', 30),
-                complexity_score=semantic_info.get('complexity_score', 0.7),
-                confidence_score=unified_result.get('quality_assessment', {}).get('overall_confidence', 0.8),
-                metadata={
-                    'unified_processing': True,
-                    'workflow_type': workflow_info.get('workflow_type', 'standard'),
-                    'reasoning': unified_result.get('strategic_reasoning', '')
-                }
+                optimization_strategy=optimization_strategy,
+                estimated_time=execution_plan.get('estimated_time', 30),
+                estimated_quality=0.8,
+                dependencies={},
+                reasoning_chain=[
+                    unified_result.get('query_analysis', {}).get('reasoning', ''),
+                    execution_plan.get('reasoning', '')
+                ]
             )
             
             logger.info(f"✅ 통합 결과를 워크플로우로 변환 완료: {len(steps)}개 단계")
@@ -108,10 +129,14 @@ class WorkflowUtils:
             return self.create_minimal_workflow(query_text, execution_context)
 
     def create_minimal_workflow(self, query_text: str, execution_context: ExecutionContext) -> WorkflowPlan:
-        """최소한의 워크플로우 생성 (폴백)"""
-        # 사용 가능한 첫 번째 에이전트 선택
+        """최소한의 워크플로우 생성 (폴백) - 쿼리에 적합한 에이전트 선택"""
+        # 사용 가능한 에이전트 목록
         available_agents = list(execution_context.available_agents.keys()) if execution_context.available_agents else ['memo_agent']
-        selected_agent = available_agents[0] if available_agents else 'memo_agent'
+        
+        # 쿼리에 적합한 에이전트 선택
+        selected_agent = self._select_best_fallback_agent(query_text, available_agents, execution_context)
+        if not selected_agent:
+            selected_agent = available_agents[0] if available_agents else 'memo_agent'
         
         step = WorkflowStep(
             step_id="minimal_step",
@@ -314,26 +339,43 @@ class WorkflowUtils:
             return ["memo_agent"]  # 안전한 폴백
     
     def extract_installed_agents_info(self, execution_context: ExecutionContext = None) -> List[Dict[str, Any]]:
-        """설치된 에이전트 정보 추출"""
+        """설치된 에이전트 정보 추출 - 향상된 메타데이터 포함"""
         try:
             if not execution_context or not execution_context.available_agents:
                 logger.warning("ExecutionContext 또는 available_agents가 없음")
                 return []
+            
+            # 에이전트 메타데이터 추출기 사용
+            try:
+                from ..core.agent_metadata_extractor import get_agent_metadata_extractor
+                extractor = get_agent_metadata_extractor()
+                use_enhanced_extraction = True
+            except ImportError:
+                logger.warning("AgentMetadataExtractor를 사용할 수 없음, 기본 추출 사용")
+                use_enhanced_extraction = False
             
             installed_agents_info = []
             
             for agent_id, agent_info in execution_context.available_agents.items():
                 try:
                     if isinstance(agent_info, dict):
-                        # 딕셔너리 형태의 에이전트 정보
-                        agent_data = {
-                            "agent_id": agent_id,
-                            "name": agent_info.get('name', agent_id),
-                            "description": agent_info.get('description', f'{agent_id} 에이전트'),
-                            "capabilities": agent_info.get('capabilities', []),
-                            "available": agent_info.get('available', True),
-                            "metadata": agent_info.get('metadata', {})
-                        }
+                        if use_enhanced_extraction:
+                            # 향상된 메타데이터 추출
+                            agent_data = extractor.extract_agent_metadata({
+                                'agent_id': agent_id,
+                                'agent_data': agent_info
+                            })
+                        else:
+                            # 기본 추출
+                            agent_data = {
+                                "agent_id": agent_id,
+                                "name": agent_info.get('name', agent_id),
+                                "description": agent_info.get('description', f'{agent_id} 에이전트'),
+                                "capabilities": agent_info.get('capabilities', []),
+                                "available": agent_info.get('available', True),
+                                "metadata": agent_info.get('metadata', {}),
+                                "tags": agent_info.get('tags', [])
+                            }
                     elif hasattr(agent_info, '__dict__'):
                         # 객체 형태의 에이전트 정보
                         agent_data = {
@@ -376,6 +418,90 @@ class WorkflowUtils:
             logger.error(f"설치된 에이전트 정보 추출 실패: {e}")
             return []
     
+    def _select_best_fallback_agent(self, query_text: str, available_agents: List[str], 
+                                   execution_context: ExecutionContext) -> str:
+        """쿼리에 가장 적합한 폴백 에이전트 선택"""
+        try:
+            query_lower = query_text.lower()
+            
+            # 쿼리 키워드 기반 에이전트 매핑
+            agent_patterns = {
+                # 시각화 관련
+                'chart_agent': ['플로우차트', '차트', '그래프', '표', '다이어그램', 'flowchart', 'chart', 'graph', 'diagram'],
+                # 여행 관련  
+                'travel_agent': ['여행', '일정', '계획', 'travel', 'trip', 'schedule', 'plan'],
+                # 날씨 관련
+                'weather_agent': ['날씨', '기상', '온도', 'weather', 'temperature'],
+                # 금융 관련
+                'finance_agent': ['주식', '환율', '금융', 'stock', 'finance', 'currency'],
+                # 계산 관련 (마지막 순위로)
+                'calculator_agent': ['계산', '수식', '덧셈', '뺄셈', 'calculate', 'math', 'compute'],
+                # 검색 관련
+                'internet_agent': ['검색', '조회', '찾아', 'search', 'find', 'lookup'],
+                # 분석 관련
+                'analysis_agent': ['분석', '비교', '평가', 'analysis', 'analyze', 'compare']
+            }
+            
+            # 우선순위별 점수 계산
+            agent_scores = {}
+            
+            for agent_id in available_agents:
+                score = 0
+                agent_base = agent_id.replace('_agent', '')
+                
+                # 정확한 에이전트 이름 매칭 확인
+                if agent_id in agent_patterns:
+                    patterns = agent_patterns[agent_id]
+                    for pattern in patterns:
+                        if pattern in query_lower:
+                            score += 10  # 정확한 패턴 매칭 시 높은 점수
+                
+                # 에이전트 베이스 이름으로도 확인
+                elif agent_base in query_lower:
+                    score += 5
+                
+                # 도메인별 특별 처리
+                if 'chart' in agent_id or 'visual' in agent_id:
+                    if any(keyword in query_lower for keyword in ['플로우차트', '차트', '시각화', 'flowchart', 'visual']):
+                        score += 15  # 시각화 요청 시 우선
+                
+                if 'travel' in agent_id or 'plan' in agent_id:
+                    if any(keyword in query_lower for keyword in ['여행', '일정', '계획', 'travel', 'plan']):
+                        score += 12
+                
+                # 계산 에이전트는 명확한 계산 요청이 아니면 점수 감점
+                if 'calculator' in agent_id or 'calc' in agent_id:
+                    if not any(keyword in query_lower for keyword in ['계산', '수식', 'calculate', 'math']):
+                        if any(keyword in query_lower for keyword in ['플로우차트', '여행', '일정', 'flowchart', 'travel']):
+                            score -= 10  # 명확히 비계산 작업인 경우 감점
+                
+                agent_scores[agent_id] = score
+            
+            # 가장 높은 점수의 에이전트 선택
+            if agent_scores:
+                best_agent = max(agent_scores.items(), key=lambda x: x[1])
+                if best_agent[1] > 0:  # 양수 점수가 있는 경우만
+                    logger.info(f"🎯 폴백 에이전트 선택: {best_agent[0]} (점수: {best_agent[1]})")
+                    return best_agent[0]
+            
+            # 점수가 모두 0 이하인 경우, 계산 에이전트가 아닌 첫 번째 에이전트 선택
+            non_calc_agents = [agent for agent in available_agents 
+                             if 'calculator' not in agent and 'calc' not in agent]
+            if non_calc_agents:
+                selected = non_calc_agents[0]
+                logger.info(f"🔄 기본 폴백 에이전트 선택: {selected}")
+                return selected
+            
+            # 그래도 없으면 첫 번째 에이전트
+            return available_agents[0] if available_agents else 'memo_agent'
+            
+        except Exception as e:
+            logger.error(f"폴백 에이전트 선택 실패: {e}")
+            # 오류 시 계산 에이전트가 아닌 안전한 에이전트 반환
+            safe_agents = [agent for agent in available_agents 
+                          if 'calculator' not in agent and 'calc' not in agent]
+            return safe_agents[0] if safe_agents else (available_agents[0] if available_agents else 'memo_agent')
+
     def update_installed_agents_info(self, installed_agents_info: List[Dict[str, Any]]):
         """설치된 에이전트 정보 업데이트"""
         self.installed_agents_info = installed_agents_info
