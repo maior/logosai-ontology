@@ -239,7 +239,8 @@ class ResultProcessor:
                     "execution_time": result.get("execution_time", 0),
                     "confidence": result.get("confidence", 0.8),
                     "hasArtifacts": False,
-                    "agentType": "information_retrieval"
+                    "agentType": self._detect_agent_type(agent_id),
+                    "category": self._extract_category(data, agent_id)
                 })
                 
                 logger.info(f"  ✅ 내용 추가: {len(str(content))}자")
@@ -388,7 +389,8 @@ class ResultProcessor:
                     "execution_time": result.get("execution_time", 0),
                     "confidence": confidence,
                     "hasArtifacts": False,
-                    "agentType": "analysis"
+                    "agentType": self._detect_agent_type(agent_id),
+                    "category": self._extract_category(data, agent_id)
                 })
         
         return {
@@ -457,7 +459,8 @@ class ResultProcessor:
                     "execution_time": result.get("execution_time", 0),
                     "confidence": result.get("confidence", 0.8),
                     "hasArtifacts": False,
-                    "agentType": "comparison"
+                    "agentType": self._detect_agent_type(agent_id),
+                    "category": self._extract_category(data, agent_id)
                 })
         
         return {
@@ -516,7 +519,8 @@ class ResultProcessor:
                     "execution_time": result.get("execution_time", 0),
                     "confidence": result.get("confidence", 0.8),
                     "hasArtifacts": False,
-                    "agentType": "general"
+                    "agentType": self._detect_agent_type(agent_id),
+                    "category": self._extract_category(data, agent_id)
                 })
         
         return {
@@ -644,4 +648,76 @@ class ResultProcessor:
         except Exception as e:
             logger.error(f"❌ 동적 reasoning 생성 중 오류: {str(e)}")
             # 오류 발생 시 기본 reasoning 반환
-            return f"'{getattr(semantic_query, 'original_query', '질의')}'에 대한 처리를 완료했습니다." 
+            return f"'{getattr(semantic_query, 'original_query', '질의')}'에 대한 처리를 완료했습니다."
+    
+    def _detect_agent_type(self, agent_id: str) -> str:
+        """에이전트 ID로부터 타입 추출"""
+        agent_id_lower = agent_id.lower()
+        
+        if "calculator" in agent_id_lower or "calc" in agent_id_lower:
+            return "calculator"
+        elif "search" in agent_id_lower:
+            return "search"
+        elif "weather" in agent_id_lower:
+            return "weather"
+        elif "stock" in agent_id_lower:
+            return "stock"
+        elif "currency" in agent_id_lower or "exchange" in agent_id_lower:
+            return "currency"
+        elif "table" in agent_id_lower or "chart" in agent_id_lower or "visual" in agent_id_lower:
+            return "visualization"
+        elif "memo" in agent_id_lower:
+            return "memo"
+        elif "rag" in agent_id_lower:
+            return "rag"
+        elif "samsung" in agent_id_lower:
+            return "samsung"
+        else:
+            return "general"
+    
+    def _extract_category(self, data: Any, agent_id: str) -> str:
+        """에이전트 결과에서 category 추출"""
+        # 1. data가 dict이고 metadata가 있으면 거기서 추출
+        if isinstance(data, dict):
+            # metadata에서 category 찾기
+            metadata = data.get("metadata", {})
+            if metadata.get("category"):
+                logger.info(f"✅ metadata에서 category 발견: {metadata['category']}")
+                return metadata["category"]
+            
+            # 최상위 레벨에서 category 찾기
+            if data.get("category"):
+                logger.info(f"✅ 최상위 레벨에서 category 발견: {data['category']}")
+                return data["category"]
+        
+        # 2. agent_id에서 추론
+        inferred_category = self._infer_category_from_agent_id(agent_id)
+        logger.info(f"📊 agent_id '{agent_id}'에서 category 추론: {inferred_category}")
+        return inferred_category
+    
+    def _infer_category_from_agent_id(self, agent_id: str) -> str:
+        """에이전트 ID로부터 카테고리 추론"""
+        agent_id_lower = agent_id.lower()
+        
+        if "samsung" in agent_id_lower:
+            return "samsung"
+        elif "rag" in agent_id_lower:
+            return "rag"
+        elif "calculator" in agent_id_lower or "calc" in agent_id_lower:
+            return "calculation"
+        elif "search" in agent_id_lower:
+            return "search"
+        elif "weather" in agent_id_lower:
+            return "weather"
+        elif "stock" in agent_id_lower or "finance" in agent_id_lower:
+            return "finance"
+        elif "currency" in agent_id_lower or "exchange" in agent_id_lower:
+            return "currency"
+        elif "visual" in agent_id_lower or "chart" in agent_id_lower or "graph" in agent_id_lower:
+            return "visualization"
+        elif "table" in agent_id_lower:
+            return "table"
+        elif "memo" in agent_id_lower:
+            return "memo"
+        else:
+            return "general" 

@@ -372,49 +372,36 @@ class UnifiedQueryProcessor:
                 'visualization': '"create flowchart for 5-day Jeju trip" → travel planning agent + flowchart visualization agent'
             }
         
-        # LLM 기반 완전 통합 프롬프트
-        unified_prompt = f"""당신은 사용자 쿼리를 분석하여 에이전트 실행 체인을 설계하는 전문가입니다.
-특히 에이전트 간 결과 전달과 의존성 분석에 특화되어 있습니다.
+        # LLM 기반 쿼리 분석 프롬프트
+        unified_prompt = f"""당신은 사용자 쿼리를 분석하여 최적의 에이전트를 선택하는 전문가입니다.
 
-🌐 감지된 언어: {self.language_config.get_config(language)['name']}
+언어: {self.language_config.get_config(language)['name']}
 사용자 쿼리: "{query}"
 
-🤖 사용 가능한 실제 에이전트들:
+사용 가능한 에이전트들:
 {agents_formatted}
 
-🔗 **핵심 임무: 에이전트 간 결과 전달 분석**
+🚨 **절대 규칙 - 반드시 준수하세요:**
+1. "분석하고 제안/개선/제시" 패턴은 **무조건 1개 작업**으로 처리
+2. 삼성/반도체 관련 쿼리는 **무조건 samsung_gateway_agent** 사용
+3. 작업 분할은 **완전히 다른 도메인**일 때만 허용
 
-1. **순차 처리 (Sequential)**: 앞 에이전트의 결과가 다음 에이전트의 입력이 되는 경우
-   - 예: {examples['sequential']}
-   - 각 단계마다 이전 결과를 활용한 새로운 개별 쿼리 생성
+❌ **잘못된 분할 예시 (절대 금지):**
+- "수율 분석하고 개선방안 제시" → 2개 작업 ❌
+- "현황 파악하고 전략 수립" → 2개 작업 ❌
+- "트렌드 분석하고 예측" → 2개 작업 ❌
 
-2. **병렬 처리 (Parallel)**: 독립적인 작업들을 동시에 처리
-   - 예: {examples['parallel']}
+✅ **올바른 처리 예시:**
+쿼리: "삼성반도체 DDR5 Etch 공정의 수율 추이를 분석하고 개선방안을 제시해주세요"
+응답:
+- task_breakdown: [{{"task_id": "task_1", "individual_query": "{query}"}}]
+- strategy: "single_agent"
+- agent_mappings: [{{"selected_agent": "samsung_gateway_agent_xxx"}}]
 
-3. **하이브리드 처리 (Hybrid)**: 병렬 수집 후 통합 분석
-   - 예: {examples['hybrid']}
-
-4. **시각화 처리 (Visualization)**: 데이터 생성 후 시각화
-   - 예: {examples['visualization']}
-
-📋 **중요 지시사항:**
-1. 각 작업에 **특화된 개별 쿼리**를 생성하세요 (원본 쿼리 그대로 사용 금지)
-2. **데이터 전달 흐름**을 명확히 정의하세요
-3. **실행 순서와 병렬 그룹**을 정확히 구성하세요
-4. 순차 처리 시 이전 결과를 활용하는 방법을 명시하세요
-5. 반드시 위에 나열된 에이전트만 사용하세요
-6. 감지된 언어에 맞는 응답을 생성하세요
-
-🎯 **에이전트 선택 기준:**
-- 에이전트의 태그와 능력을 기반으로 최적 매칭
-- 작업 도메인과 에이전트 특성의 일치도
-- 에이전트 간 협업 가능성 고려
-
-⚠️ **특별 지침:**
-- "플로우차트", "차트", "표", "다이어그램" 등의 시각화 키워드가 있으면 visualization, chart, table 관련 에이전트 우선 선택
-- "여행 일정", "계획", "스케줄" 등이 있으면 planning, schedule, travel 관련 에이전트 선택
-- 계산이 주목적이 아닌 경우 calculator_agent를 첫 번째로 선택하지 마세요
-- 쿼리의 주요 의도를 파악하여 가장 적합한 에이전트를 선택하세요
+전략별 예시:
+- 단일 작업: {examples.get('single_agent', '"분석하고 제안" 같은 통합 요청')}
+- 순차 처리: {examples['sequential']}
+- 병렬 처리: {examples['parallel']}
 
 아래 JSON 형식으로 정확히 응답하세요:
 
@@ -430,13 +417,13 @@ class UnifiedQueryProcessor:
         "output_format": "text|table|chart|flowchart|list|json",
         "dependency_detected": true|false,
         "sequential_required": true|false,
-        "reasoning": "분석 근거"
+        "reasoning": "분석 근거: 왜 이런 복잡도로 평가했는지, 왜 multi_task로 판단했는지 등의 이유를 상세히 설명"
     }},
     "task_breakdown": [
         {{
             "task_id": "고유_작업_ID",
             "task_description": "구체적인 작업 설명",
-            "individual_query": "이 작업만을 위한 최적화된 개별 쿼리",
+            "individual_query": "이 작업을 위한 쿼리 (원본과 동일해도 됨)",
             "extracted_keywords": ["키워드1", "키워드2"],
             "domain": "작업_도메인",
             "complexity": "simple|moderate|complex",
@@ -465,7 +452,7 @@ class UnifiedQueryProcessor:
         ],
         "parallel_groups": [["동시실행_가능한_작업들"]],
         "execution_order": [["단계1_작업들"], ["단계2_작업들"]],
-        "reasoning": "의존성 분석 근거"
+        "reasoning": "의존성 분석 근거: 왜 sequential/parallel/hybrid로 결정했는지, 어떤 작업들이 왜 서로 의존적인지 구체적으로 설명"
     }},
     "agent_mappings": [
         {{
@@ -487,7 +474,7 @@ class UnifiedQueryProcessor:
         "execution_order": [["단계1"], ["단계2"], ["단계3"]],
         "data_passing_required": true|false,
         "result_integration_method": "통합_방법",
-        "reasoning": "실행 전략 근거"
+        "reasoning": "실행 전략 선택 이유: 왜 이 전략(single_agent/sequential/parallel/hybrid)을 선택했는지, 작업들 간의 관계와 의존성을 고려한 구체적 사유"
     }},
     "result_context": {{
         "requires_context_passing": true|false,
@@ -505,12 +492,14 @@ class UnifiedQueryProcessor:
     }}
 }}
 
-🚨 중요: 
-1. individual_query는 각 작업에 특화된 개별 쿼리여야 합니다
-2. 의존성이 있는 작업은 이전 결과 활용 방법을 명시해야 합니다
-3. parallel_groups와 execution_order를 정확히 구성하세요
-4. 실제 사용 가능한 에이전트만 사용하고, 태그 정보를 적극 활용하세요
-5. 감지된 언어({language})에 맞는 응답을 생성하세요"""
+‼️ **최종 지침:**
+
+1. 실제 사용 가능한 에이전트만 사용
+2. 감지된 언어({language})로 응답 생성
+3. **작업 수를 최소화하세요** - 하나의 에이전트가 처리 가늩하면 하나로 통합
+4. **individual_query는 원본 쿼리를 그대로 사용해도 됩니다** - 불필요한 수정 금지
+5. **단일 에이전트로 처리 가능하면 strategy는 "single_agent"로 설정**
+6. reasoning 필드에 "왜 그렇게 결정했는지" 구체적 이유 명시"""
 
         return {"query": unified_prompt}
 
@@ -807,7 +796,12 @@ class UnifiedQueryProcessor:
         if not available_agents:
             available_agents = ['default_agent']
         
-        primary_agent = available_agents[0]
+        # 삼성 쿼리 확인 후 적절한 에이전트 선택
+        if self._is_samsung_domain_query(query):
+            samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
+            primary_agent = samsung_agents[0] if samsung_agents else available_agents[0]
+        else:
+            primary_agent = available_agents[0]
         
         # 언어 감지
         if language is None:
@@ -883,7 +877,7 @@ class UnifiedQueryProcessor:
                 "parallel_groups": parallel_groups,
                 "execution_order": execution_order,
                 "data_passing_required": sequential_detected,
-                "reasoning": f"최종 폴백 - {strategy} 처리"
+                "reasoning": f"최종 폴백: {strategy} 전략을 선택한 이유는 작업들 간의 의존성 분석 결과 기반"
             },
             "quality_assessment": {
                 "completeness": 0.5,
@@ -1368,6 +1362,57 @@ class UnifiedQueryProcessor:
         # 폴백: 첫 번째 사용 가능한 에이전트
         return available_agents[0] if available_agents else 'unknown'
 
+    def _is_samsung_domain_query(self, query: str) -> bool:
+        """삼성 관련 업무 쿼리 자동 감지"""
+        
+        # 회사/브랜드 키워드
+        company_keywords = [
+            "삼성", "samsung", "삼성반도체", "samsung semiconductor",
+            "삼성전자", "삼성디스플레이", "삼성SDI"
+        ]
+        
+        # 제품/기술 키워드  
+        product_keywords = [
+            "ddr4", "ddr5", "gddr6", "lpddr5", "hbm3", 
+            "메모리", "memory", "반도체", "semiconductor",
+            "nand", "dram", "ssd", "플래시", "flash"
+        ]
+        
+        # 업무 키워드
+        business_keywords = [
+            "수율", "yield", "불량", "defect", "품질", "quality",
+            "공정", "process", "fab", "공급망", "supply chain",
+            "시장점유율", "market share", "매출", "revenue",
+            "생산", "production", "제조", "manufacturing"
+        ]
+        
+        # 분석 키워드 (업무 깊이 판단)
+        analysis_keywords = [
+            "분석", "analysis", "추이", "trend", "개선방안", "improvement",
+            "최적화", "optimization", "보고서", "report", "예측", "forecast",
+            "대시보드", "dashboard", "평가", "assessment"
+        ]
+        
+        query_lower = query.lower()
+        
+        # 삼성 + (제품 OR 업무) 패턴
+        has_company = any(keyword in query_lower for keyword in company_keywords)
+        has_product = any(keyword in query_lower for keyword in product_keywords)
+        has_business = any(keyword in query_lower for keyword in business_keywords)
+        has_analysis = any(keyword in query_lower for keyword in analysis_keywords)
+        
+        # 패턴 매칭 로직
+        if has_company and (has_product or has_business):
+            logger.info(f"🏢 삼성 도메인 감지됨: 회사 키워드 + 제품/업무")
+            return True
+        
+        # 삼성 없어도 반도체 + 분석이면 삼성으로 간주 (도메인 특화)
+        if has_product and has_business and has_analysis:
+            logger.info(f"🏢 삼성 도메인 감지됨: 반도체 업무 분석 패턴")
+            return True
+            
+        return False
+
     def _select_agent_by_content(self, content: str, available_agents: List[str], language: str = None) -> str:
         """다국어 지원 내용 기반 에이전트 선택"""
         if language is None:
@@ -1375,6 +1420,26 @@ class UnifiedQueryProcessor:
         
         content_lower = content.lower()
         agent_keywords = self.language_config.get_agent_keywords(language)
+        
+        # 🏢 삼성 도메인 우선 체크
+        if self._is_samsung_domain_query(content):
+            # 삼성 게이트웨이 에이전트 찾기
+            samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
+            if samsung_agents:
+                logger.info(f"🚀 Samsung Gateway Agent 선택: {samsung_agents[0]}")
+                return samsung_agents[0]
+            
+            # 게이트웨이가 없으면 삼성 개별 에이전트 찾기
+            samsung_sub_agents = [
+                agent for agent in available_agents
+                if any(keyword in agent.lower() for keyword in [
+                    "samsung_yield", "samsung_market", "samsung_quality",
+                    "samsung_supply", "samsung_business"
+                ])
+            ]
+            if samsung_sub_agents:
+                logger.info(f"🚀 Samsung Sub-agent 선택: {samsung_sub_agents[0]}")
+                return samsung_sub_agents[0]
         
         # 언어별 키워드 기반 매칭
         if any(word in content_lower for word in agent_keywords.get('calculation', [])):
@@ -1460,7 +1525,7 @@ class UnifiedQueryProcessor:
                 "parallel_groups": parallel_groups,
                 "execution_order": execution_order,
                 "data_passing_required": has_dependencies,
-                "reasoning": f"LLM 기반 폴백 - {strategy} 전략"
+                "reasoning": f"LLM 기반 폴백: {strategy} 전략 선택 - 작업 복잡도와 에이전트 능력을 고려한 최적 전략"
             },
             "quality_assessment": {
                 "completeness": 0.7,
@@ -1665,7 +1730,7 @@ class UnifiedQueryProcessor:
                 "parallel_groups": [["default_task"]],
                 "execution_order": ["default_task"],
                 "data_passing_required": False,
-                "reasoning": "기본 실행 계획"
+                "reasoning": "single_agent 기본 전략: 단일 에이전트로 처리 가능하여 가장 효율적인 방법"
             }
         elif section_key == 'dependency_analysis':
             return {

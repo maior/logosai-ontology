@@ -72,6 +72,9 @@ class QueryProcessor:
                 semantic_query, available_agents
             )
             
+            # 워크플로우 최적화 (중복 제거 포함)
+            workflow_plan = self.workflow_designer.optimize_workflow(workflow_plan)
+            
             # 워크플로우 설계 상세 로깅
             self._log_workflow_details(workflow_plan)
             

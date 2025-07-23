@@ -951,19 +951,64 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         return parallel_groups
     
     def _remove_duplicate_steps(self, workflow_steps: List[WorkflowStep]) -> List[WorkflowStep]:
-        """중복 단계 제거"""
-        unique_steps = []
-        seen_agents = set()
+        """중복 단계 제거 - 연속된 동일 에이전트 호출 병합"""
+        if not workflow_steps:
+            return []
+            
+        optimized_steps = []
+        i = 0
         
-        for step in workflow_steps:
-            # 같은 에이전트의 중복 단계 확인
-            if step.agent_id not in seen_agents:
-                unique_steps.append(step)
-                seen_agents.add(step.agent_id)
-            else:
-                logger.info(f"중복 단계 제거: {step.agent_id}")
+        while i < len(workflow_steps):
+            current_step = workflow_steps[i]
+            
+            # 다음 단계들 중에서 연속된 동일 에이전트 찾기
+            j = i + 1
+            merged_purposes = [current_step.purpose]
+            
+            while j < len(workflow_steps):
+                next_step = workflow_steps[j]
+                
+                # 같은 에이전트인지 확인
+                if next_step.agent_id == current_step.agent_id:
+                    # 의존성이 있는 경우, 연속성이 깨지므로 병합하지 않음
+                    # (다른 에이전트에 의존하는 경우)
+                    other_dependencies = [dep for dep in next_step.depends_on 
+                                        if dep != current_step.step_id]
+                    if other_dependencies:
+                        break
+                    
+                    # 병합 가능한 단계
+                    logger.info(f"🔀 연속된 동일 에이전트 호출 감지: {current_step.agent_id}")
+                    logger.info(f"   단계 {i+1}와 단계 {j+1} 병합")
+                    merged_purposes.append(next_step.purpose)
+                    
+                    # 개념 병합
+                    for concept in next_step.required_concepts:
+                        if concept not in current_step.required_concepts:
+                            current_step.required_concepts.append(concept)
+                    
+                    # 추정 시간은 더 긴 것으로 설정 (병렬 처리 가능)
+                    current_step.estimated_time = max(
+                        current_step.estimated_time, 
+                        next_step.estimated_time
+                    )
+                    
+                    j += 1
+                else:
+                    # 다른 에이전트면 중단
+                    break
+            
+            # 병합된 목적 업데이트
+            if len(merged_purposes) > 1:
+                current_step.purpose = f"병합된 작업 ({len(merged_purposes)}개): " + "; ".join(merged_purposes[:2])
+                if len(merged_purposes) > 2:
+                    current_step.purpose += f" 외 {len(merged_purposes)-2}개"
+            
+            optimized_steps.append(current_step)
+            i = j  # 병합된 단계들을 건너뛰기
         
-        return unique_steps
+        logger.info(f"✅ 중복 제거 완료: {len(workflow_steps)}개 → {len(optimized_steps)}개 단계")
+        return optimized_steps
     
     def _optimize_dependencies(self, execution_graph: nx.DiGraph) -> nx.DiGraph:
         """의존성 최적화"""

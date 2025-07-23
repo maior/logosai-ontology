@@ -145,11 +145,129 @@ class OntologySystem:
                 self.workflow_utils.update_installed_agents_info(installed_agents_info)
             workflow_plan = self.workflow_utils.convert_unified_result_to_workflow(unified_result, query_text, execution_context)
             
+            # 🔍 쿼리 분석 결과 로깅
+            logger.warning("="*80)
+            logger.warning("🔍 쿼리 분석 결과")
+            logger.warning(f"📝 원본 쿼리: {query_text}")
+            logger.warning(f"🎯 쿼리 의도: {unified_result.get('intent', 'unknown')}")
+            logger.warning(f"📊 복잡도: {unified_result.get('complexity', {}).get('level', 'unknown')} (점수: {unified_result.get('complexity', {}).get('score', 0)})")
+            
+            # 실행 전략 정보
+            execution_plan = unified_result.get('execution_plan', {})
+            strategy = execution_plan.get('strategy', 'unknown')
+            strategy_reasoning = execution_plan.get('reasoning', 'N/A')
+            
+            # 전략 한국어 매핑
+            strategy_kr = {
+                'SINGLE_AGENT': '단일 에이전트',
+                'SEQUENTIAL': '순차 실행', 
+                'PARALLEL': '병렬 실행',
+                'HYBRID': '하이브리드'
+            }.get(strategy, strategy)
+            
+            logger.warning(f"⚡ 실행 전략: {strategy_kr} ({strategy})")
+            logger.warning(f"🤔 전략 선택 이유: {strategy_reasoning}")
+            logger.warning(f"⏱️  예상 시간: {execution_plan.get('estimated_time', 0)}초")
+            logger.warning(f"🔄 워크플로우 타입: {workflow_plan.optimization_strategy if workflow_plan else 'unknown'}")
+            
+            logger.warning(f"\n🤖 선택된 에이전트 및 개별 쿼리:")
+            agent_mappings = unified_result.get('agent_mappings', [])
+            logger.warning(f"📊 총 {len(agent_mappings)}개 작업")
+            
+            for i, mapping in enumerate(agent_mappings):
+                agent_id = mapping.get('selected_agent', 'unknown')
+                task_type = mapping.get('task_type', 'unknown')
+                individual_query = mapping.get('individual_query', 'N/A')
+                confidence = mapping.get('confidence', 0)
+                
+                logger.warning(f"\n   작업 {i+1}: {agent_id}")
+                logger.warning(f"      📋 작업 유형: {task_type}")
+                logger.warning(f"      🔍 개별 쿼리: '{individual_query}'")
+                logger.warning(f"      📈 신뢰도: {confidence}")
+                
+                # 작업 분할 이유 (있는 경우)
+                task_reasoning = mapping.get('reasoning', '')
+                if task_reasoning:
+                    logger.warning(f"      💭 작업 분할 이유: {task_reasoning}")
+            
+            # 전체 추론 및 분석 이유
+            overall_reasoning = unified_result.get('reasoning', 'N/A')
+            if overall_reasoning and overall_reasoning != 'N/A':
+                logger.warning(f"\n📝 전체 분석 추론: {overall_reasoning}")
+            
+            # 분할 또는 통합 결정 이유
+            query_analysis = unified_result.get('query_analysis', {})
+            if query_analysis:
+                decomposition = query_analysis.get('task_decomposition', {})
+                if decomposition:
+                    logger.warning(f"\n🔬 작업 분해 분석:")
+                    logger.warning(f"   - 분해 필요성: {decomposition.get('needs_decomposition', 'unknown')}")
+                    logger.warning(f"   - 분해 이유: {decomposition.get('reasoning', 'N/A')}")
+                    
+            logger.warning("="*80)
+            
             # 워크플로우 실행
             logger.info(f"🔧 워크플로우 실행 시작: {len(workflow_plan.steps)}개 단계")
             execution_results = await self.execution_engine.execute_workflow(
                 workflow_plan.query, workflow_plan, execution_context
             )
+            
+            # 🔍 실행 결과 로깅
+            logger.warning("="*80)
+            logger.warning("📊 에이전트 실행 결과")
+            logger.warning(f"📝 원본 쿼리: {query_text}")
+            logger.warning(f"⚡ 실행 전략: {strategy_kr} ({strategy})")
+            logger.warning(f"✅ 성공한 에이전트: {len([r for r in execution_results if r.success])}개")
+            logger.warning(f"❌ 실패한 에이전트: {len([r for r in execution_results if not r.success])}개")
+            
+            # 에이전트 보다 구체적인 실행 결과
+            for i, result in enumerate(execution_results):
+                # 해당 에이전트의 원래 쿼리 찾기
+                original_query = "N/A"
+                if i < len(agent_mappings):
+                    original_query = agent_mappings[i].get('individual_query', 'N/A')
+                elif len(agent_mappings) == 1:
+                    # 단일 에이전트인 경우 원본 쿼리 사용
+                    original_query = query_text
+                
+                logger.warning(f"\n🤖 [{i+1}] {result.agent_id}")
+                logger.warning(f"   🔍 개별 쿼리: '{original_query}'")
+                logger.warning(f"   📊 상태: {'✅ 성공' if result.success else '❌ 실패'}")
+                logger.warning(f"   ⏱️  실행 시간: {result.execution_time:.2f}초")
+                logger.warning(f"   📈 신뢰도: {result.confidence}")
+                
+                # 결과 데이터에서 metadata 확인
+                if isinstance(result.result_data, dict):
+                    metadata = result.result_data.get('metadata', {})
+                    if metadata:
+                        # Category 추출 - Samsung agent에 대한 특별 처리
+                        category = metadata.get('category')
+                        if not category:
+                            agent_type_check = metadata.get('agent', '')
+                            if 'samsung' in agent_type_check.lower():
+                                category = 'samsung'
+                            else:
+                                category = 'general'
+                        
+                        agent_type = metadata.get('agent', 'unknown')
+                        query_type = metadata.get('query_type', 'unknown')
+                        logger.warning(f"   📊 Category: {category}")
+                        logger.warning(f"   🤖 Agent Type: {agent_type}")
+                        logger.warning(f"   📋 Query Type: {query_type}")
+                
+                # 결과 미리보기
+                if result.result_data:
+                    if isinstance(result.result_data, dict) and 'content' in result.result_data:
+                        content = result.result_data['content']
+                        if isinstance(content, dict) and 'answer' in content:
+                            preview = str(content['answer'])[:100]
+                        else:
+                            preview = str(content)[:100]
+                    else:
+                        preview = str(result.result_data)[:100]
+                    logger.warning(f"   - 결과 미리보기: {preview}...")
+            
+            logger.warning("="*80)
             
             # 결과 통합
             logger.info(f"🔗 실행 결과 통합 중...")
@@ -171,6 +289,38 @@ class OntologySystem:
             integrated_result = await self.result_processor.integrate_results(
                 execution_results, workflow_plan, semantic_query
             )
+            
+            # 🔍 통합 결과 로깅
+            logger.warning("="*80)
+            logger.warning("🎯 최종 통합 결과")
+            
+            if isinstance(integrated_result, dict):
+                # content 확인
+                content = integrated_result.get('content', '')
+                if content:
+                    logger.warning(f"📝 콘텐츠 타입: {type(content).__name__}")
+                    if isinstance(content, str):
+                        logger.warning(f"📝 콘텐츠 길이: {len(content)} 문자")
+                        logger.warning(f"📝 콘텐츠 미리보기: {content[:200]}...")
+                
+                # metadata 확인
+                metadata = integrated_result.get('metadata', {})
+                if metadata:
+                    logger.warning(f"📊 메타데이터:")
+                    logger.warning(f"   - 사용된 에이전트 수: {metadata.get('agent_count', 0)}")
+                    logger.warning(f"   - 통합 전략: {metadata.get('integration_strategy', 'unknown')}")
+                    logger.warning(f"   - Category: {metadata.get('category', 'NOT_SET')}")
+                
+                # category 특별 확인
+                if 'category' in integrated_result:
+                    logger.warning(f"🏷️  최종 Category: {integrated_result.get('category', 'NOT_SET')}")
+                
+                # reasoning 확인
+                if 'reasoning' in integrated_result:
+                    reasoning = integrated_result.get('reasoning', '')
+                    logger.warning(f"🧠 추론: {reasoning[:200]}...")
+            
+            logger.warning("="*80)
             
             total_time = (datetime.now() - start_time).total_seconds()
             
@@ -233,11 +383,30 @@ class OntologySystem:
                 # result_processor에서 온 경우 content를 result로 변환
                 if 'content' in integrated_result and 'result' not in integrated_result:
                     logger.info(f"  - content를 result로 변환")
+                    
+                    # Category 추출 - Samsung agent에 대한 특별 처리
+                    category = "general"
+                    agent_results = integrated_result.get("agent_results", [])
+                    logger.warning(f"🔍 [Category Fix] agent_results 개수: {len(agent_results)}")
+                    for ar in agent_results:
+                        agent_id = ar.get("agent_id", "")
+                        logger.warning(f"🔍 [Category Fix] 검사 중인 agent_id: '{agent_id}'")
+                        if "samsung" in agent_id.lower():
+                            category = "samsung"
+                            logger.warning(f"✅ [Category Fix] agent_id 기반으로 category를 'samsung'으로 설정!")
+                            break
+                        # metadata에서도 확인
+                        metadata = ar.get("metadata", {})
+                        if metadata.get("category") == "samsung":
+                            category = "samsung"
+                            logger.warning(f"✅ [Category Fix] metadata 기반으로 category를 'samsung'으로 설정!")
+                            break
+                    
                     final_response = {
                         "result": integrated_result.get("content", ""),
                         "reasoning": integrated_result.get("reasoning", ""),
                         "success": integrated_result.get("status") == "success",
-                        "category": "general",
+                        "category": category,
                         "source_agent": integrated_result.get("agent_results", [{}])[0].get("agent_id") if integrated_result.get("agent_results") else None,
                         "execution_time": integrated_result.get("metadata", {}).get("total_execution_time", 0),
                         "single_purpose": len(integrated_result.get("agent_results", [])) == 1,
@@ -287,11 +456,30 @@ class OntologySystem:
                     logger.info(f"  - agent_results 개수: {len(integrated_result.get('agent_results', []))}")
                     
                     # 구조화된 응답으로 변환
+                    
+                    # Category 추출 - Samsung agent에 대한 특별 처리
+                    category = "general"
+                    agent_results = integrated_result.get("agent_results", [])
+                    logger.warning(f"🔍 [Category Fix] agent_results 개수: {len(agent_results)}")
+                    for ar in agent_results:
+                        agent_id = ar.get("agent_id", "")
+                        logger.warning(f"🔍 [Category Fix] 검사 중인 agent_id: '{agent_id}'")
+                        if "samsung" in agent_id.lower():
+                            category = "samsung"
+                            logger.warning(f"✅ [Category Fix] agent_id 기반으로 category를 'samsung'으로 설정!")
+                            break
+                        # metadata에서도 확인
+                        metadata = ar.get("metadata", {})
+                        if metadata.get("category") == "samsung":
+                            category = "samsung"
+                            logger.warning(f"✅ [Category Fix] metadata 기반으로 category를 'samsung'으로 설정!")
+                            break
+                    
                     final_response = {
                         "result": integrated_result.get("content", "응답을 생성할 수 없습니다."),
                         "reasoning": integrated_result.get("reasoning", ""),
                         "success": True,
-                        "category": "general",  # TODO: 카테고리 추출 로직 필요
+                        "category": category,
                         "source_agent": integrated_result.get("agent_results", [{}])[0].get("agent_id") if integrated_result.get("agent_results") else None,
                         "execution_time": integrated_result.get("metadata", {}).get("total_execution_time", 0),
                         "single_purpose": len(integrated_result.get("agent_results", [])) == 1,
@@ -312,11 +500,30 @@ class OntologySystem:
                     }
                 else:
                     # 기본 형식
+                    
+                    # Category 추출 - Samsung agent에 대한 특별 처리
+                    category = "general"
+                    agent_results = integrated_result.get("agent_results", [])
+                    logger.warning(f"🔍 [Category Fix] agent_results 개수: {len(agent_results)}")
+                    for ar in agent_results:
+                        agent_id = ar.get("agent_id", "")
+                        logger.warning(f"🔍 [Category Fix] 검사 중인 agent_id: '{agent_id}'")
+                        if "samsung" in agent_id.lower():
+                            category = "samsung"
+                            logger.warning(f"✅ [Category Fix] agent_id 기반으로 category를 'samsung'으로 설정!")
+                            break
+                        # metadata에서도 확인
+                        metadata = ar.get("metadata", {})
+                        if metadata.get("category") == "samsung":
+                            category = "samsung"
+                            logger.warning(f"✅ [Category Fix] metadata 기반으로 category를 'samsung'으로 설정!")
+                            break
+                    
                     final_response = {
                         "result": integrated_result.get("content", "응답을 생성할 수 없습니다."),
                         "reasoning": integrated_result.get("reasoning", ""),  # reasoning도 확인
                         "success": integrated_result.get("status") == "success",
-                        "category": "general",
+                        "category": category,
                         "source_agent": None,
                         "execution_time": integrated_result.get("metadata", {}).get("total_execution_time", 0),
                         "single_purpose": False,
@@ -337,6 +544,139 @@ class OntologySystem:
                     }
             
             logger.info(f"✅ 온톨로지 쿼리 처리 완료 (총 {total_time:.2f}초, 품질: {performance_metrics['quality_score']:.2f})")
+            
+            # 🔍 최종 반환 값 로깅
+            logger.warning("="*80)
+            logger.warning("📦 최종 반환 값")
+            
+            if isinstance(final_response, dict):
+                # 기본 정보
+                logger.warning(f"🎯 성공 여부: {'✅' if final_response.get('success', False) else '❌'}")
+                logger.warning(f"🏷️  Category: {final_response.get('category', 'NOT_SET')}")
+                logger.warning(f"🤖 Source Agent: {final_response.get('source_agent', 'None')}")
+                logger.warning(f"⏱️  실행 시간: {final_response.get('execution_time', 0):.2f}초")
+                logger.warning(f"💯 신뢰도: {final_response.get('confidence_score', 0):.2f}")
+                
+                # result 내용
+                result = final_response.get('result', '')
+                if result:
+                    logger.warning(f"📝 Result 타입: {type(result).__name__}")
+                    if isinstance(result, str):
+                        logger.warning(f"📝 Result 길이: {len(result)} 문자")
+                        if result.startswith('<!DOCTYPE') or result.startswith('<html'):
+                            logger.warning(f"📝 Result: HTML 콘텐츠")
+                        else:
+                            logger.warning(f"📝 Result 미리보기: {result[:200]}...")
+                
+                # agent_results 요약
+                agent_results = final_response.get('agent_results', [])
+                if agent_results:
+                    logger.warning(f"🤖 에이전트 결과 수: {len(agent_results)}개")
+                    for i, ar in enumerate(agent_results):
+                        agent_id = ar.get('agent_id', 'unknown')
+                        execution_time = ar.get('execution_time', 0)
+                        
+                        # Category 추출 - Samsung agent에 대한 특별 처리
+                        category = ar.get('category')
+                        logger.warning(f"🔍 [Category Fix] agent_id '{agent_id}' 직접 category: '{category}'")
+                        if not category:
+                            # result.metadata에서 category 찾기
+                            result_data = ar.get('result', {})
+                            if isinstance(result_data, dict):
+                                metadata = result_data.get('metadata', {})
+                                category = metadata.get('category')
+                                logger.warning(f"🔍 [Category Fix] result.metadata에서 category: '{category}'")
+                            
+                            # 여전히 없으면 agent_id 기반 추론
+                            if not category:
+                                if 'samsung' in agent_id.lower():
+                                    category = 'samsung'
+                                    logger.warning(f"✅ [Category Fix] agent_id 기반 추론으로 'samsung' 설정!")
+                                else:
+                                    category = 'general'
+                        else:
+                            logger.warning(f"✅ [Category Fix] 기존 category '{category}' 유지")
+                        
+                        agent_type = ar.get('agentType', 'unknown')
+                        confidence = ar.get('confidence', 0)
+                        
+                        logger.warning(f"   [{i+1}] {agent_id}")
+                        logger.warning(f"       ⏱️  실행 시간: {execution_time:.2f}초")
+                        logger.warning(f"       📊 Category: {category}")
+                        logger.warning(f"       🤖 Type: {agent_type}")
+                        logger.warning(f"       📈 신뢰도: {confidence}")
+                        
+                        # 개별 쿼리 정보 (있는 경우)
+                        if i < len(agent_mappings):
+                            individual_query = agent_mappings[i].get('individual_query', 'N/A')
+                            logger.warning(f"       🔍 개별 쿼리: '{individual_query}'")
+                
+                # processing_metadata 정보 추가
+                processing_metadata = final_response.get('processing_metadata', {})
+                if processing_metadata:
+                    logger.warning(f"\n🔍 처리 메타데이터:")
+                    
+                    # execution_plan 정보
+                    execution_plan = processing_metadata.get('execution_plan', {})
+                    if execution_plan:
+                        strategy = execution_plan.get('strategy', 'unknown')
+                        reasoning = execution_plan.get('reasoning', 'N/A')
+                        logger.warning(f"   ⚡ 최종 실행 전략: {strategy}")
+                        logger.warning(f"   🤔 전략 선택 이유: {reasoning}")
+                    
+                    # agent_mappings 정보
+                    agent_mappings_meta = processing_metadata.get('agent_mappings', [])
+                    if agent_mappings_meta:
+                        logger.warning(f"   📊 총 {len(agent_mappings_meta)}개 작업 매핑")
+                
+                # metadata 요약
+                exec_summary = final_response.get('execution_summary', {})
+                if exec_summary:
+                    logger.warning(f"\n📊 실행 요약:")
+                    logger.warning(f"   - 총 에이전트: {exec_summary.get('total_agents', 0)}")
+                    logger.warning(f"   - 성공 에이전트: {exec_summary.get('successful_agents', 0)}")
+                    logger.warning(f"   - 평균 신뢰도: {exec_summary.get('average_confidence', 0):.2f}")
+                    
+                # 최종 category 확인 - Samsung agent에 대한 특별 처리
+                final_category = final_response.get('category')
+                logger.warning(f"🔍 [Final Category] final_response에서 기본 category: '{final_category}'")
+                if not final_category:
+                    # agent_results에서 Samsung agent가 있는지 확인
+                    agent_results = final_response.get('agent_results', [])
+                    logger.warning(f"🔍 [Final Category] agent_results 개수: {len(agent_results)}")
+                    for ar in agent_results:
+                        agent_id = ar.get('agent_id', '')
+                        logger.warning(f"🔍 [Final Category] 검사 중인 agent_id: '{agent_id}'")
+                        if 'samsung' in agent_id.lower():
+                            final_category = 'samsung'
+                            logger.warning(f"✅ [Final Category] Samsung agent 발견! category를 'samsung'으로 설정!")
+                            break
+                        # agent result의 metadata에서도 확인
+                        result_data = ar.get('result', {})
+                        if isinstance(result_data, dict):
+                            metadata = result_data.get('metadata', {})
+                            if metadata.get('category') == 'samsung':
+                                final_category = 'samsung'
+                                logger.warning(f"✅ [Final Category] metadata에서 Samsung category 발견! 'samsung'으로 설정!")
+                                break
+                    
+                    # 여전히 없으면 기본값
+                    if not final_category:
+                        final_category = 'general'
+                        logger.warning(f"⚠️ [Final Category] Samsung agent를 찾을 수 없어 'general'로 설정")
+                else:
+                    logger.warning(f"✅ [Final Category] 기존 category '{final_category}' 유지")
+                
+                logger.warning(f"\n📊 최종 Category: {final_category}")
+            
+            # 전체 처리 요약
+            total_time = (datetime.now() - start_time).total_seconds()
+            logger.warning(f"\n⏱️  전체 처리 시간: {total_time:.2f}초")
+            logger.warning(f"🎯 쿼리 처리 전략: {strategy_kr} ({strategy})")
+            logger.warning(f"📊 에이전트 수: {len(agent_mappings)}개")
+            logger.warning(f"📈 전체 성공률: {len([r for r in execution_results if r.success]) / len(execution_results) * 100:.1f}%")
+            
+            logger.warning("="*80)
             
             return final_response
             
