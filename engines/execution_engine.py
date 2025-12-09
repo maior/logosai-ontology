@@ -336,8 +336,18 @@ class RealAgentCaller(AgentCaller):
     async def _ensure_session(self):
         """HTTP 세션 확인 및 생성"""
         if not self.session or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=30, connect=10)
-            self.session = aiohttp.ClientSession(timeout=timeout)
+            timeout = aiohttp.ClientTimeout(total=120, connect=10)
+            # 큰 SSE 청크 처리를 위해 버퍼 크기 증가 (기본 64KB → 1MB)
+            connector = aiohttp.TCPConnector(
+                limit=100,
+                limit_per_host=30,
+                force_close=False
+            )
+            self.session = aiohttp.ClientSession(
+                timeout=timeout,
+                connector=connector,
+                read_bufsize=1024 * 1024  # 1MB 버퍼
+            )
 
     async def call_agent(
         self, 
@@ -421,10 +431,55 @@ class RealAgentCaller(AgentCaller):
             
             # data 필드도 설정 (ResultProcessor 호환성)
             result.data = final_result
-            result.agent_id = agent.get('agent_id', 'unknown')
-            # agent_name 설정 - agent_data에서 등록된 이름 사용
-            agent_data = agent.get('agent_data', {})
-            result.agent_name = agent_data.get('name', agent_data.get('agent_name', agent.get('agent_id', 'unknown')))
+
+            # 🔄 8888 서버 응답에서 실제 선택된 에이전트 정보 추출 (그대로 저장)
+            # _call_installed_agent가 이미 agent_id, agent_name, requested_agent_id, auto_selected를 추출하여 반환함
+            # result_data에서 직접 사용 (raw_result.metadata는 content 처리 후 손실될 수 있음)
+            actual_agent_id = result_data.get('agent_id', agent.get('agent_id', 'unknown'))
+            actual_agent_name = result_data.get('agent_name')  # ACP 서버에서 전달된 agent_name
+            requested_agent_id = result_data.get('requested_agent_id', agent.get('agent_id', 'unknown'))
+            auto_selected = result_data.get('auto_selected', False)
+            response_type = result_data.get('response_type', 'single_agent')
+            agent_results = result_data.get('agent_results', [])
+
+            # 🆕 통합 agents 배열과 unified_content 추출
+            agents_array = result_data.get('agents', [])  # 새로운 통합 구조
+            unified_content = result_data.get('unified_content', {})
+
+            # metadata에서 추가 정보 추출 시도 (raw_result에 있을 경우)
+            server_metadata = {}
+            if isinstance(raw_result, dict):
+                server_metadata = raw_result.get('metadata', {})
+            selection_reason = server_metadata.get('selection_reason', '')
+
+            if actual_agent_id != requested_agent_id:
+                logger.info(f"🔄 Task Classifier에 의해 에이전트 변경: {requested_agent_id} → {actual_agent_id}")
+                logger.info(f"📋 선택 이유: {selection_reason[:100]}..." if len(selection_reason) > 100 else f"📋 선택 이유: {selection_reason}")
+
+            # 8888 서버에서 전달된 agent_id 그대로 사용
+            result.agent_id = actual_agent_id
+
+            # agent_name 설정 - ACP 서버에서 전달된 agent_name 우선 사용
+            # 1순위: result_data.agent_name (ACP 서버에서 직접 전달)
+            # 2순위: server_metadata.agent_name (레거시 호환)
+            # 3순위: actual_agent_id에서 표시 이름 생성
+            result.agent_name = actual_agent_name or server_metadata.get('agent_name') or self._get_agent_display_name(actual_agent_id)
+
+            logger.info(f"📋 최종 에이전트 정보: id={result.agent_id}, name={result.agent_name}, type={response_type}, agents_count={len(agents_array)}")
+
+            # 8888 서버 메타데이터를 result.metadata에 병합
+            result.metadata.update({
+                'selected_agent_id': actual_agent_id,
+                'selected_agent_name': result.agent_name,
+                'requested_agent_id': requested_agent_id,
+                'auto_selected': auto_selected,
+                'selection_reason': selection_reason,
+                'selection_confidence': server_metadata.get('selection_confidence', 0.0),
+                'response_type': response_type,
+                'agents': agents_array,  # 🆕 통합 agents 배열 (새 구조)
+                'agent_results': agent_results,  # 레거시 호환용
+                'unified_content': unified_content  # 🆕 통합 요약 content
+            })
             result.success = success
             
             # 결과 반환 (중요!)
@@ -443,7 +498,57 @@ class RealAgentCaller(AgentCaller):
             })
             
             return self._create_fallback_result(agent_type, query, start_time)
-    
+
+    def _get_agent_display_name(self, agent_id: str) -> str:
+        """에이전트 ID로부터 표시 이름 생성
+
+        예시:
+        - calculator_agent -> Calculator Agent
+        - weather_agent -> Weather Agent
+        - rag_agent -> RAG Agent
+        """
+        if not agent_id:
+            return "Unknown Agent"
+
+        # 에이전트 ID에서 이름 부분 추출 및 변환
+        # agent_id 예: "calculator_agent", "weather_agent_123abc"
+        name_part = agent_id.split('_agent')[0] if '_agent' in agent_id else agent_id
+
+        # 해시 부분 제거 (예: _123abc)
+        if '_' in name_part:
+            parts = name_part.split('_')
+            # 마지막 부분이 해시처럼 보이면 제거
+            if len(parts[-1]) > 5 and parts[-1].isalnum():
+                name_part = '_'.join(parts[:-1])
+
+        # 특수 약어 처리
+        special_names = {
+            'rag': 'RAG',
+            'llm': 'LLM',
+            'api': 'API',
+            'sql': 'SQL',
+            'db': 'DB',
+            'ai': 'AI',
+        }
+
+        # 단어 분리 및 대문자 변환
+        words = name_part.replace('_', ' ').split()
+        display_words = []
+        for word in words:
+            lower_word = word.lower()
+            if lower_word in special_names:
+                display_words.append(special_names[lower_word])
+            else:
+                display_words.append(word.capitalize())
+
+        display_name = ' '.join(display_words)
+
+        # "Agent" 추가
+        if 'Agent' not in display_name and 'agent' not in display_name.lower():
+            display_name += ' Agent'
+
+        return display_name or agent_id
+
     def _find_matching_agent(self, agent_type: AgentType, agents: List[Dict]) -> Optional[Dict]:
         """agent_type에 맞는 설치된 에이전트 찾기"""
         logger.info(f"🔍 에이전트 매칭 시작: {getattr(agent_type, 'value', str(agent_type))}")
@@ -538,9 +643,15 @@ class RealAgentCaller(AgentCaller):
         return None
     
     async def _call_installed_agent(self, agent: Dict, query: SemanticQuery, context: ExecutionContext) -> Dict:
-        """설치된 에이전트 호출"""
+        """설치된 에이전트 호출 - SSE 스트리밍 지원"""
         agent_data = agent.get('agent_data', {})
-        endpoint = agent_data.get('endpoint', 'http://localhost:8888/jsonrpc')
+        # 🔄 SSE 스트리밍 엔드포인트 사용 (/jsonrpc → /stream)
+        base_endpoint = agent_data.get('endpoint', 'http://localhost:8888/jsonrpc')
+        # /jsonrpc를 /stream으로 변환
+        if base_endpoint.endswith('/jsonrpc'):
+            endpoint = base_endpoint.replace('/jsonrpc', '/stream')
+        else:
+            endpoint = base_endpoint.rstrip('/') + '/stream'
         agent_id = agent.get('agent_id', 'unknown')
         
         # 🔧 올바른 에이전트 ID 정규화 (해시 부분만 제거)
@@ -565,31 +676,29 @@ class RealAgentCaller(AgentCaller):
         # 프로젝트 ID 추출
         project_id = context.custom_config.get('project_id')
         
-        # JSON-RPC 요청 페이로드 - ✅ 정규화된 깔끔한 에이전트 ID 사용
+        # 🔄 SSE 스트리밍용 페이로드 - LLM이 선택한 에이전트를 전달하여 Task Classifier 우회
         payload = {
-            "jsonrpc": "2.0",
-            "method": "query",
-            "params": {
-                "query": getattr(query, 'natural_language', str(query)),
-                "email": user_email,
-                "sessionid": context.session_id,
-                "projectid": project_id,
-                "agent_id": base_agent_id,  # ✅ 깔끔한 이름으로 호출 (calculator_agent, weather_agent 등)
-                "timestamp": time.time()
-            },
-            "id": int(time.time() * 1000)
+            "query": getattr(query, 'natural_language', str(query)),
+            "email": user_email,
+            "sessionid": context.session_id,
+            "projectid": project_id,
+            "agent_id": base_agent_id,  # 🔧 LLM이 선택한 에이전트 ID 전달 (Task Classifier 우회)
+            "timestamp": time.time()
         }
-        
-        logger.info(f"📡 깔끔한 에이전트 호출: {agent_id} -> {base_agent_id}")
+
+        logger.info(f"📡 ACP 서버에 SSE 스트리밍 쿼리 전송 (LLM 선택 에이전트: {base_agent_id})")
         logger.info(f"📊 엔드포인트: {endpoint}")
         logger.info(f"📊 사용자: {user_email}")
         logger.debug(f"📊 요청 페이로드: {payload}")
+
+        # progress_callback 추출 (있으면 SSE 이벤트 전달)
+        progress_callback = getattr(context, 'progress_callback', None)
         
-        # 🚀 개선된 타임아웃 및 재시도 설정
+        # 🚀 SSE 스트리밍을 위한 타임아웃 설정 (더 긴 타임아웃)
         timeout_settings = aiohttp.ClientTimeout(
-            total=30,      # 전체 요청 타임아웃 30초로 증가
+            total=300,     # 전체 요청 타임아웃 5분 (스트리밍용)
             connect=10,    # 연결 타임아웃 10초
-            sock_read=20   # 소켓 읽기 타임아웃 20초
+            sock_read=60   # 소켓 읽기 타임아웃 60초 (SSE 이벤트 대기)
         )
         
         max_retries = 3
@@ -607,29 +716,287 @@ class RealAgentCaller(AgentCaller):
                     if not server_status:
                         logger.warning(f"⚠️ 서버 상태 확인 실패: {endpoint}")
                 
-                async with self.session.post(endpoint, json=payload, timeout=timeout_settings) as response:
+                # 🔄 SSE 스트리밍 헤더 설정
+                headers = {
+                    'Accept': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Content-Type': 'application/json'
+                }
+
+                async with self.session.post(endpoint, json=payload, headers=headers, timeout=timeout_settings) as response:
                     if response.status == 200:
-                        rpc_result = await response.json()
-                        logger.debug(f"📥 JSON-RPC 응답: {rpc_result}")
-                        
-                        if "error" in rpc_result:
-                            error_info = rpc_result["error"]
-                            logger.error(f"❌ JSON-RPC 에러 {base_agent_id}: {error_info}")
-                            return self._create_intelligent_fallback_response(base_agent_id, query, f"RPC Error: {error_info}")
-                        
-                        if "result" in rpc_result:
-                            result_data = rpc_result["result"]
-                            logger.info(f"✅ 에이전트 호출 성공: {base_agent_id} (시도 {attempt + 1}/{max_retries})")
+                        # 🔄 SSE 스트리밍 응답 처리
+                        logger.info(f"📡 SSE 스트리밍 시작: {endpoint}")
+
+                        final_result = None
+                        actual_agent_id = base_agent_id
+                        actual_agent_name = None
+                        auto_selected = False
+                        agents_array = []
+                        agent_results = []
+                        response_type = "single_agent"
+                        metadata = {}
+
+                        event_type = None
+                        event_data = ""
+
+                        # 청크 기반 SSE 읽기 (큰 청크 처리를 위해)
+                        buffer = ""
+                        async for chunk in response.content.iter_any():
+                            buffer += chunk.decode('utf-8')
+
+                            # 버퍼에서 완전한 라인들을 처리
+                            while '\n' in buffer:
+                                line_str, buffer = buffer.split('\n', 1)
+                                line_str = line_str.strip()
+
+                                if not line_str:
+                                    # 빈 줄 = 이벤트 완료
+                                    if event_type and event_data:
+                                        try:
+                                            data = json.loads(event_data)
+                                            logger.debug(f"📥 SSE 이벤트: {event_type} - {data}")
+
+                                            # 🎯 이벤트 타입별 처리
+                                            if event_type == 'agent_selected':
+                                                # 에이전트 선택 이벤트
+                                                event_info = data.get('data', data)
+                                                actual_agent_id = event_info.get('agent_id', base_agent_id)
+                                                actual_agent_name = event_info.get('agent_name')
+                                                auto_selected = True
+                                                logger.info(f"🎯 에이전트 선택됨: {actual_agent_id} ({actual_agent_name})")
+
+                                                # progress_callback으로 전달
+                                                if progress_callback and hasattr(progress_callback, 'on_progress'):
+                                                    await progress_callback.on_progress(
+                                                        f"에이전트 선택됨: {actual_agent_name or actual_agent_id}",
+                                                        0.3,
+                                                        {"stage": "agent_selected", "agent_id": actual_agent_id, "agent_name": actual_agent_name}
+                                                    )
+
+                                            elif event_type == 'progress':
+                                                # 진행 상황 이벤트
+                                                event_info = data.get('data', data)
+                                                progress_msg = event_info.get('message', '처리 중...')
+                                                progress_pct = event_info.get('progress', 50) / 100.0
+                                                logger.info(f"📊 진행 상황: {progress_msg} ({progress_pct*100:.0f}%)")
+
+                                                if progress_callback and hasattr(progress_callback, 'on_progress'):
+                                                    await progress_callback.on_progress(
+                                                        progress_msg,
+                                                        progress_pct,
+                                                        {"stage": "processing", **event_info}
+                                                    )
+
+                                            elif event_type == 'start':
+                                                # 에이전트 시작 이벤트
+                                                event_info = data.get('data', data)
+                                                start_agent_id = event_info.get('agent_id', actual_agent_id)
+                                                start_agent_name = event_info.get('agent_name', actual_agent_name)
+                                                logger.info(f"🚀 에이전트 시작: {start_agent_id} ({start_agent_name})")
+
+                                                if progress_callback and hasattr(progress_callback, 'on_progress'):
+                                                    await progress_callback.on_progress(
+                                                        f"에이전트 실행 시작: {start_agent_name or start_agent_id}",
+                                                        0.4,
+                                                        {"stage": "start", "agent_id": start_agent_id, "agent_name": start_agent_name}
+                                                    )
+
+                                            elif event_type == 'chunk':
+                                                # 청크 이벤트 (스트리밍 콘텐츠)
+                                                event_info = data.get('data', data)
+                                                chunk_content = event_info.get('content', '')
+                                                chunk_index = event_info.get('index', 0)
+                                                is_last = event_info.get('is_last', False)
+                                                logger.debug(f"📝 청크 #{chunk_index}: {chunk_content[:50]}..." if len(chunk_content) > 50 else f"📝 청크 #{chunk_index}: {chunk_content}")
+
+                                                if progress_callback and hasattr(progress_callback, 'on_progress'):
+                                                    progress_pct = 0.8 if is_last else 0.6
+                                                    await progress_callback.on_progress(
+                                                        "응답 스트리밍 중..." if not is_last else "응답 완료",
+                                                        progress_pct,
+                                                        {"stage": "streaming", "chunk": chunk_content, "index": chunk_index, "is_last": is_last}
+                                                    )
+
+                                            elif event_type == 'message':
+                                                # 메시지 이벤트 (부분 응답)
+                                                event_info = data.get('data', data)
+                                                message_content = event_info.get('content', '')
+                                                logger.debug(f"💬 메시지: {message_content[:100]}..." if len(message_content) > 100 else f"💬 메시지: {message_content}")
+
+                                                if progress_callback and hasattr(progress_callback, 'on_progress'):
+                                                    await progress_callback.on_progress(
+                                                        "응답 생성 중...",
+                                                        0.7,
+                                                        {"stage": "generating", "partial_content": message_content}
+                                                    )
+
+                                            elif event_type == 'complete':
+                                                # 완료 이벤트 - 최종 결과
+                                                logger.info(f"✅ SSE 스트리밍 완료")
+                                                final_result = data.get('data', data)
+
+                                                # 🔧 중첩된 result 구조 처리 (ACP 서버 응답 형식)
+                                                # ACP 서버가 {'result': {'answer': '...', ...}} 형식으로 응답하는 경우
+                                                if isinstance(final_result, dict) and 'result' in final_result:
+                                                    inner_result = final_result.get('result')
+                                                    if isinstance(inner_result, dict) and ('answer' in inner_result or 'content' in inner_result):
+                                                        logger.info(f"📦 중첩된 result 구조 감지 - 내부 결과 추출")
+                                                        # 메타데이터는 외부에서 가져오고, 실제 결과는 내부에서 가져옴
+                                                        outer_metadata = final_result.get('metadata', {})
+                                                        outer_agents = final_result.get('agents', [])
+                                                        outer_type = final_result.get('type', 'single_agent')
+                                                        outer_agent_id = final_result.get('agent_id')
+                                                        outer_agent_name = final_result.get('agent_name')
+
+                                                        # 내부 결과에 외부 메타데이터 병합
+                                                        final_result = inner_result
+                                                        if outer_metadata and 'metadata' not in final_result:
+                                                            final_result['metadata'] = outer_metadata
+                                                        if outer_agents and 'agents' not in final_result:
+                                                            final_result['agents'] = outer_agents
+                                                        if outer_type and 'type' not in final_result:
+                                                            final_result['type'] = outer_type
+                                                        if outer_agent_id and 'agent_id' not in final_result:
+                                                            final_result['agent_id'] = outer_agent_id
+                                                        if outer_agent_name and 'agent_name' not in final_result:
+                                                            final_result['agent_name'] = outer_agent_name
+
+                                                        logger.info(f"📋 추출된 결과 키: {list(final_result.keys())}")
+
+                                                # 결과에서 추가 정보 추출
+                                                if isinstance(final_result, dict):
+                                                    response_type = final_result.get('type', 'single_agent')
+                                                    metadata = final_result.get('metadata', {})
+                                                    agents_array = final_result.get('agents', [])
+                                                    if not actual_agent_id or actual_agent_id == base_agent_id:
+                                                        actual_agent_id = final_result.get('agent_id', base_agent_id)
+                                                        actual_agent_name = final_result.get('agent_name')
+
+                                            elif event_type == 'error':
+                                                # 에러 이벤트
+                                                error_info = data.get('data', data)
+                                                error_msg = error_info.get('message', str(error_info))
+                                                logger.error(f"❌ SSE 에러: {error_msg}")
+
+                                                if progress_callback and hasattr(progress_callback, 'on_error'):
+                                                    await progress_callback.on_error(error_msg, error_info)
+
+                                                return self._create_intelligent_fallback_response(
+                                                    base_agent_id, query, f"SSE Error: {error_msg}"
+                                                )
+
+                                        except json.JSONDecodeError as e:
+                                            logger.warning(f"⚠️ SSE 데이터 파싱 실패: {e}")
+
+                                    event_type = None
+                                    event_data = ""
+
+                                elif line_str.startswith('event:'):
+                                    event_type = line_str[6:].strip()
+                                elif line_str.startswith('data:'):
+                                    event_data = line_str[5:].strip()
+
+                        # 🎯 SSE 스트리밍 완료 후 결과 반환
+                        if final_result:
+                            result_data = final_result
+                            logger.info(f"✅ SSE 에이전트 호출 성공: {actual_agent_id} (시도 {attempt + 1}/{max_retries})")
                             logger.debug(f"📋 원본 응답 구조: {type(result_data)}")
-                            
+
+                            # 🔄 SSE에서 추출되지 않은 추가 정보 추출 (통합 agents 배열 구조)
+                            # SSE complete 이벤트에서 이미 response_type, metadata, agents_array 추출됨
+                            if not response_type or response_type == "single_agent":
+                                response_type = result_data.get("type", response_type) if isinstance(result_data, dict) else response_type
+                            if not metadata:
+                                metadata = result_data.get("metadata", {}) if isinstance(result_data, dict) else {}
+                            if not agents_array:
+                                agents_array = result_data.get("agents", []) if isinstance(result_data, dict) else []
+
+                            logger.info(f"📋 SSE 응답 타입: {response_type}, agents 배열 크기: {len(agents_array)}")
+
+                            # 🆕 통합 agents 배열이 있으면 우선 사용 (SSE에서 agent_selected가 없었을 경우)
+                            # SSE agent_selected 이벤트에서 agent 정보가 설정되지 않은 경우에만 추출
+                            if agents_array:
+                                # agents 배열을 order 기준으로 정렬
+                                sorted_agents = sorted(agents_array, key=lambda x: x.get("order", 0))
+                                if not agent_results:
+                                    agent_results = sorted_agents
+
+                                # SSE에서 설정되지 않은 경우에만 첫 번째 에이전트 정보를 대표로 사용
+                                if actual_agent_id == base_agent_id or not actual_agent_id:
+                                    first_agent = sorted_agents[0]
+                                    actual_agent_id = first_agent.get("agent_id", base_agent_id)
+                                    actual_agent_name = first_agent.get("agent_name")
+                                    auto_selected = len(sorted_agents) > 1 or response_type != "single_agent"
+
+                                logger.info(f"📋 통합 agents 배열: {len(sorted_agents)}개 에이전트")
+                                for agent_item in sorted_agents:
+                                    order = agent_item.get("order", "?")
+                                    aid = agent_item.get("agent_id", "unknown")
+                                    aname = agent_item.get("agent_name", "")
+                                    purpose = agent_item.get("purpose", "")
+                                    status = agent_item.get("status", "unknown")
+                                    success = agent_item.get("success", False)
+                                    exec_time = agent_item.get("execution_time", 0)
+                                    logger.info(f"  [{order}] {aid} ({aname}): {purpose} - {status} ({'✅' if success else '❌'}, {exec_time:.2f}s)")
+
+                            elif actual_agent_id == base_agent_id or not actual_agent_id:
+                                # SSE에서 agent_selected 이벤트가 없었을 때만 레거시 방식으로 추출
+                                if response_type == "single_agent":
+                                    # single_agent: result.agent_id, result.agent_name 사용 (레거시 호환)
+                                    actual_agent_id = result_data.get("agent_id", base_agent_id)
+                                    actual_agent_name = result_data.get("agent_name")
+                                    auto_selected = result_data.get("auto_selected", metadata.get("auto_selected", False))
+                                    logger.info(f"📋 single_agent 응답 (레거시): agent_id={actual_agent_id}, agent_name={actual_agent_name}")
+
+                                elif response_type == "multi_agent":
+                                    # multi_agent: result.metadata.agent_results[] 사용 (레거시 호환)
+                                    agent_results = metadata.get("agent_results", [])
+                                    if agent_results:
+                                        first_agent = agent_results[0]
+                                        actual_agent_id = first_agent.get("agent_id", base_agent_id)
+                                        actual_agent_name = first_agent.get("agent_name")
+                                        auto_selected = True
+                                        logger.info(f"📋 multi_agent 응답 (레거시): {len(agent_results)}개 에이전트, 대표={actual_agent_id}")
+
+                                elif response_type == "workflow":
+                                    # workflow: result.metadata.task_results[] 사용 (레거시 호환)
+                                    task_results = metadata.get("task_results", [])
+                                    if task_results:
+                                        first_task = task_results[0]
+                                        actual_agent_id = first_task.get("agent_id", base_agent_id)
+                                        actual_agent_name = first_task.get("agent_name")
+                                        auto_selected = True
+                                        agent_results = task_results
+                                        logger.info(f"📋 workflow 응답 (레거시): {len(task_results)}개 태스크, 대표={actual_agent_id}")
+                                else:
+                                    # 기존 레거시 응답 형식 지원 (metadata.selected_agent_id 사용)
+                                    actual_agent_id = metadata.get("selected_agent_id", base_agent_id)
+                                    auto_selected = metadata.get("auto_selected", False)
+                                    logger.info(f"📋 레거시 응답: selected_agent_id={actual_agent_id}")
+
+                            if actual_agent_id != base_agent_id:
+                                logger.info(f"🔄 Task Classifier에 의해 에이전트 변경: {base_agent_id} → {actual_agent_id}")
+                                logger.info(f"📋 선택 이유: {metadata.get('selection_reason', 'N/A')}")
+
                             # 응답 데이터 처리 - 구조를 보존
-                            if isinstance(result_data, dict) and "answer" in result_data:
+                            # content 필드 추출 (통합 요약)
+                            unified_content = result_data.get("content", {}) if isinstance(result_data, dict) else {}
+
+                            if isinstance(result_data, dict) and ("answer" in result_data or "content" in result_data):
                                 # 구조화된 응답인 경우 전체 구조 보존
-                                logger.info(f"📋 구조화된 응답 감지 - answer, reasoning 등 보존")
+                                logger.info(f"📋 구조화된 응답 감지 - answer/content, agents 등 보존")
                                 return {
                                     "success": True,
                                     "result": result_data,  # 전체 구조를 그대로 반환
-                                    "agent_id": base_agent_id,
+                                    "agent_id": actual_agent_id,  # 실제 선택된 에이전트 ID (대표)
+                                    "agent_name": actual_agent_name,  # 에이전트 이름 (대표)
+                                    "requested_agent_id": base_agent_id,  # 원래 요청한 에이전트 ID
+                                    "auto_selected": auto_selected,
+                                    "response_type": response_type,  # 응답 타입 전달
+                                    "agents": agents_array,  # 🆕 통합 agents 배열 (새 구조)
+                                    "agent_results": agent_results,  # 레거시 호환용
+                                    "unified_content": unified_content,  # 🆕 통합 요약 content
                                     "confidence": result_data.get("confidence", 0.9),
                                     "attempts": attempt + 1
                                 }
@@ -639,14 +1006,25 @@ class RealAgentCaller(AgentCaller):
                                 return {
                                     "success": True,
                                     "result": processed_result,
-                                    "agent_id": base_agent_id,
+                                    "agent_id": actual_agent_id,  # 실제 선택된 에이전트 ID (대표)
+                                    "agent_name": actual_agent_name,  # 에이전트 이름 (대표)
+                                    "requested_agent_id": base_agent_id,  # 원래 요청한 에이전트 ID
+                                    "auto_selected": auto_selected,
+                                    "response_type": response_type,  # 응답 타입 전달
+                                    "agents": agents_array,  # 🆕 통합 agents 배열 (새 구조)
+                                    "agent_results": agent_results,  # 레거시 호환용
+                                    "unified_content": unified_content,  # 🆕 통합 요약 content
                                     "confidence": 0.9,
                                     "attempts": attempt + 1
                                 }
                         else:
-                            logger.error(f"❌ JSON-RPC 응답에 결과가 없습니다: {rpc_result}")
+                            # SSE 스트리밍에서 complete 이벤트를 받지 못한 경우
+                            logger.error(f"❌ SSE 스트리밍에서 complete 이벤트 없이 종료: {base_agent_id}")
                             if attempt == max_retries - 1:  # 마지막 시도
-                                return self._create_intelligent_fallback_response(base_agent_id, query, "No result in RPC response")
+                                fallback = self._create_intelligent_fallback_response(base_agent_id, query, "No complete event in SSE stream")
+                                if fallback is None:  # Samsung 에이전트의 경우
+                                    return {"success": False, "error": "No complete event in SSE stream", "agent_id": base_agent_id}
+                                return fallback
                             continue  # 재시도
                     else:
                         error_text = await response.text()
@@ -656,12 +1034,12 @@ class RealAgentCaller(AgentCaller):
                         continue  # 재시도
                         
             except asyncio.TimeoutError:
-                logger.error(f"⏰ 에이전트 호출 타임아웃 {base_agent_id}: 시도 {attempt + 1}/{max_retries}")
+                logger.error(f"⏰ SSE 스트리밍 타임아웃 {base_agent_id}: 시도 {attempt + 1}/{max_retries}")
                 if attempt == max_retries - 1:  # 마지막 시도
                     return self._create_intelligent_fallback_response(
-                        base_agent_id, 
-                        query, 
-                        f"Timeout after {max_retries} attempts (30s each)"
+                        base_agent_id,
+                        query,
+                        f"SSE streaming timeout after {max_retries} attempts (5min each)"
                     )
                 continue  # 재시도
                 
@@ -718,6 +1096,19 @@ class RealAgentCaller(AgentCaller):
         """지능적인 폴백 응답 생성"""
         query_text = getattr(query, 'natural_language', str(query))
         base_agent_type = agent_id.split('_')[0] if '_' in agent_id else agent_id
+        
+        # Samsung 에이전트는 폴백 응답을 생성하지 않음 (실제 응답이 있는 경우)
+        if 'samsung' in agent_id.lower():
+            logger.info(f"🏭 Samsung 에이전트 {agent_id} - 폴백 응답 건너뛰기")
+            # Samsung 에이전트가 에러인 경우에만 기본 폴백 사용
+            if "error" in error_reason.lower() or "timeout" in error_reason.lower():
+                return {
+                    "success": False,
+                    "error": f"Samsung 에이전트 처리 실패: {error_reason}",
+                    "agent_id": agent_id
+                }
+            # 정상적인 경우는 None 반환하여 실제 응답 사용
+            return None
         
         # 에이전트 타입별 지능적 응답 생성
         if 'internet' in base_agent_type.lower():
