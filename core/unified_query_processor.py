@@ -43,23 +43,32 @@ class LanguageConfig:
                     r'(.+?)(?:기술|트렌드|동향).*?(?:조사|분석).*?(?:해서|하고).*?(.+?)(?:시각|그래프|차트|보고서)'
                 ],
                 'intent_keywords': {
-                    'search': ['검색', '찾기', '조회', '알아보기', '확인'],
+                    'search': ['검색', '찾기', '조회', '알아보기', '확인', '알려줘', '알아봐'],
                     'analyze': ['분석', '해석', '평가', '검토'],
                     'calculate': ['계산', '산출', '변환', '환산'],
                     'generate': ['생성', '만들기', '작성', '제작'],
                     'visualize': ['시각화', '차트', '그래프', '도표'],
                     'collect': ['수집', '모으기', '가져오기', '크롤링'],
                     'compare': ['비교', '대조', '견주기'],
-                    'summarize': ['요약', '정리', '종합']
+                    'summarize': ['요약', '정리', '종합'],
+                    # 🚀 여행/추천 의도 추가
+                    'recommend': ['추천', '추천해줘', '추천해', '좋을까', '괜찮을까', '어떨까', '어디가', '뭐가'],
+                    'plan': ['계획', '일정', '코스', '여정', '플랜']
                 },
                 'agent_keywords': {
-                    'weather': ['날씨', '기상', '기온', '온도'],
+                    'weather': ['날씨', '기상', '기온', '온도', '일기예보'],
                     'currency': ['환율', '달러', '유로', '엔', '원', '통화'],
-                    'stock': ['주가', '주식', '증권', '종목'],
+                    'stock': ['주가', '주식', '증권', '종목', '투자'],
                     'calculation': ['계산', '수학', '산수'],
-                    'search': ['검색', '정보', '조사'],
+                    'search': ['검색', '정보', '조사', '알려줘', '알아봐'],
                     'analysis': ['분석', '해석', '평가'],
-                    'visualization': ['시각화', '차트', '그래프']
+                    'visualization': ['시각화', '차트', '그래프'],
+                    # 🚀 여행/추천 도메인 추가
+                    'travel': ['여행', '관광', '여행지', '가볼만한', '가볼곳', '방문', '코스', '일정'],
+                    'recommendation': ['추천', '추천해줘', '추천해', '어디', '뭐', '뭘', '좋을까', '괜찮을까', '어떨까'],
+                    'food': ['맛집', '음식', '식당', '레스토랑', '카페', '먹을곳', '먹거리', '맛있는'],
+                    'attraction': ['명소', '관광지', '볼거리', '볼곳', '핫플', '핫플레이스'],
+                    'accommodation': ['숙소', '호텔', '펜션', '리조트', '민박', '숙박']
                 }
             },
             'en': {
@@ -79,23 +88,32 @@ class LanguageConfig:
                     r'(.+?)(?:technology|trend).*?(?:research|analyze).*?(?:and|then).*?(.+?)(?:visual|chart|graph|report)'
                 ],
                 'intent_keywords': {
-                    'search': ['search', 'find', 'look', 'check', 'get', 'fetch'],
+                    'search': ['search', 'find', 'look', 'check', 'get', 'fetch', 'tell me'],
                     'analyze': ['analyze', 'examine', 'evaluate', 'review'],
                     'calculate': ['calculate', 'compute', 'convert', 'transform'],
                     'generate': ['generate', 'create', 'make', 'produce'],
                     'visualize': ['visualize', 'chart', 'graph', 'plot'],
                     'collect': ['collect', 'gather', 'fetch', 'crawl'],
                     'compare': ['compare', 'contrast', 'versus'],
-                    'summarize': ['summarize', 'sum up', 'conclude']
+                    'summarize': ['summarize', 'sum up', 'conclude'],
+                    # 🚀 Travel/Recommendation intents added
+                    'recommend': ['recommend', 'suggest', 'best', 'top', 'where should', 'what should'],
+                    'plan': ['plan', 'itinerary', 'schedule', 'route']
                 },
                 'agent_keywords': {
                     'weather': ['weather', 'temperature', 'climate', 'forecast'],
                     'currency': ['currency', 'exchange', 'dollar', 'euro', 'yen'],
-                    'stock': ['stock', 'share', 'equity', 'market'],
+                    'stock': ['stock', 'share', 'equity', 'market', 'investment'],
                     'calculation': ['calculation', 'math', 'arithmetic'],
-                    'search': ['search', 'information', 'research'],
+                    'search': ['search', 'information', 'research', 'find', 'look'],
                     'analysis': ['analysis', 'analytics', 'evaluation'],
-                    'visualization': ['visualization', 'chart', 'graph']
+                    'visualization': ['visualization', 'chart', 'graph'],
+                    # 🚀 Travel/Recommendation domains added
+                    'travel': ['travel', 'trip', 'tour', 'visit', 'destination', 'itinerary', 'vacation'],
+                    'recommendation': ['recommend', 'suggestion', 'where', 'what', 'which', 'best', 'top'],
+                    'food': ['food', 'restaurant', 'cafe', 'dining', 'eat', 'cuisine', 'meal'],
+                    'attraction': ['attraction', 'sightseeing', 'landmark', 'tourist', 'place'],
+                    'accommodation': ['hotel', 'accommodation', 'stay', 'lodging', 'resort', 'hostel']
                 }
             }
         }
@@ -313,7 +331,10 @@ class UnifiedQueryProcessor:
             end_time = datetime.now()
             processing_time = (end_time - start_time).total_seconds()
             logger.info(f"⏱️ LLM 처리 완료: {processing_time:.2f}초")
-            
+
+            # 🔍 DEBUG: LLM 원본 응답 로깅
+            logger.info(f"🔍 [DEBUG] LLM 원본 응답 (처음 800자): {response_text[:800] if len(response_text) > 800 else response_text}")
+
             # 결과 파싱 및 검증 (에이전트 간 결과 전달 포함)
             result = await self._parse_and_validate_llm_response(response_text, query, available_agents, detected_language)
             
@@ -326,32 +347,42 @@ class UnifiedQueryProcessor:
             return await self._create_llm_based_fallback(query, available_agents, detected_language)
 
     def _create_llm_based_unified_prompt(self, query: str, agents_info: Dict[str, Any], language: str) -> Dict[str, str]:
-        """다국어 지원 완전 LLM 기반 통합 프롬프트 생성"""
-        
-        # 실제 에이전트 정보를 구조화된 형태로 정리
+        """다국어 지원 완전 LLM 기반 통합 프롬프트 생성 - 🚀 개선된 에이전트 정보 포맷팅"""
+
+        # 🚀 개선: 에이전트 정보를 LLM이 이해하기 쉬운 상세 형태로 정리
         agents_list = []
         for agent_id, info in agents_info.items():
-            agent_type = info.get('agent_type', 'UNKNOWN')
-            description = info.get('description', '설명 없음')
-            capabilities = info.get('capabilities', [])
-            tags = info.get('tags', [])
+            agent_data = info.get('agent_data', info)  # agent_data가 있으면 사용
+            agent_type = agent_data.get('agent_type', info.get('agent_type', 'UNKNOWN'))
+            description = agent_data.get('description', info.get('description', '설명 없음'))
+            name = agent_data.get('name', info.get('name', agent_id))
+            capabilities = agent_data.get('capabilities', info.get('capabilities', []))
+            tags = agent_data.get('tags', info.get('tags', []))
 
-            # 주요 능력 3개만 추출
-            main_capabilities = []
-            for cap in capabilities[:3]:
+            # 🚀 개선: 모든 능력 추출 (최대 10개)
+            all_capabilities = []
+            for cap in capabilities[:10]:
                 if isinstance(cap, dict):
-                    cap_name = cap.get('name', '알 수 없음')
-                    main_capabilities.append(cap_name)
-                else:
-                    main_capabilities.append(str(cap))
-            
+                    cap_name = cap.get('name', cap.get('capability', ''))
+                    cap_desc = cap.get('description', '')
+                    if cap_name:
+                        all_capabilities.append(f"{cap_name}" + (f"({cap_desc[:30]})" if cap_desc else ""))
+                elif cap:
+                    all_capabilities.append(str(cap))
+
+            # 🚀 개선: 태그를 도메인 힌트로 활용 (최대 15개)
+            all_tags = tags[:15] if tags else []
+
+            # 🚀 개선: 에이전트 ID와 이름을 명확히 구분
             agent_entry = f"""
-{agent_id}:
-  - 타입: {agent_type}
-  - 주요 능력: {', '.join(main_capabilities) if main_capabilities else '기본 처리'}
-  - 🏷️ 태그: {', '.join(tags[:6]) if tags else '없음'}{'...' if len(tags) > 6 else ''}
-  - 설명: {description[:100]}{'...' if len(description) > 100 else ''}
-            """
+📌 에이전트 ID: {agent_id}
+   이름: {name}
+   타입: {agent_type}
+   설명: {description[:300]}{'...' if len(description) > 300 else ''}
+   능력: {', '.join(all_capabilities) if all_capabilities else '일반 처리'}
+   도메인 태그: {', '.join(all_tags) if all_tags else '일반'}
+   ✅ 이 에이전트를 선택하려면 agent_mappings의 selected_agent에 "{agent_id}"를 입력하세요.
+"""
             agents_list.append(agent_entry)
         
         agents_formatted = '\n'.join(agents_list)
@@ -359,17 +390,21 @@ class UnifiedQueryProcessor:
         # 언어별 예시 및 패턴
         if language == 'ko':
             examples = {
+                'single_agent': '"제주도 여행 어디 추천해줘" → 여행/검색 에이전트가 제주도 관광지, 맛집, 명소 정보를 종합 검색',
                 'sequential': '"금 시세 확인하고 1온스당 원화 가격 계산" → 1단계: 금시세 조회 → 2단계: 금시세 결과를 받아서 원화 계산',
-                'parallel': '"날씨와 환율 알려줘" → 날씨 조회 || 환율 조회 (동시 실행)',
+                'parallel': '"제주도 맛집과 관광지 알려줘" → 맛집 검색 || 관광지 검색 (동시 실행)',
                 'hybrid': '"날씨와 환율 확인하고 여행 경비 계산" → 1단계: (날씨 || 환율) → 2단계: 두 결과를 받아서 경비 계산',
-                'visualization': '"제주도 여행 5일 일정을 플로우차트로" → 여행 계획 생성 에이전트 + 플로우차트 시각화 에이전트'
+                'visualization': '"제주도 여행 5일 일정을 플로우차트로" → 여행 계획 생성 에이전트 + 플로우차트 시각화 에이전트',
+                'recommendation': '"서울 근교 당일치기 여행지 추천해줘" → 인터넷 검색 에이전트로 최신 추천 정보 검색'
             }
         else:
             examples = {
+                'single_agent': '"Where should I travel in Jeju?" → Travel/search agent comprehensively searches for attractions, restaurants, and landmarks',
                 'sequential': '"check gold price and calculate ounce to won" → Step1: get gold price → Step2: calculate won price using gold price result',
-                'parallel': '"tell me weather and exchange rate" → weather query || exchange rate query (simultaneous execution)',
+                'parallel': '"tell me restaurants and attractions in Seoul" → restaurant search || attraction search (simultaneous execution)',
                 'hybrid': '"check weather and exchange rate then calculate travel cost" → Step1: (weather || exchange rate) → Step2: calculate cost using both results',
-                'visualization': '"create flowchart for 5-day Jeju trip" → travel planning agent + flowchart visualization agent'
+                'visualization': '"create flowchart for 5-day Jeju trip" → travel planning agent + flowchart visualization agent',
+                'recommendation': '"recommend day trip destinations near Seoul" → internet search agent for latest recommendations'
             }
         
         # LLM 기반 쿼리 분석 프롬프트
@@ -378,8 +413,87 @@ class UnifiedQueryProcessor:
 언어: {self.language_config.get_config(language)['name']}
 사용자 쿼리: "{query}"
 
+═══════════════════════════════════════════════════════════════════
+🚨 **핵심 규칙: 에이전트 선택 시 반드시 아래 목록의 정확한 ID를 사용하세요!**
+═══════════════════════════════════════════════════════════════════
+
 사용 가능한 에이전트들:
 {agents_formatted}
+
+═══════════════════════════════════════════════════════════════════
+⚠️ **에이전트 선택 필수 규칙:**
+1. agent_mappings의 selected_agent에는 **반드시 위 목록에 있는 정확한 에이전트 ID**를 입력
+2. 에이전트 ID는 대소문자를 정확히 일치시켜야 함
+3. 쿼리의 의도와 에이전트 설명/능력/태그를 비교하여 가장 적합한 에이전트 선택
+4. 여행/맛집/추천 관련 쿼리 → internet_agent 또는 llm_search_agent 우선
+5. 데이터 분석 → analysis_agent, 검색 → internet_agent, 쇼핑 → shopping_agent
+═══════════════════════════════════════════════════════════════════
+
+🎯 **1단계: 쿼리 타입 분류 (가장 먼저 수행 - 필수)**
+
+쿼리를 분석하여 아래 4가지 타입 중 하나로 정확히 분류하세요:
+
+**1. DIRECT_ANSWER (직접 답변 가능 - 에이전트 불필요)**
+   하위 타입:
+   - math_expression: 수학 표현식 계산
+     예시: "1+1", "2*3+5", "sqrt(16)", "10/2", "2^3"
+     특징: 숫자와 연산자(+,-,*,/,^,sqrt,sin,cos 등)만 포함
+
+   - simple_fact: 간단한 사실 질문
+     예시: "한국의 수도", "지구의 둘레", "광속은?"
+     특징: 일반 상식, 즉시 답변 가능
+
+   - time_query: 시간/날짜 질문
+     예시: "지금 몇 시", "오늘 날짜", "현재 시간"
+     특징: 시간 관련 실시간 정보
+
+**2. SEARCH_REQUIRED (문서/웹 검색 필요)**
+   하위 타입:
+   - document_search: PDF/문서에서 정보 검색
+     예시: "계약서에서 3조 찾기", "보고서의 결론 부분"
+     특징: "PDF", "문서", "파일", "보고서" 키워드 포함
+
+   - web_search: 인터넷 정보 검색
+     예시: "2024년 최신 뉴스", "현재 주가", "날씨"
+     특징: 최신 정보, 실시간 데이터 필요
+
+   - travel_recommendation: 🚀 여행/관광지 추천
+     예시: "제주도 여행 어디 추천해줘", "서울 근교 당일치기 여행지", "부산 가볼만한 곳"
+     특징: "여행", "관광", "가볼", "추천", "어디" 키워드 포함
+
+   - food_recommendation: 🍽️ 맛집/음식 추천
+     예시: "제주도 맛집 추천", "서울 데이트 코스 맛집", "강남역 맛있는 집"
+     특징: "맛집", "음식", "식당", "먹을곳" 키워드 포함
+
+   - place_recommendation: 📍 장소 추천
+     예시: "서울 핫플레이스", "데이트 코스 추천", "주말에 어디 가면 좋을까"
+     특징: "추천", "어디", "좋을까", "핫플" 키워드 포함
+
+**3. AGENT_TASK (에이전트 작업 필요)**
+   하위 타입:
+   - data_analysis: 데이터 분석 작업
+   - code_generation: 코드 생성
+   - visualization: 시각화 생성
+   - complex_reasoning: 복잡한 추론/분석
+
+**4. CONVERSATIONAL (대화형)**
+   하위 타입:
+   - greeting: 인사, 감사
+     예시: "안녕", "고마워", "감사합니다"
+   - help_request: 도움말 요청
+     예시: "사용법 알려줘", "어떻게 써?"
+
+⚠️ **분류 우선순위:**
+1. 수학 표현식이면 무조건 DIRECT_ANSWER/math_expression
+2. "PDF", "문서", "파일" 키워드가 있으면 SEARCH_REQUIRED/document_search
+3. "여행", "추천", "맛집", "관광" 키워드가 있으면 SEARCH_REQUIRED/travel_recommendation 또는 food_recommendation
+4. 분석/시각화/코드 생성 요청이면 AGENT_TASK
+5. 위 모두 아니면 적절한 타입 선택
+
+🚀 **여행/추천 쿼리 처리 규칙:**
+- "여행 어디 추천" 같은 쿼리는 SEARCH_REQUIRED/travel_recommendation으로 분류
+- 인터넷 검색 에이전트(internet_agent, llm_search_agent)를 우선 선택
+- 여행+맛집 복합 쿼리는 병렬(parallel) 전략 사용 가능
 
 🚨 **절대 규칙 - 반드시 준수하세요:**
 1. "분석하고 제안/개선/제시" 패턴은 **무조건 1개 작업**으로 처리
@@ -409,10 +523,14 @@ class UnifiedQueryProcessor:
     "language_detected": "{language}",
     "query_analysis": {{
         "original_query": "{query}",
+        "query_type": "DIRECT_ANSWER|SEARCH_REQUIRED|AGENT_TASK|CONVERSATIONAL",
+        "query_subtype": "math_expression|simple_fact|time_query|document_search|web_search|travel_recommendation|food_recommendation|place_recommendation|data_analysis|code_generation|visualization|complex_reasoning|greeting|help_request",
+        "classification_confidence": 0.0-1.0,
+        "classification_reasoning": "쿼리 타입 분류 근거: 왜 이 타입으로 분류했는지 구체적으로 설명 (예: '1+1'은 숫자와 연산자만 포함하므로 DIRECT_ANSWER/math_expression)",
         "complexity": "simple|moderate|complex",
         "multi_task": true|false,
         "task_count": 숫자,
-        "primary_intent": "정보검색|계산|분석|시각화|계획수립|기타",
+        "primary_intent": "정보검색|계산|분석|시각화|계획수립|여행추천|장소추천|맛집추천|기타",
         "domains": ["도메인1", "도메인2", ...],
         "output_format": "text|table|chart|flowchart|list|json",
         "dependency_detected": true|false,
@@ -494,12 +612,16 @@ class UnifiedQueryProcessor:
 
 ‼️ **최종 지침:**
 
-1. 실제 사용 가능한 에이전트만 사용
-2. 감지된 언어({language})로 응답 생성
-3. **작업 수를 최소화하세요** - 하나의 에이전트가 처리 가늩하면 하나로 통합
-4. **individual_query는 원본 쿼리를 그대로 사용해도 됩니다** - 불필요한 수정 금지
-5. **단일 에이전트로 처리 가능하면 strategy는 "single_agent"로 설정**
-6. reasoning 필드에 "왜 그렇게 결정했는지" 구체적 이유 명시"""
+1. **[필수] 가장 먼저 query_type과 query_subtype을 정확히 분류하세요**
+   - "1+1" 같은 수학 표현식은 무조건 DIRECT_ANSWER/math_expression
+   - PDF/문서 키워드가 있으면 SEARCH_REQUIRED/document_search
+   - classification_confidence와 classification_reasoning 필수 포함
+2. 실제 사용 가능한 에이전트만 사용
+3. 감지된 언어({language})로 응답 생성
+4. **작업 수를 최소화하세요** - 하나의 에이전트가 처리 가능하면 하나로 통합
+5. **individual_query는 원본 쿼리를 그대로 사용해도 됩니다** - 불필요한 수정 금지
+6. **단일 에이전트로 처리 가능하면 strategy는 "single_agent"로 설정**
+7. reasoning 필드에 "왜 그렇게 결정했는지" 구체적 이유 명시"""
 
         return {"query": unified_prompt}
 
@@ -566,27 +688,101 @@ class UnifiedQueryProcessor:
 
     def _validate_and_enhance_llm_result(self, result: Dict[str, Any], original_query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
         """LLM 결과 검증 및 향상"""
-        
+
         # 필수 키 확인
         required_keys = ['query_analysis', 'task_breakdown', 'agent_mappings', 'execution_plan', 'dependency_analysis']
         for key in required_keys:
             if key not in result:
                 result[key] = self._create_default_section(key, original_query, available_agents, language)
-        
-        # 에이전트 매핑 검증
+
+        # query_analysis 검증 및 향상
+        query_analysis = result.get('query_analysis', {})
+
+        # query_type 필드 검증 및 기본값 설정
+        if 'query_type' not in query_analysis:
+            # 간단한 휴리스틱으로 기본 타입 추정
+            query_lower = original_query.lower().strip()
+            if any(op in query_lower for op in ['+', '-', '*', '/', '^', 'sqrt', 'sin', 'cos']) and query_lower.replace(' ', '').replace('+', '').replace('-', '').replace('*', '').replace('/', '').replace('.', '').isdigit():
+                query_analysis['query_type'] = 'DIRECT_ANSWER'
+                query_analysis['query_subtype'] = 'math_expression'
+            elif any(keyword in query_lower for keyword in ['pdf', '문서', '파일', '보고서', 'document']):
+                query_analysis['query_type'] = 'SEARCH_REQUIRED'
+                query_analysis['query_subtype'] = 'document_search'
+            elif any(keyword in query_lower for keyword in ['분석', '시각화', '코드', '생성', 'analysis', 'visualization', 'code']):
+                query_analysis['query_type'] = 'AGENT_TASK'
+                query_analysis['query_subtype'] = 'data_analysis'
+            elif any(keyword in query_lower for keyword in ['안녕', '고마워', '감사', 'hello', 'hi', 'thanks']):
+                query_analysis['query_type'] = 'CONVERSATIONAL'
+                query_analysis['query_subtype'] = 'greeting'
+            else:
+                query_analysis['query_type'] = 'AGENT_TASK'
+                query_analysis['query_subtype'] = 'complex_reasoning'
+
+        # classification_confidence 기본값 설정
+        if 'classification_confidence' not in query_analysis:
+            query_analysis['classification_confidence'] = 0.7
+
+        # classification_reasoning 기본값 설정
+        if 'classification_reasoning' not in query_analysis:
+            query_analysis['classification_reasoning'] = f"자동 분류: {query_analysis.get('query_type', 'AGENT_TASK')}/{query_analysis.get('query_subtype', 'unknown')}"
+
+        result['query_analysis'] = query_analysis
+        logger.info(f"🎯 쿼리 타입 분류: {query_analysis.get('query_type')}/{query_analysis.get('query_subtype')} (신뢰도: {query_analysis.get('classification_confidence')})")
+
+        # 🚀 개선된 에이전트 매핑 검증 - LLM 의도 최대한 존중
+        # 🔍 DEBUG: LLM이 선택한 에이전트 매핑 원본
+        raw_mappings = result.get('agent_mappings', [])
+        logger.info(f"🔍 [DEBUG] LLM agent_mappings 원본: {raw_mappings}")
+        logger.info(f"🔍 [DEBUG] available_agents: {available_agents[:5]}... (총 {len(available_agents)}개)")
+
         valid_mappings = []
-        for mapping in result.get('agent_mappings', []):
+        for mapping in raw_mappings:
             agent_id = mapping.get('selected_agent')
+            selection_reasoning = mapping.get('selection_reasoning', '')
+            individual_query = mapping.get('individual_query', original_query)
+
             if agent_id in available_agents:
+                # 정확히 매칭됨
+                logger.info(f"✅ LLM 에이전트 선택 유효: {agent_id}")
                 valid_mappings.append(mapping)
             else:
-                # 유사한 에이전트 찾기
-                similar_agent = self._find_similar_agent(agent_id, available_agents)
+                # 🚀 개선: LLM의 의도(selection_reasoning)와 원본 쿼리를 함께 전달
+                similar_agent = self._find_similar_agent(
+                    agent_id,
+                    available_agents,
+                    selection_reasoning=selection_reasoning,
+                    query=individual_query
+                )
                 if similar_agent:
+                    original_agent = agent_id
                     mapping['selected_agent'] = similar_agent
-                    mapping['selection_reasoning'] += f" (대체: {agent_id} → {similar_agent})"
+                    mapping['selection_reasoning'] = f"{selection_reasoning} (🔄 LLM 의도 기반 대체: {original_agent} → {similar_agent})"
+                    mapping['llm_original_selection'] = original_agent  # 원래 LLM 선택 기록
                     valid_mappings.append(mapping)
-        
+                    logger.info(f"🔄 LLM 의도 기반 에이전트 대체: {original_agent} → {similar_agent}")
+                else:
+                    logger.warning(f"⚠️ 에이전트 매칭 실패, 건너뜀: {agent_id}")
+
+        # 🚀 개선: 유효한 매핑이 없을 때만 폴백 (최후의 수단)
+        if not valid_mappings:
+            logger.warning(f"⚠️ 모든 에이전트 매핑 실패, 쿼리 기반 폴백 실행")
+            # LLM이 선택하려던 첫 번째 에이전트의 의도 활용
+            first_mapping = result.get('agent_mappings', [{}])[0] if result.get('agent_mappings') else {}
+            first_reasoning = first_mapping.get('selection_reasoning', '')
+
+            # 폴백 에이전트 선택 (쿼리 분석 기반)
+            fallback_agent = self._select_agent_by_content(original_query, available_agents, language)
+            valid_mappings = [{
+                "task_id": "fallback_task",
+                "selected_agent": fallback_agent,
+                "agent_type": "GENERAL",
+                "selection_reasoning": f"폴백 선택: {fallback_agent} (원래 LLM 추론: {first_reasoning[:100]})" if first_reasoning else f"폴백 선택: {fallback_agent}",
+                "individual_query": original_query,
+                "context_integration": "없음",
+                "confidence": 0.6,
+                "is_fallback": True
+            }]
+
         result['agent_mappings'] = valid_mappings
         
         # 의존성 분석 검증
@@ -1363,7 +1559,10 @@ class UnifiedQueryProcessor:
         return available_agents[0] if available_agents else 'unknown'
 
     def _is_samsung_domain_query(self, query: str) -> bool:
-        """삼성 관련 업무 쿼리 자동 감지"""
+        """삼성 관련 업무 쿼리 자동 감지 (오타 보정 포함)"""
+        
+        # 오타 보정
+        normalized_query = self._normalize_samsung_typos(query)
         
         # 회사/브랜드 키워드
         company_keywords = [
@@ -1375,7 +1574,11 @@ class UnifiedQueryProcessor:
         product_keywords = [
             "ddr4", "ddr5", "gddr6", "lpddr5", "hbm3", 
             "메모리", "memory", "반도체", "semiconductor",
-            "nand", "dram", "ssd", "플래시", "flash"
+            "nand", "dram", "ssd", "플래시", "flash",
+            "particle", "파티클", "yield", "수율", "defect", "불량",
+            "fab", "팹", "wafer", "웨이퍼", "foundry", "파운드리",
+            "cleanroom", "클린룸", "lithography", "리소그래피",
+            "etching", "에칭", "deposition", "증착"
         ]
         
         # 업무 키워드
@@ -1393,7 +1596,8 @@ class UnifiedQueryProcessor:
             "대시보드", "dashboard", "평가", "assessment"
         ]
         
-        query_lower = query.lower()
+        # 정규화된 쿼리 사용
+        query_lower = normalized_query.lower()
         
         # 삼성 + (제품 OR 업무) 패턴
         has_company = any(keyword in query_lower for keyword in company_keywords)
@@ -1410,19 +1614,58 @@ class UnifiedQueryProcessor:
         if has_product and has_business and has_analysis:
             logger.info(f"🏢 삼성 도메인 감지됨: 반도체 업무 분석 패턴")
             return True
+        
+        # 반도체 전문 용어만 있어도 삼성으로 라우팅 (기본 도메인)
+        semiconductor_specific = [
+            "particle", "파티클", "yield", "수율", "defect", "불량",
+            "fab", "팹", "cleanroom", "클린룸"
+        ]
+        if any(term in query_lower for term in semiconductor_specific):
+            logger.info(f"🏢 삼성 도메인 감지됨: 반도체 전문 용어")
+            return True
             
         return False
+    
+    def _normalize_samsung_typos(self, query: str) -> str:
+        """삼성 관련 오타 정규화"""
+        typo_corrections = {
+            '삼상': '삼성',
+            '삼숭': '삼성',
+            '삼송': '삼성',
+            '삼선': '삼성',
+            '삼셩': '삼성',
+            '반도채': '반도체',
+            '번도체': '반도체',
+            '반도처': '반도체',
+            '수율': '수율',  # 표준화
+            '슈율': '수율',
+            '수류': '수율',
+            'partical': 'particle',
+            'particel': 'particle',
+            'yeild': 'yield',
+            'yiled': 'yield',
+            'defact': 'defect',
+            'deffect': 'defect'
+        }
+        
+        normalized = query
+        for typo, correct in typo_corrections.items():
+            normalized = normalized.replace(typo, correct)
+        
+        return normalized
 
     def _select_agent_by_content(self, content: str, available_agents: List[str], language: str = None) -> str:
-        """다국어 지원 내용 기반 에이전트 선택"""
+        """다국어 지원 내용 기반 에이전트 선택 (오타 보정 포함)"""
         if language is None:
             language = self.language_config.detect_language(content)
         
-        content_lower = content.lower()
+        # 오타 정규화 적용
+        normalized_content = self._normalize_samsung_typos(content)
+        content_lower = normalized_content.lower()
         agent_keywords = self.language_config.get_agent_keywords(language)
         
-        # 🏢 삼성 도메인 우선 체크
-        if self._is_samsung_domain_query(content):
+        # 🏢 삼성 도메인 우선 체크 (정규화된 쿼리 사용)
+        if self._is_samsung_domain_query(normalized_content):
             # 삼성 게이트웨이 에이전트 찾기
             samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
             if samsung_agents:
@@ -1448,6 +1691,25 @@ class UnifiedQueryProcessor:
             return self._find_best_agent_for_task(['weather_agent'], available_agents)
         elif any(word in content_lower for word in agent_keywords.get('currency', [])):
             return self._find_best_agent_for_task(['currency_exchange_agent'], available_agents)
+
+        # 🚀 여행/추천 도메인 처리 (우선순위 높음)
+        elif any(word in content_lower for word in agent_keywords.get('food', [])):
+            logger.info(f"🍽️ 맛집/음식 도메인 감지 - 쿼리: {content[:50]}...")
+            return self._find_best_agent_for_task(['food_agent', 'restaurant_agent', 'matzip_agent', 'shopping_agent', 'internet_agent', 'llm_search_agent'], available_agents)
+        elif any(word in content_lower for word in agent_keywords.get('travel', [])):
+            logger.info(f"✈️ 여행 도메인 감지 - 쿼리: {content[:50]}...")
+            return self._find_best_agent_for_task(['travel_agent', 'tour_agent', 'internet_agent', 'llm_search_agent'], available_agents)
+        elif any(word in content_lower for word in agent_keywords.get('accommodation', [])):
+            logger.info(f"🏨 숙소 도메인 감지 - 쿼리: {content[:50]}...")
+            return self._find_best_agent_for_task(['accommodation_agent', 'hotel_agent', 'internet_agent', 'llm_search_agent'], available_agents)
+        elif any(word in content_lower for word in agent_keywords.get('attraction', [])):
+            logger.info(f"🎡 관광지 도메인 감지 - 쿼리: {content[:50]}...")
+            return self._find_best_agent_for_task(['attraction_agent', 'tour_agent', 'internet_agent', 'llm_search_agent'], available_agents)
+        elif any(word in content_lower for word in agent_keywords.get('recommendation', [])):
+            logger.info(f"💡 추천 도메인 감지 - 쿼리: {content[:50]}...")
+            # 추천 쿼리는 여러 도메인이 복합될 수 있으므로 인터넷 검색 우선
+            return self._find_best_agent_for_task(['internet_agent', 'llm_search_agent', 'analysis_agent'], available_agents)
+
         elif any(word in content_lower for word in agent_keywords.get('search', [])):
             return self._find_best_agent_for_task(['internet_agent', 'crawler_agent', 'llm_search_agent'], available_agents)
         elif any(word in content_lower for word in agent_keywords.get('analysis', [])):
@@ -1455,7 +1717,9 @@ class UnifiedQueryProcessor:
         elif any(word in content_lower for word in agent_keywords.get('visualization', [])):
             return self._find_best_agent_for_task(['data_visualization_agent', 'content_formatter_agent'], available_agents)
         else:
-            return self._find_best_agent_for_task(['llm_search_agent', 'analysis_agent'], available_agents)
+            # 기본 폴백: 인터넷 검색 에이전트 우선
+            logger.info(f"🔍 기본 폴백 - 인터넷 검색 에이전트 선택")
+            return self._find_best_agent_for_task(['internet_agent', 'llm_search_agent', 'analysis_agent'], available_agents)
 
     def _convert_fallback_to_full_result(self, fallback_result: Dict[str, Any], query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
         """폴백 결과를 전체 구조로 변환"""
@@ -1666,27 +1930,148 @@ class UnifiedQueryProcessor:
         
         return cleaned_json
 
-    def _find_similar_agent(self, target_agent: str, available_agents: List[str]) -> Optional[str]:
-        """유사한 에이전트 찾기"""
-        target_lower = target_agent.lower()
-        
-        # 정확한 매칭 시도
+    def _find_similar_agent(self, target_agent: str, available_agents: List[str],
+                             selection_reasoning: str = None, query: str = None) -> Optional[str]:
+        """
+        🚀 개선된 유사 에이전트 찾기 - LLM의 의도를 최대한 존중
+
+        Args:
+            target_agent: LLM이 선택한 에이전트 ID (존재하지 않을 수 있음)
+            available_agents: 실제 사용 가능한 에이전트 목록
+            selection_reasoning: LLM의 선택 이유 (의도 파악에 활용)
+            query: 원본 쿼리 (도메인 힌트 추출에 활용)
+
+        Returns:
+            가장 적합한 에이전트 ID 또는 None
+        """
+        if not target_agent:
+            return None
+
+        target_lower = target_agent.lower().strip()
+
+        # === 1단계: 정확한 매칭 (대소문자 무시) ===
         for agent in available_agents:
             if agent.lower() == target_lower:
+                logger.info(f"✅ 정확한 매칭 성공: {target_agent} → {agent}")
                 return agent
-        
-        # 부분 매칭 시도
+
+        # === 2단계: 부분 매칭 (포함 관계) ===
         for agent in available_agents:
             if target_lower in agent.lower() or agent.lower() in target_lower:
+                logger.info(f"✅ 부분 매칭 성공: {target_agent} → {agent}")
                 return agent
-        
-        # 키워드 기반 매칭
-        keywords = target_lower.replace('_', ' ').split()
+
+        # === 3단계: 키워드 기반 매칭 (언더스코어 분리) ===
+        keywords = [kw for kw in target_lower.replace('_', ' ').replace('-', ' ').split() if len(kw) > 2]
         for agent in available_agents:
             agent_lower = agent.lower()
+            # 키워드 중 하나라도 에이전트 ID에 포함되면 매칭
             if any(keyword in agent_lower for keyword in keywords):
+                logger.info(f"✅ 키워드 매칭 성공: {target_agent} → {agent} (키워드: {keywords})")
                 return agent
-        
+
+        # === 4단계: 도메인 유사성 매칭 (LLM 의도 기반) ===
+        # LLM이 선택한 에이전트 이름에서 도메인 힌트 추출
+        domain_mappings = {
+            # 여행/관광 도메인
+            'travel': ['internet_agent', 'llm_search_agent', 'search_agent', 'tour_agent'],
+            'tour': ['internet_agent', 'llm_search_agent', 'search_agent', 'travel_agent'],
+            'trip': ['internet_agent', 'llm_search_agent', 'search_agent'],
+            # 음식/맛집 도메인
+            'food': ['restaurant_agent', 'matzip_agent', 'shopping_agent', 'internet_agent', 'llm_search_agent'],
+            'restaurant': ['matzip_agent', 'food_agent', 'shopping_agent', 'internet_agent', 'llm_search_agent'],
+            'matzip': ['restaurant_agent', 'food_agent', 'shopping_agent', 'internet_agent'],
+            # 검색/정보 도메인
+            'search': ['internet_agent', 'llm_search_agent', 'search_agent'],
+            'info': ['internet_agent', 'llm_search_agent', 'search_agent'],
+            'internet': ['llm_search_agent', 'search_agent', 'web_agent'],
+            'web': ['internet_agent', 'llm_search_agent', 'search_agent'],
+            # 추천 도메인
+            'recommend': ['internet_agent', 'llm_search_agent', 'recommendation_agent'],
+            'recommendation': ['internet_agent', 'llm_search_agent', 'recommend_agent'],
+            # 분석 도메인
+            'analysis': ['analysis_agent', 'data_agent', 'analytics_agent'],
+            'data': ['analysis_agent', 'data_analysis_agent', 'analytics_agent'],
+            # 날씨 도메인
+            'weather': ['weather_agent', 'internet_agent', 'llm_search_agent'],
+            # 쇼핑 도메인
+            'shopping': ['shopping_agent', 'matzip_agent', 'internet_agent'],
+            # 주식/금융 도메인
+            'stock': ['stock_agent', 'finance_agent', 'internet_agent'],
+            'finance': ['stock_agent', 'finance_agent', 'analysis_agent'],
+        }
+
+        # LLM이 선택한 에이전트에서 도메인 힌트 추출
+        for domain_key, preferred_agents in domain_mappings.items():
+            if domain_key in target_lower:
+                # 선호 에이전트 중 사용 가능한 것 찾기
+                for preferred in preferred_agents:
+                    for agent in available_agents:
+                        if preferred in agent.lower() or agent.lower() in preferred:
+                            logger.info(f"✅ 도메인 유사성 매칭: {target_agent} → {agent} (도메인: {domain_key})")
+                            return agent
+
+        # === 5단계: selection_reasoning에서 힌트 추출 (LLM의 의도 분석) ===
+        if selection_reasoning:
+            reasoning_lower = selection_reasoning.lower()
+            # reasoning에서 도메인 키워드 찾기
+            reasoning_domains = {
+                '여행': ['internet_agent', 'llm_search_agent', 'search_agent'],
+                '관광': ['internet_agent', 'llm_search_agent', 'search_agent'],
+                '맛집': ['restaurant_agent', 'matzip_agent', 'internet_agent', 'llm_search_agent'],
+                '음식': ['restaurant_agent', 'matzip_agent', 'internet_agent', 'llm_search_agent'],
+                '추천': ['internet_agent', 'llm_search_agent'],
+                '검색': ['internet_agent', 'llm_search_agent', 'search_agent'],
+                '정보': ['internet_agent', 'llm_search_agent', 'search_agent'],
+                '분석': ['analysis_agent', 'data_agent'],
+                '날씨': ['weather_agent', 'internet_agent'],
+                '주식': ['stock_agent', 'finance_agent'],
+                '쇼핑': ['shopping_agent'],
+                'travel': ['internet_agent', 'llm_search_agent'],
+                'food': ['restaurant_agent', 'matzip_agent', 'internet_agent', 'llm_search_agent'],
+                'search': ['internet_agent', 'llm_search_agent'],
+                'recommend': ['internet_agent', 'llm_search_agent'],
+            }
+
+            for domain_word, preferred_agents in reasoning_domains.items():
+                if domain_word in reasoning_lower:
+                    for preferred in preferred_agents:
+                        for agent in available_agents:
+                            if preferred in agent.lower():
+                                logger.info(f"✅ 추론 기반 매칭: {target_agent} → {agent} (추론 키워드: {domain_word})")
+                                return agent
+
+        # === 6단계: 원본 쿼리에서 힌트 추출 ===
+        if query:
+            query_lower = query.lower()
+            query_domains = {
+                '여행': ['internet_agent', 'llm_search_agent'],
+                '제주': ['internet_agent', 'llm_search_agent'],
+                '관광': ['internet_agent', 'llm_search_agent'],
+                '맛집': ['restaurant_agent', 'matzip_agent', 'internet_agent', 'llm_search_agent'],
+                '추천': ['internet_agent', 'llm_search_agent'],
+                '어디': ['internet_agent', 'llm_search_agent'],
+                '뭐': ['internet_agent', 'llm_search_agent'],
+            }
+
+            for domain_word, preferred_agents in query_domains.items():
+                if domain_word in query_lower:
+                    for preferred in preferred_agents:
+                        for agent in available_agents:
+                            if preferred in agent.lower():
+                                logger.info(f"✅ 쿼리 기반 매칭: {target_agent} → {agent} (쿼리 키워드: {domain_word})")
+                                return agent
+
+        # === 7단계: 범용 에이전트로 폴백 (최후의 수단) ===
+        # 범용 에이전트 우선순위
+        general_fallbacks = ['internet_agent', 'llm_search_agent', 'search_agent', 'general_agent']
+        for fallback in general_fallbacks:
+            for agent in available_agents:
+                if fallback in agent.lower():
+                    logger.warning(f"⚠️ 범용 에이전트 폴백: {target_agent} → {agent}")
+                    return agent
+
+        logger.warning(f"❌ 유사 에이전트를 찾지 못함: {target_agent}")
         return None
 
     def _create_default_section(self, section_key: str, query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
