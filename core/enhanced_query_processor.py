@@ -231,19 +231,41 @@ class EnhancedQueryProcessor:
         }
 
     def _split_query_by_connectors(self, query: str) -> List[str]:
-        """연결어로 쿼리 분리"""
-        # 연결어 패턴
+        """연결어로 쿼리 분리 - 복합 패턴 감지 강화"""
+        # 기본 연결어 패턴
         connectors = ['그리고', '하고', '또', '그런데', '그다음에', '그리고나서', '또한', '과', '와', ',']
-        
+
+        # 복합 패턴 추가 (예: "~해주고 ~도 해줘", "~알려주고 ~도")
+        compound_patterns = [
+            r'(.+?)(?:해주고|알려주고|보여주고)\s*(.+?)(?:도\s*)?(?:해줘|알려줘|보여줘)',
+            r'(.+?)(?:하고|그리고)\s*(.+)',
+            r'(.+?)(?:랑|이랑)\s*(.+)',
+        ]
+
+        # 복합 패턴 먼저 체크
+        for pattern in compound_patterns:
+            match = re.match(pattern, query)
+            if match:
+                segments = [g.strip() for g in match.groups() if g and g.strip()]
+                if len(segments) > 1:
+                    logger.info(f"🔗 복합 패턴 감지: {len(segments)}개 세그먼트 분리")
+                    return segments
+
+        # 기존 연결어 분리 방식
         segments = [query]
         for connector in connectors:
             new_segments = []
             for segment in segments:
                 new_segments.extend([s.strip() for s in segment.split(connector)])
             segments = new_segments
-        
+
         # 빈 문자열 제거
-        return [s for s in segments if s.strip()]
+        result = [s for s in segments if s.strip()]
+
+        if len(result) > 1:
+            logger.info(f"🔗 연결어 분리: {len(result)}개 세그먼트")
+
+        return result
 
     def _calculate_keyword_score(self, segment: str, agent_type: str, agent_id: str) -> int:
         """키워드 매칭 점수 계산"""
@@ -261,14 +283,18 @@ class EnhancedQueryProcessor:
             'weather_agent': ['날씨', '기온', '온도'],
             'currency_exchange_agent': ['환율', '달러', '원'],
             'crawler_agent': ['주가', '주식', '삼성전자'],
-            'internet_agent': ['검색', '정보', '알려줘']
+            'internet_agent': ['검색', '정보', '알려줘'],
+            # 🗓️ 일정/캘린더 에이전트 키워드 추가
+            'calendar_agent': ['일정', '스케줄', '약속', '캘린더', '추가', '등록', '알려줘'],
+            'scheduler_agent': ['일정', '스케줄', '약속', '캘린더', '추가', '등록', '알려줘'],
+            'schedule_agent': ['일정', '스케줄', '약속', '캘린더', '추가', '등록', '알려줘'],
         }
-        
+
         if agent_id in agent_keywords:
             for keyword in agent_keywords[agent_id]:
                 if keyword in segment:
                     score += 20
-        
+
         # 3. 특별 패턴 매칭
         if '날씨' in segment and 'weather' in agent_id:
             score += 25
@@ -276,7 +302,10 @@ class EnhancedQueryProcessor:
             score += 25
         if any(word in segment for word in ['주가', '주식', '삼성전자']) and 'crawler' in agent_id:
             score += 25
-        
+        # 🗓️ 일정/캘린더 패턴 매칭 추가
+        if any(word in segment for word in ['일정', '스케줄', '약속', '캘린더']) and any(kw in agent_id for kw in ['calendar', 'scheduler', 'schedule']):
+            score += 25
+
         return score
 
     def _extract_keywords_from_segment(self, segment: str) -> List[str]:
@@ -320,23 +349,51 @@ class EnhancedQueryProcessor:
         # 기본 메시지
         return f"{segment} - {agent_id}를 통해 처리해주세요"
 
-    def _merge_analysis_results(self, llm_analysis: Dict[str, Any], 
-                              keyword_analysis: Dict[str, Any], 
+    def _merge_analysis_results(self, llm_analysis: Dict[str, Any],
+                              keyword_analysis: Dict[str, Any],
                               query: str) -> Dict[str, Any]:
-        """LLM과 키워드 분석 결과 통합"""
-        
+        """LLM과 키워드 분석 결과 통합 - 멀티태스크 감지 강화"""
+
         # LLM 분석이 성공한 경우 우선 사용
         if llm_analysis and llm_analysis.get('tasks'):
             logger.info("🧠 LLM 분석 결과 사용")
             return llm_analysis
-        
+
         # LLM 분석 실패 시 키워드 분석 사용
         if keyword_analysis and keyword_analysis.get('tasks'):
             logger.info("🔤 키워드 분석 결과 사용")
             return keyword_analysis
-        
-        # 둘 다 실패한 경우 기본 분석
-        logger.warning("⚠️ 기본 분석으로 폴백")
+
+        # 둘 다 실패한 경우 - 복합 쿼리 패턴 감지 시도
+        logger.warning("⚠️ 폴백 분석 - 복합 쿼리 패턴 감지 시도")
+
+        # 복합 쿼리 패턴 감지
+        multi_task_detected = self._detect_multi_task_pattern(query)
+
+        if multi_task_detected:
+            segments = self._split_query_by_connectors(query)
+            tasks = []
+
+            for i, segment in enumerate(segments):
+                tasks.append({
+                    "task_type": "general",
+                    "keywords": self._extract_keywords_from_segment(segment),
+                    "best_agent": self._select_default_agent(segment, []),
+                    "optimized_message": f"{segment.strip()} - 이 요청을 처리해주세요",
+                    "confidence": 0.6,
+                    "execution_order": i + 1,
+                    "can_parallel": True
+                })
+
+            if len(tasks) > 1:
+                logger.info(f"✅ 폴백에서 {len(tasks)}개 복합 작업 감지!")
+                return {
+                    "multi_task": True,
+                    "tasks": tasks,
+                    "reasoning": "폴백 복합 쿼리 패턴 분석"
+                }
+
+        # 단일 작업으로 처리
         return {
             "multi_task": False,
             "tasks": [{
@@ -348,6 +405,47 @@ class EnhancedQueryProcessor:
             }],
             "reasoning": "폴백 분석"
         }
+
+    def _detect_multi_task_pattern(self, query: str) -> bool:
+        """복합 쿼리 패턴 감지"""
+        # 복합 쿼리 지시어 패턴
+        multi_task_indicators = [
+            r'(하고|그리고|또|랑|이랑|과|와)',  # 연결어
+            r'(해주고|알려주고|보여주고).+(도|그리고|또)',  # ~해주고 ~도
+            r'.+(도\s*)(해줘|알려줘|보여줘|해주세요)',  # ~도 해줘
+            r',\s*\w+',  # 쉼표 구분
+        ]
+
+        for pattern in multi_task_indicators:
+            if re.search(pattern, query):
+                logger.debug(f"🔍 복합 패턴 감지: {pattern}")
+                return True
+
+        # 다중 도메인 키워드 감지
+        domain_keywords = {
+            'weather': ['날씨', '기온', '예보', '기상'],
+            'currency': ['환율', '달러', '유로', '엔'],
+            'stock': ['주가', '주식', '삼성전자', '코스피'],
+            'search': ['검색', '찾아', '알아봐', '정보'],
+            'schedule': ['일정', '스케줄', '약속', '캘린더'],
+            'restaurant': ['맛집', '음식점', '레스토랑'],
+        }
+
+        detected_domains = []
+        query_lower = query.lower()
+
+        for domain, keywords in domain_keywords.items():
+            for kw in keywords:
+                if kw in query_lower:
+                    detected_domains.append(domain)
+                    break
+
+        # 2개 이상 도메인 감지되면 복합 쿼리
+        if len(set(detected_domains)) >= 2:
+            logger.info(f"🎯 다중 도메인 감지: {detected_domains}")
+            return True
+
+        return False
 
     def _create_enhanced_decomposition_and_mappings(self, 
                                                   query: str,
@@ -502,6 +600,70 @@ class EnhancedQueryProcessor:
                     return agent_id
             return available_agents[0]
         return "internet_agent"
+
+    def _select_agents_simple(self, query: str, available_agents: List[str]) -> List[str]:
+        """간단한 멀티에이전트 선택 - 워크플로우 디자이너용
+
+        복합 쿼리를 분석하여 필요한 모든 에이전트를 선택합니다.
+        단순 쿼리: 1개 에이전트 반환
+        복합 쿼리: 필요한 만큼 여러 에이전트 반환
+        """
+        if not available_agents:
+            return []
+
+        selected_agents = []
+        query_lower = query.lower()
+
+        # 1. 복합 쿼리 패턴 감지
+        is_multi_task = self._detect_multi_task_pattern(query)
+
+        if is_multi_task:
+            # 복합 쿼리: 세그먼트별로 에이전트 선택
+            segments = self._split_query_by_connectors(query)
+            logger.info(f"🔀 복합 쿼리 감지: {len(segments)}개 세그먼트")
+
+            for segment in segments:
+                best_agent = self._find_best_agent_for_segment(segment, available_agents)
+                if best_agent and best_agent not in selected_agents:
+                    selected_agents.append(best_agent)
+                    logger.info(f"  📍 세그먼트 '{segment[:30]}...' → {best_agent}")
+
+        else:
+            # 단일 쿼리: 가장 적합한 에이전트 1개 선택
+            best_agent = self._find_best_agent_for_segment(query, available_agents)
+            if best_agent:
+                selected_agents.append(best_agent)
+                logger.info(f"📍 단일 쿼리 → {best_agent}")
+
+        # 폴백: 에이전트가 선택되지 않은 경우
+        if not selected_agents:
+            default_agent = self._select_default_agent(query, available_agents)
+            if default_agent:
+                selected_agents.append(default_agent)
+                logger.info(f"📍 폴백 → {default_agent}")
+
+        logger.info(f"✅ 선택된 에이전트: {selected_agents} (총 {len(selected_agents)}개)")
+        return selected_agents
+
+    def _find_best_agent_for_segment(self, segment: str, available_agents: List[str]) -> Optional[str]:
+        """세그먼트에 가장 적합한 에이전트 찾기"""
+        segment_lower = segment.lower()
+        best_agent = None
+        best_score = 0
+
+        for agent_id in available_agents:
+            agent_type = self._get_agent_type_from_installed_info(agent_id)
+            score = self._calculate_keyword_score(segment_lower, agent_type, agent_id)
+
+            if score > best_score:
+                best_score = score
+                best_agent = agent_id
+
+        # 최소 점수 임계값 적용
+        if best_score >= 10:  # 최소 점수 필요
+            return best_agent
+
+        return None
 
     def _create_fallback_result(self, query: str, available_agents: List[str]) -> Tuple[QueryDecomposition, List[AgentQueryMapping]]:
         """폴백 결과 생성"""

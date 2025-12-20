@@ -592,53 +592,63 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return False
     
     def _select_required_agents(self, semantic_query: SemanticQuery, available_agents: List[str]) -> List[str]:
-        """필요한 에이전트 선택 - 단순화된 로직"""
+        """필요한 에이전트 선택 - 멀티에이전트 지원"""
         required_agents = []
         query_text = semantic_query.natural_language.lower()
-        
+
         logger.info(f"🎯 에이전트 선택 시작 - 쿼리: '{semantic_query.natural_language}'")
         logger.info(f"🎯 사용 가능한 에이전트: {available_agents}")
-        
+
         # Enhanced Query Processor 사용
         from ..core.enhanced_query_processor import get_enhanced_query_processor
         enhanced_processor = get_enhanced_query_processor()
-        
+
         # 설치된 에이전트 정보 설정 (이미 설정되어 있어야 하지만 안전하게)
         if self.installed_agents_info:
             enhanced_processor.set_installed_agents_info(self.installed_agents_info)
-        
-        # Enhanced Query Processor의 간단한 에이전트 선택 로직 사용
+
+        # Enhanced Query Processor의 멀티에이전트 선택 로직 사용
         selected_agents = enhanced_processor._select_agents_simple(semantic_query.natural_language, available_agents)
-        
+
         if selected_agents:
             required_agents.extend(selected_agents)
-            logger.info(f"Enhanced Processor 선택 결과: {selected_agents}")
+            logger.info(f"✅ Enhanced Processor 선택 결과: {len(selected_agents)}개 에이전트")
+            for agent in selected_agents:
+                logger.info(f"   📍 {agent}")
         else:
-            # 폴백: 기본 선택 로직
+            # 폴백: 멀티에이전트 기본 선택 로직
             logger.warning("Enhanced Processor 선택 실패, 폴백 로직 사용")
-            
+
             # 구조화된 쿼리에서 명시적 에이전트 확인
             if "required_agents" in semantic_query.structured_query:
                 explicit_agents = semantic_query.structured_query["required_agents"]
                 required_agents.extend([agent for agent in explicit_agents if agent in available_agents])
                 logger.info(f"명시적 에이전트 선택: {required_agents}")
-            
-            # 기본 키워드 매칭 (매우 간단)
+
+            # 멀티에이전트 키워드 매칭 - 복합 쿼리 지원
             if not required_agents:
-                basic_mappings = {
-                    "INTERNET_SEARCH": ["검색", "찾아", "정보"],
-                    "MEMO": ["저장", "메모"],
-                    "CALCULATOR": ["계산", "수학"]
+                # 각 도메인별 에이전트 선택
+                domain_mappings = {
+                    "INTERNET_SEARCH": ["검색", "찾아", "정보", "알아봐", "인터넷"],
+                    "MEMO": ["저장", "메모", "기록", "기억"],
+                    "CALCULATOR": ["계산", "수학", "더하기", "빼기"],
+                    "WEATHER": ["날씨", "기온", "예보"],
+                    "CURRENCY": ["환율", "달러", "원"],
+                    "CRAWLER": ["주가", "주식", "삼성전자"],
+                    "SCHEDULER": ["일정", "스케줄", "약속", "캘린더"],
+                    "RESTAURANT_FINDER": ["맛집", "음식점", "레스토랑"],
                 }
-                
+
+                # 복합 쿼리 감지: 각 도메인에 해당하는 모든 에이전트 선택
                 for agent_id in available_agents:
                     agent_type = self._extract_agent_type_from_id(agent_id)
-                    if agent_type in basic_mappings:
-                        keywords = basic_mappings[agent_type]
+                    if agent_type in domain_mappings:
+                        keywords = domain_mappings[agent_type]
                         if any(kw in query_text for kw in keywords):
-                            required_agents.append(agent_id)
-                            break
-            
+                            if agent_id not in required_agents:
+                                required_agents.append(agent_id)
+                                logger.info(f"📍 도메인 매칭: {agent_type} → {agent_id}")
+
             # 최후 폴백: 인터넷 검색 에이전트 선택
             if not required_agents and available_agents:
                 internet_agent = None
@@ -646,15 +656,17 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                     if "internet" in agent_id.lower() or "search" in agent_id.lower():
                         internet_agent = agent_id
                         break
-                
+
                 if internet_agent:
                     required_agents.append(internet_agent)
-                    logger.info(f"기본 인터넷 에이전트 선택: {internet_agent}")
+                    logger.info(f"📍 폴백 인터넷 에이전트: {internet_agent}")
                 else:
                     required_agents.append(available_agents[0])
-                    logger.info(f"기본 에이전트 선택: {available_agents[0]}")
-        
-        logger.info(f"🎯 최종 선택된 에이전트: {required_agents}")
+                    logger.info(f"📍 폴백 기본 에이전트: {available_agents[0]}")
+
+        logger.info(f"🎯 최종 선택된 에이전트: {len(required_agents)}개")
+        for i, agent in enumerate(required_agents):
+            logger.info(f"   [{i+1}] {agent}")
         return required_agents
     
     def _extract_agent_type_from_id(self, agent_id: str) -> str:
