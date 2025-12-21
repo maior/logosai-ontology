@@ -63,8 +63,11 @@ class LanguageConfig:
                     'search': ['검색', '정보', '조사', '알려줘', '알아봐'],
                     'analysis': ['분석', '해석', '평가'],
                     'visualization': ['시각화', '차트', '그래프'],
+                    # 🗓️ 일정/캘린더 도메인 추가
+                    'schedule': ['일정', '스케줄', '약속', '캘린더', '등록', '추가해줘', '추가해', '알려줘', '목요일', '금요일', '이번주', '다음주'],
+                    'calendar': ['일정', '스케줄', '약속', '캘린더', '등록', '추가해줘', '추가해', '알려줘', '이번주', '다음주'],
                     # 🚀 여행/추천 도메인 추가
-                    'travel': ['여행', '관광', '여행지', '가볼만한', '가볼곳', '방문', '코스', '일정'],
+                    'travel': ['여행', '관광', '여행지', '가볼만한', '가볼곳', '방문', '코스'],
                     'recommendation': ['추천', '추천해줘', '추천해', '어디', '뭐', '뭘', '좋을까', '괜찮을까', '어떨까'],
                     'food': ['맛집', '음식', '식당', '레스토랑', '카페', '먹을곳', '먹거리', '맛있는'],
                     'attraction': ['명소', '관광지', '볼거리', '볼곳', '핫플', '핫플레이스'],
@@ -108,6 +111,9 @@ class LanguageConfig:
                     'search': ['search', 'information', 'research', 'find', 'look'],
                     'analysis': ['analysis', 'analytics', 'evaluation'],
                     'visualization': ['visualization', 'chart', 'graph'],
+                    # 🗓️ Schedule/Calendar domains added
+                    'schedule': ['schedule', 'appointment', 'calendar', 'meeting', 'event', 'add', 'register', 'show', 'this week', 'next week', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+                    'calendar': ['schedule', 'appointment', 'calendar', 'meeting', 'event', 'add', 'register', 'show', 'this week', 'next week'],
                     # 🚀 Travel/Recommendation domains added
                     'travel': ['travel', 'trip', 'tour', 'visit', 'destination', 'itinerary', 'vacation'],
                     'recommendation': ['recommend', 'suggestion', 'where', 'what', 'which', 'best', 'top'],
@@ -421,12 +427,46 @@ class UnifiedQueryProcessor:
 {agents_formatted}
 
 ═══════════════════════════════════════════════════════════════════
-⚠️ **에이전트 선택 필수 규칙:**
+⚠️ **에이전트 선택 필수 규칙 (LLM 기반 분석):**
 1. agent_mappings의 selected_agent에는 **반드시 위 목록에 있는 정확한 에이전트 ID**를 입력
 2. 에이전트 ID는 대소문자를 정확히 일치시켜야 함
-3. 쿼리의 의도와 에이전트 설명/능력/태그를 비교하여 가장 적합한 에이전트 선택
-4. 여행/맛집/추천 관련 쿼리 → internet_agent 또는 llm_search_agent 우선
-5. 데이터 분석 → analysis_agent, 검색 → internet_agent, 쇼핑 → shopping_agent
+3. **쿼리의 의도와 에이전트의 설명(description), 능력(capabilities), 태그(tags)를 의미론적으로 분석**하여 가장 적합한 에이전트 선택
+4. **절대 특정 에이전트 이름을 하드코딩하지 마세요** - 오직 에이전트 메타데이터만으로 판단
+5. **적합한 에이전트가 없으면**: no_suitable_agent 필드를 true로 설정하고 사용자에게 알림 메시지 생성
+
+🔴 **에이전트 선택 원칙 (LLM 기반 의미론적 매칭):**
+
+**핵심 원칙: 모든 에이전트는 동등하게 평가됩니다. 쿼리 의도와 에이전트 capabilities의 의미론적 매칭으로 선택하세요.**
+
+1. **의미론적 매칭**: 각 에이전트의 description, capabilities, tags를 분석하여 쿼리 의도와 가장 잘 맞는 에이전트 선택
+   - 에이전트마다 고유한 전문 영역이 있음
+   - 쿼리가 요구하는 기능과 에이전트가 제공하는 기능을 매칭
+
+2. **에이전트별 전문 영역** (참고용 - 실제로는 메타데이터 기반 판단):
+   - scheduler: 개인 일정/캘린더 관리 (사용자 시스템 연결됨)
+   - shopping: 상품 가격 검색/비교
+   - llm_search: 개념 설명/정의 질문
+   - internet: 최신 뉴스, 실시간 정보, 웹 검색이 필요한 경우
+   - weather: 날씨/기온 정보
+   - rag_search: 업로드된 문서에서 검색 (PDF, 보고서 등)
+   - samsung_gateway: 삼성/반도체 관련 전문 분석
+
+3. **적합한 에이전트가 없을 때 - 유용한 피드백 제공**:
+   **no_suitable_agent = true로 설정하고, 다음 중 하나의 피드백 제공:**
+
+   a) **질문 구체화 유도** (모호한 쿼리):
+      - user_message: "어떤 종류의 도움이 필요하신지 더 구체적으로 알려주시면 정확한 도움을 드릴 수 있습니다."
+      - clarification_needed: ["어떤 정보가 필요한가요?", "구체적인 요청을 알려주세요"]
+
+   b) **대안 제시** (기능 부재):
+      - user_message: "요청하신 기능은 현재 지원되지 않지만, 다음과 같은 도움은 드릴 수 있습니다."
+      - suggested_alternatives: ["가능한 대안 에이전트/기능 목록"]
+
+   c) **불가능 이유 설명** (현실적으로 불가능):
+      - user_message: "죄송합니다, 이 요청은 [이유]로 처리가 어렵습니다."
+      - impossible_reason: "구체적인 불가능 이유"
+
+4. **RAG/문서 검색**: "보고서에서", "PDF에서", "문서에서" 등 **명시적 문서 참조가 있을 때만** rag_search 사용
 ═══════════════════════════════════════════════════════════════════
 
 🎯 **1단계: 쿼리 타입 분류 (가장 먼저 수행 - 필수)**
@@ -490,15 +530,42 @@ class UnifiedQueryProcessor:
 4. 분석/시각화/코드 생성 요청이면 AGENT_TASK
 5. 위 모두 아니면 적절한 타입 선택
 
-🚀 **여행/추천 쿼리 처리 규칙:**
-- "여행 어디 추천" 같은 쿼리는 SEARCH_REQUIRED/travel_recommendation으로 분류
-- 인터넷 검색 에이전트(internet_agent, llm_search_agent)를 우선 선택
-- 여행+맛집 복합 쿼리는 병렬(parallel) 전략 사용 가능
+🧠 **LLM 기반 에이전트 선택 원칙:**
+- 쿼리의 의도와 에이전트의 **description**, **capabilities**, **tags**를 의미론적으로 분석
+- 특정 에이전트 이름을 기억하지 말고, **에이전트 메타데이터만으로** 판단
+- 복합 쿼리(예: 여행+맛집)는 관련 에이전트 조합으로 병렬(parallel) 전략 사용 가능
 
 🚨 **절대 규칙 - 반드시 준수하세요:**
 1. "분석하고 제안/개선/제시" 패턴은 **무조건 1개 작업**으로 처리
-2. 삼성/반도체 관련 쿼리는 **무조건 samsung_gateway_agent** 사용
-3. 작업 분할은 **완전히 다른 도메인**일 때만 허용
+2. 작업 분할은 **완전히 다른 도메인**일 때만 허용
+3. **의미론적 매칭**: 쿼리 의도와 에이전트 메타데이터(description, capabilities, tags)를 분석하여 가장 적합한 에이전트 선택
+4. **모든 에이전트는 동등**: 특정 에이전트를 "폴백"으로 취급하지 않음. 각 에이전트의 전문 영역에 맞게 선택
+
+5. **적합한 에이전트가 없을 때 - 유용한 피드백 제공:**
+   - no_suitable_agent: true 설정
+   - feedback_type: "clarification_needed" | "alternative_suggested" | "impossible_request"
+   - user_message: 사용자에게 전달할 메시지
+   - 예시:
+     * 모호한 쿼리 → "어떤 종류의 도움이 필요하신지 더 구체적으로 알려주세요"
+     * 기능 부재 → "이 기능은 지원되지 않지만, 대신 X 기능은 가능합니다"
+     * 불가능한 요청 → "죄송합니다, 이 요청은 [이유]로 처리가 어렵습니다"
+
+✅ **올바른 에이전트 매칭 예시:**
+- "이번주 일정 알려줘" → scheduler (개인 캘린더 접근 가능)
+- "아이폰 가격 검색해줘" → shopping (상품 가격 전문)
+- "양자역학이란 무엇인가요?" → llm_search (개념 설명 전문)
+- "최신 AI 뉴스 알려줘" → internet (실시간 웹 검색 전문)
+- "제주도 여행지 추천해줘" → internet (웹에서 정보 검색)
+- "보고서에서 3분기 실적 찾아줘" → rag_search (문서 검색 전문)
+- "삼성전자 반도체 NAND 분석" → samsung_gateway (삼성/반도체 전문)
+
+❌ **적합한 에이전트 없음 처리 예시:**
+- "달나라에서 피자 주문해줘" → no_suitable_agent: true
+  - feedback_type: "impossible_request"
+  - user_message: "죄송합니다, 달나라 배달은 현실적으로 불가능합니다. 대신 서울 지역 피자 배달 정보는 찾아드릴 수 있어요."
+- "뭔가 추천해줘" → no_suitable_agent: true
+  - feedback_type: "clarification_needed"
+  - user_message: "어떤 종류의 추천을 원하시나요? (여행지, 맛집, 상품 등)"
 
 ❌ **잘못된 분할 예시 (절대 금지):**
 - "수율 분석하고 개선방안 제시" → 2개 작업 ❌
@@ -607,6 +674,16 @@ class UnifiedQueryProcessor:
         "execution_efficiency": 0.0-1.0,
         "context_flow_quality": 0.0-1.0,
         "overall_confidence": 0.0-1.0
+    }},
+    "agent_availability": {{
+        "no_suitable_agent": true|false,
+        "feedback_type": "clarification_needed|alternative_suggested|impossible_request|none",
+        "availability_reasoning": "적합한 에이전트가 없는 이유 또는 선택된 에이전트가 적합한 이유",
+        "user_message": "사용자에게 전달할 건설적인 메시지",
+        "clarification_questions": ["구체화를 위한 질문들 (feedback_type이 clarification_needed일 때)"],
+        "suggested_alternatives": ["대안 제안 (feedback_type이 alternative_suggested일 때)"],
+        "required_capabilities": ["필요하지만 없는 능력들"],
+        "impossible_reason": "불가능한 이유 (feedback_type이 impossible_request일 때)"
     }}
 }}
 
@@ -616,11 +693,25 @@ class UnifiedQueryProcessor:
    - "1+1" 같은 수학 표현식은 무조건 DIRECT_ANSWER/math_expression
    - PDF/문서 키워드가 있으면 SEARCH_REQUIRED/document_search
    - classification_confidence와 classification_reasoning 필수 포함
-2. 실제 사용 가능한 에이전트만 사용
-3. 감지된 언어({language})로 응답 생성
-4. **작업 수를 최소화하세요** - 하나의 에이전트가 처리 가능하면 하나로 통합
-5. **individual_query는 원본 쿼리를 그대로 사용해도 됩니다** - 불필요한 수정 금지
-6. **단일 에이전트로 처리 가능하면 strategy는 "single_agent"로 설정**
+
+2. **[필수] 에이전트 선택은 메타데이터 기반으로만 수행**
+   - 에이전트의 description, capabilities, tags를 쿼리 의도와 의미론적으로 비교
+   - 특정 에이전트 이름을 하드코딩하지 마세요 (예: "일정" → scheduler 같은 키워드 매칭 금지)
+   - 에이전트 목록에서 쿼리 의도에 가장 부합하는 에이전트 선택
+
+3. **[필수] 적합한 에이전트가 없으면 명확히 표시**
+   - agent_availability.no_suitable_agent = true 설정
+   - user_message에 사용자에게 알릴 메시지 작성
+   - required_capabilities에 필요하지만 없는 능력 명시
+
+4. **전략 선택 기준 (strategy)**
+   - single_agent: 단일 에이전트로 처리 가능한 경우
+   - parallel: 독립적인 여러 작업을 동시에 처리 (예: 맛집 검색 || 관광지 검색)
+   - sequential: 이전 결과가 다음 작업에 필요한 경우 (예: 가격 조회 → 계산)
+   - hybrid: parallel + sequential 조합
+
+5. 감지된 언어({language})로 응답 생성
+6. **작업 수를 최소화하세요** - 하나의 에이전트가 처리 가능하면 하나로 통합
 7. reasoning 필드에 "왜 그렇게 결정했는지" 구체적 이유 명시"""
 
         return {"query": unified_prompt}
@@ -784,7 +875,52 @@ class UnifiedQueryProcessor:
             }]
 
         result['agent_mappings'] = valid_mappings
-        
+
+        # 🧠 agent_availability 검증 및 처리
+        agent_availability = result.get('agent_availability', {})
+        no_suitable_agent = agent_availability.get('no_suitable_agent', False)
+
+        if no_suitable_agent:
+            # LLM이 적합한 에이전트가 없다고 판단한 경우 - 유용한 피드백 제공
+            feedback_type = agent_availability.get('feedback_type', 'none')
+            user_message = agent_availability.get('user_message', '요청하신 작업에 적합한 에이전트를 찾지 못했습니다.')
+            required_capabilities = agent_availability.get('required_capabilities', [])
+
+            logger.warning(f"⚠️ 적합한 에이전트 없음 (피드백 타입: {feedback_type})")
+            logger.warning(f"   메시지: {user_message}")
+
+            # 피드백 타입별 추가 정보
+            feedback_details = {}
+            if feedback_type == 'clarification_needed':
+                feedback_details['clarification_questions'] = agent_availability.get('clarification_questions', [])
+                logger.info(f"   구체화 질문: {feedback_details['clarification_questions']}")
+            elif feedback_type == 'alternative_suggested':
+                feedback_details['suggested_alternatives'] = agent_availability.get('suggested_alternatives', [])
+                logger.info(f"   대안 제안: {feedback_details['suggested_alternatives']}")
+            elif feedback_type == 'impossible_request':
+                feedback_details['impossible_reason'] = agent_availability.get('impossible_reason', '')
+                logger.info(f"   불가능 이유: {feedback_details['impossible_reason']}")
+
+            # 결과에 사용자 알림 정보 추가
+            result['no_suitable_agent_info'] = {
+                'status': True,
+                'feedback_type': feedback_type,
+                'user_message': user_message,
+                'required_capabilities': required_capabilities,
+                **feedback_details
+            }
+        else:
+            # 적합한 에이전트가 있는 경우 - agent_availability 기본값 설정
+            if 'agent_availability' not in result:
+                result['agent_availability'] = {
+                    'no_suitable_agent': False,
+                    'feedback_type': 'none',
+                    'availability_reasoning': '쿼리에 적합한 에이전트를 찾았습니다.',
+                    'user_message': '',
+                    'suggested_alternatives': [],
+                    'required_capabilities': []
+                }
+
         # 의존성 분석 검증
         dependency_analysis = result.get('dependency_analysis', {})
         if not dependency_analysis.get('execution_order'):
@@ -1654,25 +1790,107 @@ class UnifiedQueryProcessor:
         
         return normalized
 
-    def _select_agent_by_content(self, content: str, available_agents: List[str], language: str = None) -> str:
-        """다국어 지원 내용 기반 에이전트 선택 (오타 보정 포함)"""
+    async def _select_agent_by_llm(self, content: str, available_agents: List[str], language: str = None) -> str:
+        """
+        🧠 LLM 기반 에이전트 선택 (하드코딩 제거)
+
+        쿼리 내용과 에이전트 설명을 LLM이 분석하여 최적의 에이전트를 선택합니다.
+        """
         if language is None:
             language = self.language_config.detect_language(content)
-        
+
+        # 에이전트 정보 구성
+        agents_info = self._build_agents_info_for_llm(available_agents)
+
+        if not agents_info:
+            logger.warning("⚠️ 사용 가능한 에이전트 정보 없음, 기본 에이전트 반환")
+            return available_agents[0] if available_agents else 'unknown'
+
+        # 에이전트 목록 문자열 생성
+        agents_list = []
+        for agent_id, info in agents_info.items():
+            agent_data = info.get('agent_data', info)
+            name = agent_data.get('name', info.get('name', agent_id))
+            description = agent_data.get('description', info.get('description', ''))[:200]
+            capabilities = agent_data.get('capabilities', info.get('capabilities', []))
+            tags = agent_data.get('tags', info.get('tags', []))
+
+            cap_str = ', '.join([c.get('name', str(c)) if isinstance(c, dict) else str(c) for c in capabilities[:5]])
+            tag_str = ', '.join(tags[:5]) if tags else ''
+
+            agents_list.append(f"- {agent_id}: {name} | {description} | 능력: {cap_str} | 태그: {tag_str}")
+
+        agents_formatted = '\n'.join(agents_list)
+
+        # LLM 프롬프트
+        prompt = f"""당신은 사용자 쿼리를 분석하여 가장 적합한 에이전트를 선택하는 전문가입니다.
+
+사용자 쿼리: "{content}"
+
+사용 가능한 에이전트 목록:
+{agents_formatted}
+
+규칙:
+1. 쿼리의 의도를 정확히 파악하세요
+2. 에이전트의 이름, 설명, 능력, 태그를 분석하세요
+3. 가장 적합한 에이전트 ID를 하나만 선택하세요
+4. 반드시 위 목록에 있는 정확한 agent_id를 반환하세요
+
+응답 형식 (JSON만):
+{{"selected_agent": "agent_id_here", "reasoning": "선택 이유"}}
+"""
+
+        try:
+            llm = self.llm_manager.get_llm(OntologyLLMType.SEMANTIC_ANALYZER)
+            response = await llm.ainvoke(prompt)
+
+            response_text = response.content if hasattr(response, 'content') else str(response)
+
+            # JSON 파싱
+            import re
+            json_match = re.search(r'\{[^{}]*"selected_agent"\s*:\s*"([^"]+)"[^{}]*\}', response_text, re.DOTALL)
+
+            if json_match:
+                selected_agent = json_match.group(1)
+
+                # 선택된 에이전트가 사용 가능한 목록에 있는지 확인
+                if selected_agent in available_agents:
+                    logger.info(f"🧠 LLM 에이전트 선택 완료: {selected_agent} (쿼리: {content[:50]}...)")
+                    return selected_agent
+                else:
+                    # 부분 매칭 시도
+                    for agent in available_agents:
+                        if selected_agent.lower() in agent.lower() or agent.lower() in selected_agent.lower():
+                            logger.info(f"🧠 LLM 에이전트 부분 매칭: {agent} (원본: {selected_agent})")
+                            return agent
+
+            logger.warning(f"⚠️ LLM 에이전트 선택 파싱 실패, 응답: {response_text[:200]}")
+
+        except Exception as e:
+            logger.error(f"❌ LLM 에이전트 선택 실패: {e}")
+
+        # LLM 실패 시 첫 번째 에이전트 반환
+        return available_agents[0] if available_agents else 'unknown'
+
+    def _select_agent_by_content(self, content: str, available_agents: List[str], language: str = None) -> str:
+        """
+        🔄 동기 래퍼: LLM 기반 에이전트 선택을 동기 컨텍스트에서 호출
+
+        비동기 _select_agent_by_llm()을 동기 방식으로 호출합니다.
+        """
+        if language is None:
+            language = self.language_config.detect_language(content)
+
         # 오타 정규화 적용
         normalized_content = self._normalize_samsung_typos(content)
-        content_lower = normalized_content.lower()
-        agent_keywords = self.language_config.get_agent_keywords(language)
-        
-        # 🏢 삼성 도메인 우선 체크 (정규화된 쿼리 사용)
+
+        # 🏢 삼성 도메인 우선 체크 (비즈니스 로직 - 삼성 도메인은 특수 처리 필요)
         if self._is_samsung_domain_query(normalized_content):
-            # 삼성 게이트웨이 에이전트 찾기
             samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
             if samsung_agents:
                 logger.info(f"🚀 Samsung Gateway Agent 선택: {samsung_agents[0]}")
                 return samsung_agents[0]
-            
-            # 게이트웨이가 없으면 삼성 개별 에이전트 찾기
+
             samsung_sub_agents = [
                 agent for agent in available_agents
                 if any(keyword in agent.lower() for keyword in [
@@ -1683,43 +1901,37 @@ class UnifiedQueryProcessor:
             if samsung_sub_agents:
                 logger.info(f"🚀 Samsung Sub-agent 선택: {samsung_sub_agents[0]}")
                 return samsung_sub_agents[0]
-        
-        # 언어별 키워드 기반 매칭
-        if any(word in content_lower for word in agent_keywords.get('calculation', [])):
-            return self._find_best_agent_for_task(['calculator_agent', 'math_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('weather', [])):
-            return self._find_best_agent_for_task(['weather_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('currency', [])):
-            return self._find_best_agent_for_task(['currency_exchange_agent'], available_agents)
 
-        # 🚀 여행/추천 도메인 처리 (우선순위 높음)
-        elif any(word in content_lower for word in agent_keywords.get('food', [])):
-            logger.info(f"🍽️ 맛집/음식 도메인 감지 - 쿼리: {content[:50]}...")
-            return self._find_best_agent_for_task(['food_agent', 'restaurant_agent', 'matzip_agent', 'shopping_agent', 'internet_agent', 'llm_search_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('travel', [])):
-            logger.info(f"✈️ 여행 도메인 감지 - 쿼리: {content[:50]}...")
-            return self._find_best_agent_for_task(['travel_agent', 'tour_agent', 'internet_agent', 'llm_search_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('accommodation', [])):
-            logger.info(f"🏨 숙소 도메인 감지 - 쿼리: {content[:50]}...")
-            return self._find_best_agent_for_task(['accommodation_agent', 'hotel_agent', 'internet_agent', 'llm_search_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('attraction', [])):
-            logger.info(f"🎡 관광지 도메인 감지 - 쿼리: {content[:50]}...")
-            return self._find_best_agent_for_task(['attraction_agent', 'tour_agent', 'internet_agent', 'llm_search_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('recommendation', [])):
-            logger.info(f"💡 추천 도메인 감지 - 쿼리: {content[:50]}...")
-            # 추천 쿼리는 여러 도메인이 복합될 수 있으므로 인터넷 검색 우선
-            return self._find_best_agent_for_task(['internet_agent', 'llm_search_agent', 'analysis_agent'], available_agents)
+        # 🧠 LLM 기반 에이전트 선택 (비동기 호출)
+        try:
+            import asyncio
 
-        elif any(word in content_lower for word in agent_keywords.get('search', [])):
-            return self._find_best_agent_for_task(['internet_agent', 'crawler_agent', 'llm_search_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('analysis', [])):
-            return self._find_best_agent_for_task(['analysis_agent', 'content_formatter_agent'], available_agents)
-        elif any(word in content_lower for word in agent_keywords.get('visualization', [])):
-            return self._find_best_agent_for_task(['data_visualization_agent', 'content_formatter_agent'], available_agents)
-        else:
-            # 기본 폴백: 인터넷 검색 에이전트 우선
-            logger.info(f"🔍 기본 폴백 - 인터넷 검색 에이전트 선택")
-            return self._find_best_agent_for_task(['internet_agent', 'llm_search_agent', 'analysis_agent'], available_agents)
+            # 이벤트 루프 확인 및 실행
+            try:
+                loop = asyncio.get_running_loop()
+                # 이미 루프가 실행 중이면 새 태스크로 실행
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self._select_agent_by_llm(normalized_content, available_agents, language)
+                    )
+                    selected_agent = future.result(timeout=30)
+                    return selected_agent
+            except RuntimeError:
+                # 루프가 없으면 직접 실행
+                selected_agent = asyncio.run(
+                    self._select_agent_by_llm(normalized_content, available_agents, language)
+                )
+                return selected_agent
+
+        except Exception as e:
+            logger.error(f"❌ LLM 기반 에이전트 선택 실패: {e}")
+            # 폴백: 첫 번째 사용 가능한 에이전트
+            if available_agents:
+                logger.info(f"🔍 폴백 에이전트 선택: {available_agents[0]}")
+                return available_agents[0]
+            return 'unknown'
 
     def _convert_fallback_to_full_result(self, fallback_result: Dict[str, Any], query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
         """폴백 결과를 전체 구조로 변환"""
