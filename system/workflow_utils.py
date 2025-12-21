@@ -316,11 +316,15 @@ class WorkflowUtils:
         """사용 가능한 에이전트 목록 추출"""
         try:
             if not execution_context or not execution_context.available_agents:
-                # 기본 에이전트 목록 반환
+                # ⚠️ ExecutionContext에 에이전트가 없음 - fallback 사용
+                logger.warning("⚠️ extract_available_agents: ExecutionContext.available_agents가 비어있음!")
+                logger.warning("⚠️ 하드코딩된 기본 에이전트로 fallback")
                 return [
                     "internet_agent", "finance_agent", "weather_agent",
                     "calculate_agent", "chart_agent", "memo_agent", "analysis_agent"
                 ]
+
+            logger.info(f"✅ extract_available_agents: ExecutionContext에서 {len(execution_context.available_agents)}개 에이전트 발견")
             
             available_agents = []
             for agent_id, agent_info in execution_context.available_agents.items():

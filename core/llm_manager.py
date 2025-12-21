@@ -193,7 +193,7 @@ class OntologyLLMManager:
         
         # 기본 제공업체 우선순위: Google > OpenAI > Anthropic
         fallback_provider = LLMProvider.GOOGLE
-        fallback_model = "gemini-2.5-flash-lite-preview-06-17"
+        fallback_model = "gemini-2.5-flash-lite"
         
         # Google API 키가 없으면 OpenAI 사용
         if not os.getenv("GOOGLE_API_KEY"):
@@ -348,7 +348,7 @@ class OntologyLLMManager:
         
         # 하드코딩 폴백: API 키가 있는 제공업체 순서대로 시도
         fallback_attempts = [
-            (LLMProvider.GOOGLE, "gemini-2.5-flash-lite-preview-06-17", "GOOGLE_API_KEY"),
+            (LLMProvider.GOOGLE, "gemini-2.5-flash-lite", "GOOGLE_API_KEY"),
             (LLMProvider.OPENAI, "gpt-4.1-mini", "OPENAI_API_KEY"),
             (LLMProvider.ANTHROPIC, "claude-3.5-sonnet", "ANTHROPIC_API_KEY")
         ]
@@ -430,9 +430,9 @@ class OntologyLLMManager:
                     "creative": "claude-4-sonnet-20240528"
                 },
                 LLMProvider.GOOGLE: {
-                    "high_performance": "gemini-2.5-flash-lite-preview-06-17",
-                    "fast": "gemini-2.5-flash-lite-preview-06-17",
-                    "creative": "gemini-2.5-flash-lite-preview-06-17"
+                    "high_performance": "gemini-2.5-flash-lite",
+                    "fast": "gemini-2.5-flash-lite",
+                    "creative": "gemini-2.5-flash-lite"
                 }
             }
             
@@ -467,7 +467,7 @@ class OntologyLLMManager:
                 "claude-3.5-sonnet", "claude-3.5-sonnet", "claude-3.5-sonnet"
             ],
             LLMProvider.GOOGLE: [
-                "gemini-2.5-flash-lite-preview-06-17", "gemini-2.5-flash-lite-preview-06-17", "gemini-2.5-flash-lite-preview-06-17", "gemini-2.5-flash-lite-preview-06-17", "gemini-2.5-flash-lite-preview-06-17"
+                "gemini-2.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash-lite"
             ]
         }
         
@@ -710,7 +710,7 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
             # 스마트 폴백: 기본 설정 사용
             fallback_config = OntologyLLMConfig(
                 provider=LLMProvider.GOOGLE,  # 기본값
-                model="gemini-2.5-flash-lite-preview-06-17",
+                model="gemini-2.5-flash-lite",
                 temperature=0.7
             )
             return self._create_fallback_llm_instance(fallback_config)

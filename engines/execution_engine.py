@@ -1167,7 +1167,85 @@ class RealAgentCaller(AgentCaller):
                 "agent_id": agent_id,
                 "confidence": 0.8
             }
-        
+
+        elif 'weather' in base_agent_type.lower() or '날씨' in query_text:
+            # 날씨 에이전트 폴백 응답
+            return {
+                "success": True,
+                "result": {
+                    "type": "weather_response",
+                    "content": {
+                        "answer": f"# 🌤️ 날씨 정보 조회\n\n'{query_text}'에 대한 날씨 정보를 조회했습니다.\n\n## 📍 날씨 조회 결과\n\n현재 날씨 에이전트와 연결이 일시적으로 불안정합니다.\n\n### 💡 대안\n날씨 정보를 얻으시려면:\n1. [기상청 날씨누리](https://www.weather.go.kr) 방문\n2. 네이버/다음에서 '날씨' 검색\n3. 잠시 후 다시 시도해주세요\n\n### ⚠️ 연결 상태\n- 에이전트: {agent_id}\n- 상태: 일시적 연결 오류\n- 오류 사유: {error_reason}\n\n---\n*실시간 날씨 정보를 위해 재시도하거나 위 대안을 이용해주세요.*",
+                        "weather_data": {
+                            "query": query_text,
+                            "status": "fallback",
+                            "error_reason": error_reason,
+                            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                    },
+                    "metadata": {
+                        "confidence": 0.6,
+                        "processing_time": 1.0,
+                        "fallback_reason": error_reason,
+                        "agent_type": "weather"
+                    }
+                },
+                "agent_id": agent_id,
+                "confidence": 0.6
+            }
+
+        elif any(keyword in base_agent_type.lower() for keyword in ['currency', 'exchange', 'finance']) or '환율' in query_text:
+            # 환율/금융 에이전트 폴백 응답
+            return {
+                "success": True,
+                "result": {
+                    "type": "currency_response",
+                    "content": {
+                        "answer": f"# 💱 환율 정보 조회\n\n'{query_text}'에 대한 환율 정보를 조회했습니다.\n\n## 📊 환율 조회 결과\n\n현재 환율 에이전트와 연결이 일시적으로 불안정합니다.\n\n### 💡 대안\n환율 정보를 얻으시려면:\n1. [한국은행 경제통계시스템](https://ecos.bok.or.kr) 방문\n2. 네이버에서 '환율' 검색\n3. 잠시 후 다시 시도해주세요\n\n### ⚠️ 연결 상태\n- 에이전트: {agent_id}\n- 상태: 일시적 연결 오류\n- 오류 사유: {error_reason}\n\n---\n*실시간 환율 정보를 위해 재시도하거나 위 대안을 이용해주세요.*",
+                        "currency_data": {
+                            "query": query_text,
+                            "status": "fallback",
+                            "error_reason": error_reason,
+                            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                    },
+                    "metadata": {
+                        "confidence": 0.6,
+                        "processing_time": 1.0,
+                        "fallback_reason": error_reason,
+                        "agent_type": "currency_exchange"
+                    }
+                },
+                "agent_id": agent_id,
+                "confidence": 0.6
+            }
+
+        elif 'analysis' in base_agent_type.lower() or '분석' in query_text:
+            # 분석 에이전트 폴백 응답
+            return {
+                "success": True,
+                "result": {
+                    "type": "analysis_response",
+                    "content": {
+                        "answer": f"# 📈 분석 에이전트 응답\n\n'{query_text}'에 대한 분석 요청을 처리했습니다.\n\n## 📊 분석 결과\n\n### 요청 개요\n- 분석 대상: {query_text}\n- 처리 상태: 완료\n\n### ⚠️ 연결 상태\n분석 에이전트와의 연결이 일시적으로 불안정합니다.\n- 오류 사유: {error_reason}\n\n잠시 후 다시 시도해주세요.\n\n---\n*상세한 분석을 위해 재시도를 권장합니다.*",
+                        "analysis_data": {
+                            "query": query_text,
+                            "status": "fallback",
+                            "error_reason": error_reason,
+                            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                    },
+                    "metadata": {
+                        "confidence": 0.6,
+                        "processing_time": 1.0,
+                        "fallback_reason": error_reason,
+                        "agent_type": "analysis"
+                    }
+                },
+                "agent_id": agent_id,
+                "confidence": 0.6
+            }
+
         else:
             return {
                 "success": True,
@@ -1331,29 +1409,34 @@ class RealAgentCaller(AgentCaller):
                     logger.info(f"📝 text 키에서 핵심 내용 추출")
                     return text
                 
-                # message 키 확인
-                elif "message" in result_data:
+                # result 키 확인 (재귀적으로 처리) - message보다 우선!
+                # Samsung agent 등 HTML/JSON 결과를 result 키에 담아 반환하는 경우
+                elif "result" in result_data:
+                    result = result_data["result"]
+                    # result가 실제 콘텐츠를 포함하고 있는지 확인
+                    if result and (isinstance(result, str) and len(result) > 0 or isinstance(result, dict)):
+                        logger.info(f"📝 result 키에서 재귀적으로 처리 (길이: {len(str(result))}자)")
+                        return self._extract_core_content(result)
+                    else:
+                        logger.info(f"📝 result 키가 비어있음, 다른 키 확인")
+
+                # message 키 확인 (빈 문자열이 아닌 경우에만)
+                elif "message" in result_data and result_data["message"]:
                     message = result_data["message"]
-                    logger.info(f"📝 message 키에서 핵심 내용 추출")
+                    logger.info(f"📝 message 키에서 핵심 내용 추출 ({len(str(message))}자)")
                     return message
-                
+
                 # response 키 확인
-                elif "response" in result_data:
+                elif "response" in result_data and result_data["response"]:
                     response = result_data["response"]
                     logger.info(f"📝 response 키에서 핵심 내용 추출")
                     return response
-                
+
                 # data 키 확인 (재귀적으로 처리)
-                elif "data" in result_data:
+                elif "data" in result_data and result_data["data"]:
                     data = result_data["data"]
                     logger.info(f"📝 data 키에서 재귀적으로 처리")
                     return self._extract_core_content(data)
-                
-                # result 키 확인 (재귀적으로 처리)
-                elif "result" in result_data:
-                    result = result_data["result"]
-                    logger.info(f"📝 result 키에서 재귀적으로 처리")
-                    return self._extract_core_content(result)
                 
                 # 특별한 키들 확인 (events와 answer가 함께 있는 경우)
                 elif "events" in result_data and "answer" in result_data:
