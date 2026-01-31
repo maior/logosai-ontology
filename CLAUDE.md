@@ -25,14 +25,171 @@ selected_agent = await self._select_agent_by_llm(query, available_agents)
 - 다국어 자동 지원
 - 유지보수성 향상
 
-### 2. LLM 기반 처리 (LLM-Based Processing)
+#### ⚠️ QueryPlanner 프롬프트 하드코딩 금지 (CRITICAL)
+
+**절대 금지**: `QueryPlanner`의 LLM 프롬프트에 특정 에이전트를 하드코딩하지 않는다.
+
+```python
+# ❌ 금지: 프롬프트에 특정 에이전트 하드코딩
+prompt = """
+## 예시: "날씨 알려줘"
+{
+  "agents": [{"agent_id": "internet_agent", ...}]  # ❌ 하드코딩!
+}
+"""
+
+# ✅ 권장: 에이전트 메타데이터 기반 선택 유도
+prompt = """
+## 에이전트 선택 원칙
+1. 전문 에이전트 우선: 특정 도메인 전용 에이전트가 있으면 우선 사용
+   - 날씨 쿼리 + weather_agent 존재 → weather_agent 사용
+   - 쇼핑 쿼리 + shopping_agent 존재 → shopping_agent 사용
+2. 범용 에이전트는 전문 에이전트가 없을 때만 사용
+3. 에이전트 description을 분석하여 가장 적합한 에이전트 선택
+"""
+```
+
+**문제 사례** (query_planner.py):
+```python
+## 예시 2: "제주 날씨 어때?"
+"agent_id": "internet_agent"  # ❌ weather_agent가 있어도 무시됨!
+```
+
+**결과**: `weather_agent`가 존재해도 LLM이 프롬프트 예시를 따라 `internet_agent`를 선택
+
+**해결 원칙**:
+1. 프롬프트에 특정 agent_id를 예시로 넣지 않음
+2. "전문 에이전트 우선" 규칙을 프롬프트에 명시
+3. 에이전트 registry의 description/capabilities를 기반으로 LLM이 판단하도록 유도
+
+### 2. 하이브리드 에이전트 선택 (Hybrid Agent Selection) ⭐ NEW
+
+**Knowledge Graph + LLM** 하이브리드 방식으로 에이전트를 선택합니다:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Hybrid Agent Selection                        │
+├─────────────────────────────────────────────────────────────────┤
+│   Phase 1: Knowledge Graph Analysis                              │
+│   ├─ 엔티티 추출: [삼성전자, 주가]                               │
+│   ├─ 관련 개념 탐색: [기업, 금융, 실시간]                        │
+│   ├─ 과거 성공 패턴: internet_agent (성공률 90%)                 │
+│   └─ 그래프 추천: [internet_agent, analysis_agent]              │
+│                           ↓                                      │
+│   Phase 2: LLM Final Decision                                    │
+│   ├─ Input: query + graph_insights + agent_metadata              │
+│   ├─ 의미론적 분석 + 그래프 근거                                 │
+│   └─ Output: internet_agent (확신도 95%)                         │
+│                           ↓                                      │
+│   Phase 3: Feedback Loop                                         │
+│   └─ 성공 시: 패턴을 그래프에 저장 → 학습                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**핵심 파일**: `ontology/core/hybrid_agent_selector.py`
+
+**사용법**:
+```python
+from ontology.core.hybrid_agent_selector import get_hybrid_selector
+
+selector = get_hybrid_selector()
+agent, metadata = await selector.select_agent(
+    query="삼성전자 주가 알려줘",
+    available_agents=["internet_agent", "analysis_agent", ...],
+    agents_info={...}
+)
+
+# 실행 후 피드백 저장 (학습)
+await selector.store_feedback(query, agent, success=True)
+```
+
+**장점**:
+- 과거 성공 패턴 학습 → 시간이 지날수록 정확도 향상
+- LLM 호출 전 그래프 기반 후보 필터링 → 비용 절감
+- 설명 가능성: 왜 이 에이전트가 선택되었는지 근거 제공
+
+### 2-1. 에이전트 동기화 서비스 (Agent Sync Service) ⭐ NEW
+
+**Agent Marketplace ↔ Knowledge Graph** 실시간 동기화 서비스입니다.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Agent Sync Architecture                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Source of Truth                                                │
+│   ┌─────────────────────────────────────────────────────┐       │
+│   │ ACP Server (logosai/logosai/examples/agents/)       │       │
+│   │ - 61+ 에이전트 Python 파일                           │       │
+│   │ - 런타임에 실행되는 실제 에이전트 코드                │       │
+│   └────────────────────┬────────────────────────────────┘       │
+│                        │ 스캔 & 파싱                             │
+│                        ▼                                        │
+│   ┌─────────────────────────────────────────────────────┐       │
+│   │           AgentSyncService                           │       │
+│   │  - full_sync(): 전체 동기화                          │       │
+│   │  - sync_single_agent(): 단일 에이전트 동기화         │       │
+│   │  - check_for_changes(): 변경사항 감지                │       │
+│   └────────────────────┬────────────────────────────────┘       │
+│                        │                                        │
+│          ┌─────────────┼─────────────┐                         │
+│          ▼             ▼             ▼                         │
+│   ┌──────────┐  ┌──────────┐  ┌──────────────┐                 │
+│   │ Registry │  │ Knowledge│  │  Metadata    │                 │
+│   │ (8개)    │  │  Graph   │  │  JSON        │                 │
+│   └──────────┘  │ (61개)   │  └──────────────┘                 │
+│                 └──────────┘                                    │
+│                                                                  │
+│   AgentFileWatcher (백그라운드)                                  │
+│   └─ 5초마다 변경사항 체크 → 자동 동기화                         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**핵심 파일**: `ontology/core/agent_sync_service.py`
+
+**사용법**:
+```python
+from ontology.core.agent_sync_service import (
+    get_sync_service,
+    initialize_agent_sync,
+    start_agent_file_watching
+)
+
+# 1. 서버 시작 시 전체 동기화
+result = await initialize_agent_sync()
+# {"total_agents": 61, "added": 54, "updated": 7}
+
+# 2. 파일 감시 시작 (백그라운드)
+await start_agent_file_watching()
+# → 새 에이전트 추가 시 자동 감지 & 동기화
+
+# 3. 수동으로 단일 에이전트 동기화
+sync_service = get_sync_service()
+await sync_service.sync_single_agent("new_agent", agent_info)
+```
+
+**동기화 대상**:
+| 소스 | 경로 | 설명 |
+|------|------|------|
+| ACP Server | `logosai/logosai/examples/agents/*.py` | 실제 에이전트 코드 (Source of Truth) |
+| Metadata JSON | `agents/config/agent_metadata.json` | 에이전트 메타데이터 |
+| Agent Registry | `orchestrator/agent_registry.py` | 런타임 에이전트 등록 |
+| Knowledge Graph | `engines/knowledge_graph_clean.py` | 그래프 기반 추론 |
+
+**자동 동기화 조건**:
+- **시작 시**: HybridAgentSelector 초기화 시 자동 full_sync()
+- **파일 변경 시**: AgentFileWatcher가 5초마다 체크
+- **새 에이전트 추가 시**: 자동 감지 → sync_single_agent()
+
+### 3. LLM 기반 처리 (LLM-Based Processing)
 
 모든 지능적 처리는 LLM을 통해 수행합니다:
 
 | 작업 | 처리 방식 |
 |------|----------|
 | 쿼리 분석 | LLM (process_unified_query) |
-| 에이전트 선택 | LLM (_select_agent_by_llm) |
+| 에이전트 선택 | **하이브리드** (Knowledge Graph + LLM) |
 | 워크플로우 설계 | LLM (workflow_designer) |
 | 결과 통합 | LLM (result_integration) |
 
@@ -200,6 +357,43 @@ print(result.get('agent_mappings', []))
 
 ## 히스토리
 
+### 2026-01-31: ExecutionEngine 스테이지 간 데이터 전달 수정 ✅
+
+**문제**: 멀티 스테이지 워크플로우에서 이전 스테이지의 결과가 다음 스테이지에 전달되지 않음
+
+**증상**:
+- 쿼리: "사과를 하나 샀다. 그리고 배를 하나 샀다. 그럼 내가 과일을 몇개 가지고 있지?"
+- Stage 1: 과일 개수 계산 (정상 작동 - "2개")
+- Stage 2 sub_query: "계산된 총 과일 개수를 사용자에게 명확하게 전달" (추상적)
+- Stage 2 응답: "계산된 과일 개수는 [계산된 과일 개수]입니다." ❌ (플레이스홀더)
+
+**원인**:
+- QueryPlanner가 추상적인 sub_query를 생성
+- ExecutionEngine이 `context["input_data"]`로 이전 결과를 전달했지만
+- ACP 에이전트는 `sub_query`만 처리하고 `input_data`를 무시
+
+**해결**:
+`execution_engine.py`에 두 가지 메서드 추가:
+1. `_extract_core_result()`: 중첩된 데이터에서 핵심 결과(answer, result, content) 재귀 추출
+2. `_enrich_query_with_input()`: 이전 단계 결과를 sub_query에 통합
+
+**수정 후 쿼리 형식**:
+```
+[이전 단계 결과]
+사과 1개와 배 1개를 구매했을 때 총 과일 개수는 2개입니다.
+
+[요청]
+계산된 총 과일 개수를 사용자에게 명확하게 전달
+
+위의 이전 단계 결과를 활용하여 요청에 응답해주세요.
+```
+
+**수정 후 응답**: "사과 1개와 배 1개를 구매하셨으므로, 총 과일 개수는 2개입니다." ✅
+
+**수정 파일**: `orchestrator/execution_engine.py`
+
+---
+
 ### 2024-12-21 (5차): 설계 원칙 개선 - 폴백 개념 제거 ✅
 
 **핵심 변경: "폴백" 개념 완전 제거**
@@ -325,6 +519,87 @@ internet_agent는 폴백 → 이것도 하드코딩!
 
 **영향 파일**:
 - `ontology/core/unified_query_processor.py`
+
+## Workflow Orchestrator
+
+### 개요
+
+**위치**: `ontology/orchestrator/`
+
+LLM 기반 지능형 멀티 에이전트 워크플로우 오케스트레이션 시스템입니다.
+
+```
+쿼리 → QueryPlanner(Flash-Lite) → ExecutionPlan → Validator → ExecutionEngine → Result
+                                                                      ↓
+                                                              ProgressStreamer → Frontend
+```
+
+### 필수 테스트 규칙
+
+**⚠️ 중요**: Orchestrator 모듈 수정 후 반드시 테스트 실행
+
+```bash
+# 모든 수정 후 필수 실행
+./ontology/orchestrator/run_tests.sh
+
+# 또는 직접 실행
+cd /Users/maior/Development/skku/Logos
+source .venv/bin/activate
+python ontology/orchestrator/test_orchestrator.py
+```
+
+### 테스트 체크리스트
+
+수정 후 다음을 확인:
+
+- [ ] **Agent Registry**: 8개 에이전트 등록 확인
+- [ ] **Plan Creation**: 계획 생성 성공 (1-2초)
+- [ ] **Validation**: 검증 통과
+- [ ] **Execution**: 에이전트 실행 성공
+- [ ] **Streaming**: 이벤트 스트리밍 정상
+
+### 자주 발생하는 문제
+
+#### 스키마 호환성 에러
+
+```
+Schema incompatibility: agent_a outputs 'X' but agent_b expects 'Y'
+```
+
+**해결**: `models.py`의 `AgentSchema.is_compatible_with()` 수정
+
+```python
+# 새 변환 규칙 추가 예시
+if self.output_type == "new_type" and other.input_type == "target_type":
+    return True
+```
+
+#### LLM 응답 파싱 실패
+
+```
+Failed to parse LLM response as JSON
+```
+
+**해결**:
+1. `query_planner.py`의 프롬프트 확인
+2. 에이전트 레지스트리 메타데이터 확인
+3. LLM 응답 로그 확인
+
+### 컴포넌트 구조
+
+| 파일 | 역할 | 수정 시 주의사항 |
+|------|------|-----------------|
+| `models.py` | 데이터 모델 | 스키마 호환성 규칙 확인 |
+| `query_planner.py` | LLM 계획 | 프롬프트 변경 시 테스트 필수 |
+| `execution_engine.py` | 실행 엔진 | 타임아웃, 재시도 로직 확인 |
+| `progress_streamer.py` | 스트리밍 | 이벤트 타입 추가 시 프론트엔드 연동 확인 |
+
+### 문서
+
+- [README.md](./orchestrator/README.md) - 사용 가이드
+- [WORKFLOW_ORCHESTRATOR_DESIGN.md](./orchestrator/WORKFLOW_ORCHESTRATOR_DESIGN.md) - 설계 문서
+
+---
 
 ## 참조 문서
 
