@@ -594,6 +594,7 @@ class ProgressStreamer:
         stage_id: int,
         success: bool = True,
         result_preview: Optional[str] = None,
+        full_result: Optional[Any] = None,
         error: Optional[str] = None
     ) -> None:
         """Emit agent completion event"""
@@ -604,6 +605,14 @@ class ProgressStreamer:
         if agent_id in self._agent_start_times:
             agent_elapsed = (time.time() - self._agent_start_times[agent_id]) * 1000
 
+        # data에 preview와 full_result 모두 포함
+        event_data = {
+            "result_preview": result_preview[:200] if result_preview else None,
+        }
+        # full_result가 있으면 포함 (프론트엔드에서 전체 결과 사용 가능)
+        if full_result is not None:
+            event_data["full_result"] = full_result
+
         event = ProgressEvent(
             type=ProgressEventType.AGENT_COMPLETE if success else ProgressEventType.AGENT_ERROR,
             stage_id=stage_id,
@@ -611,7 +620,7 @@ class ProgressStreamer:
             status=AgentStatus.COMPLETED if success else AgentStatus.FAILED,
             message=f"Agent '{agent_id}' completed in {agent_elapsed:.0f}ms" if success else f"Agent '{agent_id}' failed: {error}",
             message_ko=f"에이전트 '{agent_id}' 완료 ({agent_elapsed:.0f}ms)" if success else f"에이전트 '{agent_id}' 실패: {error}",
-            data={"result_preview": result_preview[:200] if result_preview else None},
+            data=event_data,
             progress_percent=self._calculate_overall_progress(),
             elapsed_time_ms=self._calculate_elapsed_time(),
             error=error,

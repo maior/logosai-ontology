@@ -23,6 +23,7 @@ from .models import (
     ExecutionPlan,
     WorkflowResult,
     ProgressEvent,
+    ProgressEventType,
 )
 from .agent_registry import AgentRegistry, get_registry
 from .query_planner import QueryPlanner
@@ -234,12 +235,13 @@ class WorkflowOrchestrator:
             async for event in streamer.events():
                 yield event
 
-                # Check if workflow completed
-                if workflow_task.done():
+                # Check if this is the final event (WORKFLOW_COMPLETE or WORKFLOW_ERROR)
+                if event.type in (ProgressEventType.WORKFLOW_COMPLETE, ProgressEventType.WORKFLOW_ERROR):
                     break
 
-            # Wait for workflow to complete
-            await workflow_task
+            # Wait for workflow to complete (if not already done)
+            if not workflow_task.done():
+                await workflow_task
 
         except asyncio.CancelledError:
             workflow_task.cancel()

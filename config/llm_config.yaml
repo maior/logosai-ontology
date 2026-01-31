@@ -37,10 +37,10 @@ providers:
     api_key_env: "GOOGLE_API_KEY"
     description: "Google Gemini 모델들"
     models:
-      high_performance: "gemini-2.5-flash-lite"
-      standard: "gemini-2.5-flash-lite"
+      high_performance: "gemini-3-flash-preview"
+      standard: "gemini-2.5-flash"
       fast: "gemini-2.5-flash-lite"
-      creative: "gemini-2.5-flash-lite"
+      creative: "gemini-3-flash-preview"
       budget: "gemini-2.5-flash-lite"
     default_params:
       temperature: 0.7
@@ -117,16 +117,16 @@ profiles:
       creative_reasoner: { provider: "anthropic", model_tier: "creative" }
 
   all_gemini:
-    description: "모든 LLM을 Gemini로 설정"
+    description: "모든 LLM을 Gemini로 설정 (핵심 분석은 2.5-flash, 나머지는 2.5-flash-lite)"
     settings:
-      semantic_analyzer: { provider: "google", model_tier: "fast" }
-      workflow_designer: { provider: "google", model_tier: "fast" }
-      knowledge_reasoner: { provider: "google", model_tier: "fast" }
-      result_integrator: { provider: "google", model_tier: "fast" }
-      query_processor: { provider: "google", model_tier: "fast" }
-      graph_builder: { provider: "google", model_tier: "fast" }
-      performance_optimizer: { provider: "google", model_tier: "fast" }
-      creative_reasoner: { provider: "google", model_tier: "fast" }
+      semantic_analyzer: { provider: "google", model_tier: "standard" }
+      workflow_designer: { provider: "google", model_tier: "standard" }
+      knowledge_reasoner: { provider: "google", model_tier: "budget" }
+      result_integrator: { provider: "google", model_tier: "budget" }
+      query_processor: { provider: "google", model_tier: "budget" }
+      graph_builder: { provider: "google", model_tier: "budget" }
+      performance_optimizer: { provider: "google", model_tier: "budget" }
+      creative_reasoner: { provider: "google", model_tier: "budget" }
 
   budget_friendly:
     description: "비용 효율적인 설정"

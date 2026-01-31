@@ -309,10 +309,14 @@ class DataTransformer:
         return {"raw_data": data, "data_type": "unknown"}
 
     def _transform_analysis_to_visualization(self, data: Any) -> Dict[str, Any]:
-        """Transform analysis results to visualization-ready format"""
+        """Transform analysis results to visualization-ready format
+
+        analysis_agent의 출력에서 data_values, data_points 등을 추출하고
+        data_visualization_agent가 사용할 수 있는 형식으로 변환합니다.
+        """
         if isinstance(data, dict):
             # Check if already in chart format
-            if "chart_data" in data or "chart_type" in data:
+            if "chart_data" in data or ("chart_type" in data and "data_points" in data):
                 return data
 
             # Try to create chart data from analysis results
@@ -322,8 +326,87 @@ class DataTransformer:
                 "data_points": [],
             }
 
-            # Extract data points if available
-            if "data" in data and isinstance(data["data"], list):
+            # 🔥 0. analysis_agent의 results.date_price_pairs 처리 (최우선 - 날짜-가격 쌍)
+            results_data = data.get("results", {})
+            if isinstance(results_data, dict):
+                date_price_pairs = results_data.get("date_price_pairs", [])
+                if date_price_pairs and isinstance(date_price_pairs, list) and len(date_price_pairs) >= 2:
+                    chart_data["data_points"] = [
+                        {
+                            "label": f"{pair.get('date', '').split('-')[1]}/{pair.get('date', '').split('-')[2]}" if '-' in pair.get('date', '') else pair.get('date', f'항목{i+1}'),
+                            "value": float(pair.get("price", 0)),
+                            "category": "주식",
+                            "type": "stock_price"
+                        }
+                        for i, pair in enumerate(date_price_pairs) if pair.get("price")
+                    ]
+                    if chart_data["data_points"]:
+                        chart_data["chart_type"] = "line"
+                        chart_data["data_type"] = "stock_price"
+                        chart_data["source"] = "analysis_agent.results.date_price_pairs"
+                        logger.info(f"[DataTransformer] ✅ results.date_price_pairs에서 {len(chart_data['data_points'])}개 데이터 추출")
+                        return chart_data
+
+                # 🔥 results.data_values 처리 (날짜 정보 없음)
+                result_data_values = results_data.get("data_values", [])
+                if result_data_values and isinstance(result_data_values, list) and len(result_data_values) >= 2:
+                    # 주가 범위 (50000~200000원)의 값만 필터링
+                    stock_prices = [v for v in result_data_values if isinstance(v, (int, float)) and 50000 <= v <= 200000]
+                    if len(stock_prices) >= 2:
+                        chart_data["data_points"] = [
+                            {"label": f"데이터{i+1}", "value": float(v), "category": "주식", "type": "stock_price"}
+                            for i, v in enumerate(stock_prices)
+                        ]
+                        chart_data["chart_type"] = "line"
+                        chart_data["data_type"] = "stock_price"
+                        chart_data["source"] = "analysis_agent.results.data_values"
+                        logger.info(f"[DataTransformer] ✅ results.data_values에서 {len(chart_data['data_points'])}개 주가 데이터 추출")
+                        return chart_data
+
+            # 🔥 1. analysis_agent의 data_values 필드 처리 (숫자 배열)
+            data_values = data.get("data_values", [])
+            if data_values and isinstance(data_values, list):
+                # 라벨 정보가 있으면 사용
+                labels = data.get("labels", data.get("data_labels", []))
+                if labels and len(labels) >= len(data_values):
+                    chart_data["data_points"] = [
+                        {"label": str(labels[i]), "value": float(v), "category": "분석"}
+                        for i, v in enumerate(data_values)
+                    ]
+                else:
+                    # 라벨이 없으면 인덱스 기반 라벨 생성
+                    chart_data["data_points"] = [
+                        {"label": f"항목{i+1}", "value": float(v), "category": "분석"}
+                        for i, v in enumerate(data_values)
+                    ]
+                if chart_data["data_points"]:
+                    logger.info(f"[DataTransformer] ✅ data_values에서 {len(chart_data['data_points'])}개 데이터 추출")
+                    return chart_data
+
+            # 🔥 2. structured_data가 있으면 처리 (internet_agent 패스스루)
+            structured_data = data.get("structured_data", {})
+            if structured_data:
+                date_price_pairs = structured_data.get("date_price_pairs", [])
+                if date_price_pairs:
+                    chart_data["data_points"] = [
+                        {
+                            "label": f"{pair.get('date', '').split('-')[1]}/{pair.get('date', '').split('-')[2]}" if '-' in pair.get('date', '') else pair.get('date', f'항목{i+1}'),
+                            "value": float(pair.get("price", 0)),
+                            "category": "주식",
+                            "type": "stock_price"
+                        }
+                        for i, pair in enumerate(date_price_pairs) if pair.get("price")
+                    ]
+                    if chart_data["data_points"]:
+                        chart_data["chart_type"] = "line"
+                        chart_data["data_type"] = "stock_price"
+                        logger.info(f"[DataTransformer] ✅ structured_data에서 {len(chart_data['data_points'])}개 데이터 추출")
+                        return chart_data
+
+            # 3. Extract data points if available (기존 로직)
+            if "data_points" in data and isinstance(data["data_points"], list):
+                chart_data["data_points"] = data["data_points"]
+            elif "data" in data and isinstance(data["data"], list):
                 chart_data["data_points"] = data["data"]
             elif "items" in data and isinstance(data["items"], list):
                 chart_data["data_points"] = data["items"]
@@ -364,10 +447,124 @@ class DataTransformer:
         return str(data)
 
     def _transform_internet_to_visualization(self, data: Any) -> Dict[str, Any]:
-        """Transform internet data directly to visualization format"""
-        # First convert to analysis format
+        """Transform internet data directly to visualization format
+
+        특히 internet_agent의 structured_data (주가, 날짜 등)를
+        data_visualization_agent가 바로 사용할 수 있는 형식으로 변환합니다.
+        """
+        if isinstance(data, dict):
+            # 🔥 structured_data에서 주가 데이터 직접 추출
+            structured_data = data.get("structured_data", {})
+
+            # 1. date_price_pairs가 있으면 최우선 사용 (가장 정확한 데이터)
+            date_price_pairs = structured_data.get("date_price_pairs", [])
+            if date_price_pairs:
+                chart_data = []
+                for pair in date_price_pairs:
+                    date_str = pair.get("date", "")
+                    price = pair.get("price", 0)
+                    if date_str and price:
+                        # 날짜 형식을 MM/DD로 변환
+                        try:
+                            parts = date_str.split("-")
+                            if len(parts) >= 3:
+                                label = f"{parts[1]}/{parts[2]}"
+                            else:
+                                label = date_str
+                        except:
+                            label = date_str
+                        chart_data.append({
+                            "label": label,
+                            "value": float(price),
+                            "category": "주식",
+                            "type": "stock_price",
+                            "date": date_str
+                        })
+                if chart_data:
+                    logger.info(f"[DataTransformer] ✅ date_price_pairs에서 {len(chart_data)}개 데이터 추출")
+                    return {
+                        "chart_type": "line",
+                        "title": data.get("query", "주가 추이"),
+                        "data_points": chart_data,
+                        "data_type": "stock_price",
+                        "source": "internet_agent.structured_data"
+                    }
+
+            # 2. prices 배열이 있으면 사용
+            prices = structured_data.get("prices", [])
+            dates = structured_data.get("dates", [])
+            if prices:
+                chart_data = []
+                for i, price_info in enumerate(prices):
+                    if isinstance(price_info, dict):
+                        value = price_info.get("value", 0)
+                        context = price_info.get("context", f"가격{i+1}")
+                    else:
+                        value = price_info
+                        context = f"가격{i+1}"
+
+                    # 대응하는 날짜가 있으면 사용
+                    if i < len(dates):
+                        date_info = dates[i]
+                        if isinstance(date_info, dict):
+                            label = date_info.get("formatted", date_info.get("original", f"항목{i+1}"))
+                        else:
+                            label = str(date_info)
+                    else:
+                        label = context
+
+                    chart_data.append({
+                        "label": label,
+                        "value": float(value),
+                        "category": "주식",
+                        "type": "stock_price"
+                    })
+                if chart_data:
+                    logger.info(f"[DataTransformer] ✅ prices 배열에서 {len(chart_data)}개 데이터 추출")
+                    return {
+                        "chart_type": "line" if len(chart_data) > 1 else "bar",
+                        "title": data.get("query", "가격 데이터"),
+                        "data_points": chart_data,
+                        "data_type": structured_data.get("data_type", "general"),
+                        "source": "internet_agent.structured_data"
+                    }
+
+            # 3. 텍스트에서 주가 데이터 추출 시도
+            content = data.get("content") or data.get("answer") or data.get("text") or ""
+            if content and isinstance(content, str):
+                # 마크다운 테이블에서 주가 데이터 추출
+                import re
+                markdown_pattern = r'\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([0-9,]+)\s*\|'
+                matches = re.findall(markdown_pattern, content)
+                if matches:
+                    chart_data = []
+                    for date_str, value_str in matches:
+                        try:
+                            parts = date_str.split("-")
+                            label = f"{parts[1]}/{parts[2]}"
+                            value = float(value_str.replace(",", ""))
+                            if 10000 <= value <= 1000000:  # 주가 범위 검증
+                                chart_data.append({
+                                    "label": label,
+                                    "value": value,
+                                    "category": "주식",
+                                    "type": "stock_price",
+                                    "date": date_str
+                                })
+                        except:
+                            continue
+                    if chart_data:
+                        logger.info(f"[DataTransformer] ✅ 마크다운 테이블에서 {len(chart_data)}개 데이터 추출")
+                        return {
+                            "chart_type": "line",
+                            "title": data.get("query", "주가 추이"),
+                            "data_points": chart_data,
+                            "data_type": "stock_price",
+                            "source": "internet_agent.content"
+                        }
+
+        # 4. 기존 로직으로 폴백
         analysis_data = self._transform_internet_to_analysis(data)
-        # Then to visualization format
         return self._transform_analysis_to_visualization(analysis_data)
 
     def _transform_any_to_context_string(self, data: Any) -> str:

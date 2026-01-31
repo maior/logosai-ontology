@@ -449,8 +449,17 @@ class AgentRegistry:
             lines.append(f"## {agent.agent_id}")
             lines.append(f"- 이름: {agent.name}")
             lines.append(f"- 설명: {agent.description}")
-            lines.append(f"- 능력: {', '.join(agent.capabilities)}")
-            lines.append(f"- 태그: {', '.join(agent.tags)}")
+            # capabilities와 tags를 문자열로 변환 (dict 객체 처리)
+            capabilities_str = ', '.join(
+                c if isinstance(c, str) else (c.get('name', str(c)) if isinstance(c, dict) else str(c))
+                for c in agent.capabilities
+            ) if agent.capabilities else ''
+            tags_str = ', '.join(
+                t if isinstance(t, str) else (t.get('name', str(t)) if isinstance(t, dict) else str(t))
+                for t in agent.tags
+            ) if agent.tags else ''
+            lines.append(f"- 능력: {capabilities_str}")
+            lines.append(f"- 태그: {tags_str}")
 
             if include_schema:
                 lines.append(f"- 입력 타입: {agent.schema.input_type}")

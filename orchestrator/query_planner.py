@@ -181,21 +181,37 @@ class QueryPlanner:
 - 시각화(차트, 그래프)가 필요하면 → data_visualization_agent
 - 일반 지식/설명이 필요하면 → llm_search_agent
 
-## 2. 도메인 구분 원칙
-- 삼성/반도체/FAB/NAND/수율 관련 → samsung_gateway_agent 우선
+## 2. 전문 에이전트 우선 원칙 (CRITICAL)
+- 특정 도메인 전용 에이전트가 있으면 반드시 해당 에이전트를 우선 사용
+- 에이전트 목록의 description/capabilities를 분석하여 가장 적합한 에이전트 선택
+- 범용 에이전트(internet_agent, llm_search_agent)는 전문 에이전트가 없을 때만 사용
+- 예시:
+  - 날씨 쿼리 + weather_agent 존재 → weather_agent 사용 (internet_agent 아님)
+  - 쇼핑 쿼리 + shopping_agent 존재 → shopping_agent 사용
+  - 코딩 쿼리 + code_agent 존재 → code_agent 사용
+
+## 3. 도메인 구분 원칙
+- 삼성반도체 제조공정/FAB/NAND/수율/EUV/Particle 이슈 → samsung_gateway_agent
+  (주의: 삼성전자 주가/재무/투자 정보는 samsung_gateway_agent가 아닌 internet_agent 사용!)
 - 상품 검색/가격 비교 → shopping_agent
 - 코드/프로그래밍 → code_agent
 - 문서 검색 → rag_search_agent
 
-## 3. 워크플로우 전략
+## 4. 워크플로우 전략
 - sequential: 이전 결과가 다음 작업에 필요할 때 (예: 데이터 수집 → 분석 → 시각화)
 - parallel: 독립적인 작업들을 동시 처리할 때 (예: 두 회사 정보 동시 검색)
 - hybrid: sequential과 parallel 혼합
 
-## 4. 금지 사항
+## 5. 결과 정리 원칙 (IMPORTANT)
+- 모든 쿼리 결과는 사용자에게 깔끔하게 정리되어야 함
+- 단순 정보 검색(날씨, 뉴스, 일반 질문)도 마지막에 llm_search_agent로 결과 정리
+- 최종 단계에서 사용자 친화적인 형태로 요약 및 포맷팅
+
+## 6. 금지 사항
 - 불필요한 에이전트 추가 금지 (필요한 에이전트만 선택)
 - 같은 에이전트 중복 호출 금지 (한 스테이지 내에서)
 - 데이터 의존성 무시 금지 (실시간 데이터 먼저 수집)
+- 단일 에이전트만으로 결과 반환 금지 (최소 2단계: 데이터 수집 → 결과 정리)
 
 # 예시
 
@@ -247,7 +263,31 @@ class QueryPlanner:
   "reasoning": "실시간 주가 데이터 수집 → 데이터 구조화 → 차트 시각화의 순차적 파이프라인"
 }}
 
-## 예시 2: "삼성전자와 애플 실적 비교"
+## 예시 2: "양자역학이란 무엇인가?" (일반 지식 검색)
+{{
+  "workflow_strategy": "sequential",
+  "stages": [
+    {{
+      "stage_id": 1,
+      "execution_type": "sequential",
+      "agents": [
+        {{
+          "agent_id": "llm_search_agent",
+          "sub_query": "양자역학의 기본 개념, 원리, 주요 특징 설명",
+          "input_from": null,
+          "output_to": ["final"]
+        }}
+      ]
+    }}
+  ],
+  "final_aggregation": {{
+    "type": "single",
+    "format": "summary"
+  }},
+  "reasoning": "일반 지식 질문은 llm_search_agent가 직접 답변 (전문 에이전트 불필요)"
+}}
+
+## 예시 3: "삼성전자와 애플 실적 비교"
 {{
   "workflow_strategy": "hybrid",
   "stages": [

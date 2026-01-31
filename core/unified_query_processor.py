@@ -19,6 +19,7 @@ from loguru import logger
 
 from .models import SemanticQuery, ExecutionStrategy, AgentExecutionResult, WorkflowPlan
 from .llm_manager import get_ontology_llm_manager, OntologyLLMType
+from .hybrid_agent_selector import get_hybrid_selector, HybridAgentSelector
 
 
 class LanguageConfig:
@@ -311,7 +312,40 @@ class UnifiedQueryProcessor:
             logger.info(f"🌐 감지된 언어: {self.language_config.get_config(detected_language)['name']}")
             
             logger.info(f"🚀 통합 쿼리 처리 시작 (v3.1 - 다국어 지원): {query}")
-            
+
+            # 🏢 Samsung 도메인 우선 체크 (비즈니스 로직 - LLM 호출 전 처리)
+            # CLAUDE.md 지침: "삼성 도메인은 특수한 비즈니스 로직으로, 별도의 게이트웨이 에이전트로 라우팅 필요"
+            normalized_query = self._normalize_samsung_typos(query)
+            if self._is_samsung_domain_query(normalized_query):
+                samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
+                if samsung_agents:
+                    samsung_agent = samsung_agents[0]
+                    logger.info(f"🏢 Samsung 도메인 감지 - 우선 라우팅: {samsung_agent}")
+                    # Samsung 에이전트로 직접 라우팅하는 결과 반환
+                    return {
+                        "intent": "samsung_domain_analysis",
+                        "complexity": {"level": "moderate", "score": 0.6},
+                        "execution_plan": {
+                            "strategy": "SINGLE_AGENT",
+                            "reasoning": f"삼성/반도체 도메인 전문 에이전트 ({samsung_agent})가 이 쿼리를 처리하는 것이 최적입니다.",
+                            "estimated_time": 30
+                        },
+                        "agent_mappings": [{
+                            "task_id": "samsung_task_1",
+                            "selected_agent": samsung_agent,
+                            "task_type": "samsung_domain_analysis",
+                            "individual_query": query,
+                            "confidence": 0.95,
+                            "reasoning": "삼성/반도체 도메인 쿼리 - 전문 에이전트로 우선 라우팅"
+                        }],
+                        "query_chains": [],
+                        "reasoning": f"삼성/반도체 관련 쿼리로 감지되어 전문 에이전트({samsung_agent})로 직접 라우팅됩니다.",
+                        "language": detected_language,
+                        "samsung_priority_routing": True
+                    }
+                else:
+                    logger.warning(f"⚠️ Samsung 도메인 감지됨, 하지만 samsung_gateway_agent가 설치되지 않음. LLM 기반 선택으로 진행.")
+
             # 결과 컨텍스트 초기화
             self.result_context = AgentResultContext()
             
@@ -379,7 +413,13 @@ class UnifiedQueryProcessor:
             # 🚀 개선: 태그를 도메인 힌트로 활용 (최대 15개)
             all_tags = tags[:15] if tags else []
 
-            # 🚀 개선: 에이전트 ID와 이름을 명확히 구분
+            # 🚀 데이터 타입 스펙 추출 (지능형 워크플로우용)
+            input_spec = info.get('input_spec', {})
+            output_spec = info.get('output_spec', {})
+            input_type = input_spec.get('type', 'text') if input_spec else 'text'
+            output_type = output_spec.get('type', 'text') if output_spec else 'text'
+
+            # 🚀 개선: 에이전트 ID와 이름을 명확히 구분 + 데이터 타입 스펙 포함
             agent_entry = f"""
 📌 에이전트 ID: {agent_id}
    이름: {name}
@@ -387,6 +427,8 @@ class UnifiedQueryProcessor:
    설명: {description[:300]}{'...' if len(description) > 300 else ''}
    능력: {', '.join(all_capabilities) if all_capabilities else '일반 처리'}
    도메인 태그: {', '.join(all_tags) if all_tags else '일반'}
+   📥 입력 타입: {input_type}
+   📤 출력 타입: {output_type}
    ✅ 이 에이전트를 선택하려면 agent_mappings의 selected_agent에 "{agent_id}"를 입력하세요.
 """
             agents_list.append(agent_entry)
@@ -449,7 +491,20 @@ class UnifiedQueryProcessor:
    - internet: 최신 뉴스, 실시간 정보, 웹 검색이 필요한 경우
    - weather: 날씨/기온 정보
    - rag_search: 업로드된 문서에서 검색 (PDF, 보고서 등)
-   - samsung_gateway: 삼성/반도체 관련 전문 분석
+   - samsung_gateway: 삼성/반도체 **제조 공정** 전문 분석 (Particle, Yield, FAB, Etch, EUV 등)
+
+   ### 🏢 삼성 도메인 구분 규칙 (매우 중요!)
+   **samsung_gateway_agent는 삼성/반도체 "제조 공정" 전문 에이전트입니다.**
+   **주식, 금융, 투자 관련 쿼리는 절대 처리하지 않습니다.**
+
+   ✅ samsung_gateway 사용: 반도체 제조 관련
+      - "삼성전자 반도체 NAND 분석", "삼성 FAB Particle 이슈", "DDR5 수율 개선", "Etch 공정 최적화"
+
+   ❌ samsung_gateway 금지: 주식/금융/투자 관련
+      - "삼성전자 주가", "삼성전자 종가/시가", "삼성전자 시가총액", "삼성전자 배당금", "삼성전자 매출/실적"
+      - 키워드: 주가, 종가, 시가, 고가, 저가, 시총, 배당, 매수, 매도, 거래, 실적, 매출
+
+   🔑 핵심: "삼성전자"가 포함되어도 금융 키워드가 있으면 → internet_agent 사용!
 
 3. **적합한 에이전트가 없을 때 - 유용한 피드백 제공**:
    **no_suitable_agent = true로 설정하고, 다음 중 하나의 피드백 제공:**
@@ -535,13 +590,68 @@ class UnifiedQueryProcessor:
 - 특정 에이전트 이름을 기억하지 말고, **에이전트 메타데이터만으로** 판단
 - 복합 쿼리(예: 여행+맛집)는 관련 에이전트 조합으로 병렬(parallel) 전략 사용 가능
 
-🚨 **절대 규칙 - 반드시 준수하세요:**
-1. "분석하고 제안/개선/제시" 패턴은 **무조건 1개 작업**으로 처리
-2. 작업 분할은 **완전히 다른 도메인**일 때만 허용
-3. **의미론적 매칭**: 쿼리 의도와 에이전트 메타데이터(description, capabilities, tags)를 분석하여 가장 적합한 에이전트 선택
-4. **모든 에이전트는 동등**: 특정 에이전트를 "폴백"으로 취급하지 않음. 각 에이전트의 전문 영역에 맞게 선택
+🧠 **지능형 워크플로우 설계 - 데이터 흐름 추론 (Backward Chaining):**
 
-5. **적합한 에이전트가 없을 때 - 유용한 피드백 제공:**
+## 📊 에이전트 데이터 타입 규칙:
+각 에이전트는 특정 데이터 타입을 입력받고 출력합니다:
+- **raw_text** (비정형 텍스트): HTML, 웹 검색 결과, 자연어 등
+- **structured_data** (정형 데이터): JSON, 배열, 객체, 테이블 등
+- **visual** (시각적 출력): 차트, 그래프, HTML/SVG 등
+- **text** (자연어 쿼리): 사용자 입력, 검색 키워드 등
+- **numeric** (숫자): 계산 결과, 수치 데이터 등
+
+## 🔄 워크플로우 설계 방법:
+### Step 1: 최종 출력 분석
+- 쿼리에서 요구하는 최종 출력 형태를 파악 (예: 그래프 → visual)
+
+### Step 2: 역방향 추론 (Backward Chaining)
+- 최종 출력을 생성할 수 있는 에이전트를 찾음
+- 해당 에이전트의 필요 입력 타입을 확인
+- 그 입력을 제공할 수 있는 이전 에이전트를 찾음
+- 데이터 소스(검색 등)에 도달할 때까지 반복
+
+### Step 3: 데이터 호환성 검증
+- **중요**: 에이전트 간 데이터 타입이 호환되어야 함!
+- 비정형(raw_text) → 정형(structured_data) 변환 필요 시 분석 에이전트 삽입
+- 예: 웹 검색(raw_text) → 시각화(structured_data 필요) = 중간에 분석 에이전트 필요!
+
+### Step 4: 갭 분석 (Gap Analysis)
+- 출력 타입과 다음 에이전트 입력 타입이 맞지 않으면 → 변환 에이전트 추가
+- raw_text ≠ structured_data → 분석 에이전트로 변환 필요
+
+## ⚡ 예시:
+쿼리: "삼성전자 주가 5일치 그래프로 그려줘"
+1. 최종 출력: visual (그래프)
+2. 시각화 에이전트 필요 입력: structured_data
+3. 데이터 소스: 인터넷 검색 출력: raw_text
+4. 갭 발견: raw_text ≠ structured_data → 분석 에이전트 삽입
+5. 결과: internet(raw_text) → analysis(structured_data) → visualization(visual) = 3단계
+
+쿼리: "분석하고 개선방안 제시해줘"
+1. 같은 분석 에이전트가 분석과 제안 모두 처리 가능
+2. 데이터 흐름 변환 불필요
+3. 결과: 1개 작업
+
+🚨 **핵심 규칙 (반드시 준수):**
+1. **⛔ 데이터 타입 불일치 시 직접 연결 금지**:
+   - 📥 입력 타입과 📤 출력 타입이 맞지 않으면 **절대** 직접 연결하지 마세요
+   - 예: internet(출력: raw_text) → visualization(입력: structured_data) = ❌ 금지!
+   - 반드시 중간에 analysis 에이전트(any→structured_data 변환 가능) 삽입
+
+2. **⚠️ 시각화 에이전트 제한**:
+   - 시각화 에이전트는 **structured_data만** 입력으로 받을 수 있음
+   - raw_text를 직접 처리할 수 없음
+   - 검색 결과(raw_text)를 시각화하려면 **반드시** 분석 에이전트 거쳐야 함
+
+3. **✅ 갭 발견 시 변환 에이전트 삽입 필수**:
+   - raw_text → structured_data 변환: analysis_agent 필수
+   - 예: "주가 검색해서 그래프로" = 3단계: internet → analysis → visualization
+
+4. **같은 능력이면 통합**: 한 에이전트가 처리 가능하면 분할하지 않음
+5. **의미론적 매칭**: 쿼리 의도와 에이전트 메타데이터를 분석하여 가장 적합한 에이전트 선택
+6. **모든 에이전트는 동등**: 특정 에이전트를 "폴백"으로 취급하지 않음
+
+7. **적합한 에이전트가 없을 때 - 유용한 피드백 제공:**
    - no_suitable_agent: true 설정
    - feedback_type: "clarification_needed" | "alternative_suggested" | "impossible_request"
    - user_message: 사용자에게 전달할 메시지
@@ -567,12 +677,21 @@ class UnifiedQueryProcessor:
   - feedback_type: "clarification_needed"
   - user_message: "어떤 종류의 추천을 원하시나요? (여행지, 맛집, 상품 등)"
 
-❌ **잘못된 분할 예시 (절대 금지):**
-- "수율 분석하고 개선방안 제시" → 2개 작업 ❌
-- "현황 파악하고 전략 수립" → 2개 작업 ❌
-- "트렌드 분석하고 예측" → 2개 작업 ❌
+❌ **같은 능력으로 처리 가능한 경우 - 분할 금지:**
+- "수율 분석하고 개선방안 제시" → 같은 분석 에이전트가 둘 다 가능 → 1개 작업 ✅
+- "현황 파악하고 전략 수립" → 같은 분석 에이전트가 둘 다 가능 → 1개 작업 ✅
+- "트렌드 분석하고 예측" → 같은 분석 에이전트가 둘 다 가능 → 1개 작업 ✅
 
-✅ **올바른 처리 예시:**
+✅ **다른 능력이 필요한 경우 - 반드시 분할:**
+- "삼성전자 주가 검색해서 그래프로 그려줘" → 3개 작업 (sequential):
+  - task_1: internet_agent (주가 데이터 검색)
+  - task_2: analysis_agent (데이터 정리/구조화) - depends_on: task_1
+  - task_3: data_visualization_agent (그래프 시각화) - depends_on: task_2
+- "비트코인 시세 확인하고 원화로 환산" → 2개 작업 (sequential):
+  - task_1: internet_agent (시세 검색)
+  - task_2: calculator_agent (환율 계산) - depends_on: task_1
+
+✅ **같은 능력으로 처리 가능한 예시:**
 쿼리: "삼성반도체 DDR5 Etch 공정의 수율 추이를 분석하고 개선방안을 제시해주세요"
 응답:
 - task_breakdown: [{{"task_id": "task_1", "individual_query": "{query}"}}]
@@ -711,7 +830,7 @@ class UnifiedQueryProcessor:
    - hybrid: parallel + sequential 조합
 
 5. 감지된 언어({language})로 응답 생성
-6. **작업 수를 최소화하세요** - 하나의 에이전트가 처리 가능하면 하나로 통합
+6. **작업 분할 기준** - 같은 에이전트가 처리 가능하면 통합, 다른 능력이 필요하면 반드시 분할 (예: 검색+시각화는 2개 작업)
 7. reasoning 필드에 "왜 그렇게 결정했는지" 구체적 이유 명시"""
 
         return {"query": unified_prompt}
@@ -1695,20 +1814,48 @@ class UnifiedQueryProcessor:
         return available_agents[0] if available_agents else 'unknown'
 
     def _is_samsung_domain_query(self, query: str) -> bool:
-        """삼성 관련 업무 쿼리 자동 감지 (오타 보정 포함)"""
-        
+        """삼성 관련 업무 쿼리 자동 감지 (오타 보정 포함)
+
+        주의: 주식/금융 관련 쿼리는 삼성 도메인에서 제외됩니다.
+        - "삼성전자 주가" → 주식 에이전트
+        - "삼성전자 Particle 이슈" → 삼성 반도체 에이전트
+        """
+
         # 오타 보정
         normalized_query = self._normalize_samsung_typos(query)
-        
+        query_lower = normalized_query.lower()
+
+        # 🚫 주식/금융 관련 쿼리 제외 (우선 체크)
+        stock_finance_keywords = [
+            # 주식 가격
+            "종가", "시가", "고가", "저가", "주가", "주식", "stock", "price",
+            "closing", "opening", "시세",
+            # 거래
+            "거래", "trading", "매수", "매도", "buy", "sell", "거래량", "volume",
+            # 차트/그래프
+            "그래프", "차트", "chart", "graph", "캔들", "candle",
+            # 투자
+            "투자", "invest", "포트폴리오", "portfolio", "배당", "dividend",
+            # 시장
+            "코스피", "코스닥", "nasdaq", "kospi", "kosdaq",
+            # 증권
+            "증권", "주권", "상장", "시총", "시가총액"
+        ]
+
+        has_stock_finance = any(keyword in query_lower for keyword in stock_finance_keywords)
+        if has_stock_finance:
+            logger.info(f"📈 주식/금융 쿼리 감지 - 삼성 도메인 제외: {query[:50]}...")
+            return False
+
         # 회사/브랜드 키워드
         company_keywords = [
             "삼성", "samsung", "삼성반도체", "samsung semiconductor",
             "삼성전자", "삼성디스플레이", "삼성SDI"
         ]
-        
-        # 제품/기술 키워드  
+
+        # 제품/기술 키워드
         product_keywords = [
-            "ddr4", "ddr5", "gddr6", "lpddr5", "hbm3", 
+            "ddr4", "ddr5", "gddr6", "lpddr5", "hbm3",
             "메모리", "memory", "반도체", "semiconductor",
             "nand", "dram", "ssd", "플래시", "flash",
             "particle", "파티클", "yield", "수율", "defect", "불량",
@@ -1716,7 +1863,7 @@ class UnifiedQueryProcessor:
             "cleanroom", "클린룸", "lithography", "리소그래피",
             "etching", "에칭", "deposition", "증착"
         ]
-        
+
         # 업무 키워드
         business_keywords = [
             "수율", "yield", "불량", "defect", "품질", "quality",
@@ -1724,33 +1871,30 @@ class UnifiedQueryProcessor:
             "시장점유율", "market share", "매출", "revenue",
             "생산", "production", "제조", "manufacturing"
         ]
-        
+
         # 분석 키워드 (업무 깊이 판단)
         analysis_keywords = [
             "분석", "analysis", "추이", "trend", "개선방안", "improvement",
             "최적화", "optimization", "보고서", "report", "예측", "forecast",
             "대시보드", "dashboard", "평가", "assessment"
         ]
-        
-        # 정규화된 쿼리 사용
-        query_lower = normalized_query.lower()
-        
+
         # 삼성 + (제품 OR 업무) 패턴
         has_company = any(keyword in query_lower for keyword in company_keywords)
         has_product = any(keyword in query_lower for keyword in product_keywords)
         has_business = any(keyword in query_lower for keyword in business_keywords)
         has_analysis = any(keyword in query_lower for keyword in analysis_keywords)
-        
+
         # 패턴 매칭 로직
         if has_company and (has_product or has_business):
             logger.info(f"🏢 삼성 도메인 감지됨: 회사 키워드 + 제품/업무")
             return True
-        
+
         # 삼성 없어도 반도체 + 분석이면 삼성으로 간주 (도메인 특화)
         if has_product and has_business and has_analysis:
             logger.info(f"🏢 삼성 도메인 감지됨: 반도체 업무 분석 패턴")
             return True
-        
+
         # 반도체 전문 용어만 있어도 삼성으로 라우팅 (기본 도메인)
         semiconductor_specific = [
             "particle", "파티클", "yield", "수율", "defect", "불량",
@@ -1759,7 +1903,7 @@ class UnifiedQueryProcessor:
         if any(term in query_lower for term in semiconductor_specific):
             logger.info(f"🏢 삼성 도메인 감지됨: 반도체 전문 용어")
             return True
-            
+
         return False
     
     def _normalize_samsung_typos(self, query: str) -> str:
@@ -1792,9 +1936,11 @@ class UnifiedQueryProcessor:
 
     async def _select_agent_by_llm(self, content: str, available_agents: List[str], language: str = None) -> str:
         """
-        🧠 LLM 기반 에이전트 선택 (하드코딩 제거)
+        🧠 하이브리드 에이전트 선택 (Knowledge Graph + LLM)
 
-        쿼리 내용과 에이전트 설명을 LLM이 분석하여 최적의 에이전트를 선택합니다.
+        Phase 1: 지식그래프 분석 (엔티티 추출, 관련 개념, 과거 패턴)
+        Phase 2: LLM 최종 결정 (그래프 인사이트 활용)
+        Phase 3: 피드백 저장 (성공적인 매핑 학습)
         """
         if language is None:
             language = self.language_config.detect_language(content)
@@ -1806,71 +1952,68 @@ class UnifiedQueryProcessor:
             logger.warning("⚠️ 사용 가능한 에이전트 정보 없음, 기본 에이전트 반환")
             return available_agents[0] if available_agents else 'unknown'
 
-        # 에이전트 목록 문자열 생성
-        agents_list = []
-        for agent_id, info in agents_info.items():
-            agent_data = info.get('agent_data', info)
-            name = agent_data.get('name', info.get('name', agent_id))
-            description = agent_data.get('description', info.get('description', ''))[:200]
-            capabilities = agent_data.get('capabilities', info.get('capabilities', []))
-            tags = agent_data.get('tags', info.get('tags', []))
-
-            cap_str = ', '.join([c.get('name', str(c)) if isinstance(c, dict) else str(c) for c in capabilities[:5]])
-            tag_str = ', '.join(tags[:5]) if tags else ''
-
-            agents_list.append(f"- {agent_id}: {name} | {description} | 능력: {cap_str} | 태그: {tag_str}")
-
-        agents_formatted = '\n'.join(agents_list)
-
-        # LLM 프롬프트
-        prompt = f"""당신은 사용자 쿼리를 분석하여 가장 적합한 에이전트를 선택하는 전문가입니다.
-
-사용자 쿼리: "{content}"
-
-사용 가능한 에이전트 목록:
-{agents_formatted}
-
-규칙:
-1. 쿼리의 의도를 정확히 파악하세요
-2. 에이전트의 이름, 설명, 능력, 태그를 분석하세요
-3. 가장 적합한 에이전트 ID를 하나만 선택하세요
-4. 반드시 위 목록에 있는 정확한 agent_id를 반환하세요
-
-응답 형식 (JSON만):
-{{"selected_agent": "agent_id_here", "reasoning": "선택 이유"}}
-"""
-
         try:
-            llm = self.llm_manager.get_llm(OntologyLLMType.SEMANTIC_ANALYZER)
-            response = await llm.ainvoke(prompt)
+            # 🧠 하이브리드 선택기 사용
+            hybrid_selector = get_hybrid_selector()
+            selected_agent, metadata = await hybrid_selector.select_agent(
+                query=content,
+                available_agents=available_agents,
+                agents_info=agents_info,
+                context={"language": language}
+            )
 
-            response_text = response.content if hasattr(response, 'content') else str(response)
+            # 선택 결과 로깅
+            selection_method = metadata.get('selection_method', 'unknown')
+            graph_confidence = metadata.get('graph_insights', {}).get('confidence', 0)
 
-            # JSON 파싱
-            import re
-            json_match = re.search(r'\{[^{}]*"selected_agent"\s*:\s*"([^"]+)"[^{}]*\}', response_text, re.DOTALL)
+            logger.info(
+                f"🧠 하이브리드 에이전트 선택 완료: {selected_agent} "
+                f"(방식: {selection_method}, 그래프 신뢰도: {graph_confidence:.1%}, "
+                f"쿼리: {content[:50]}...)"
+            )
 
-            if json_match:
-                selected_agent = json_match.group(1)
+            # 선택된 에이전트가 유효한지 확인
+            if selected_agent in available_agents:
+                return selected_agent
+            else:
+                # 부분 매칭 시도
+                for agent in available_agents:
+                    if selected_agent.lower() in agent.lower() or agent.lower() in selected_agent.lower():
+                        logger.info(f"🧠 에이전트 부분 매칭: {agent} (원본: {selected_agent})")
+                        return agent
 
-                # 선택된 에이전트가 사용 가능한 목록에 있는지 확인
-                if selected_agent in available_agents:
-                    logger.info(f"🧠 LLM 에이전트 선택 완료: {selected_agent} (쿼리: {content[:50]}...)")
-                    return selected_agent
-                else:
-                    # 부분 매칭 시도
-                    for agent in available_agents:
-                        if selected_agent.lower() in agent.lower() or agent.lower() in selected_agent.lower():
-                            logger.info(f"🧠 LLM 에이전트 부분 매칭: {agent} (원본: {selected_agent})")
-                            return agent
-
-            logger.warning(f"⚠️ LLM 에이전트 선택 파싱 실패, 응답: {response_text[:200]}")
+            logger.warning(f"⚠️ 선택된 에이전트가 목록에 없음: {selected_agent}")
 
         except Exception as e:
-            logger.error(f"❌ LLM 에이전트 선택 실패: {e}")
+            logger.error(f"❌ 하이브리드 에이전트 선택 실패: {e}")
 
-        # LLM 실패 시 첫 번째 에이전트 반환
+        # 폴백: 첫 번째 에이전트 반환
         return available_agents[0] if available_agents else 'unknown'
+
+    async def store_agent_selection_feedback(
+        self,
+        query: str,
+        selected_agent: str,
+        success: bool,
+        execution_result: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        📝 에이전트 선택 피드백 저장 (학습 루프)
+
+        성공적인 쿼리-에이전트 매핑을 지식그래프에 저장하여
+        향후 유사한 쿼리에 더 나은 추천을 제공합니다.
+        """
+        try:
+            hybrid_selector = get_hybrid_selector()
+            return await hybrid_selector.store_feedback(
+                query=query,
+                selected_agent=selected_agent,
+                success=success,
+                execution_result=execution_result
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ 피드백 저장 실패: {e}")
+            return False
 
     def _select_agent_by_content(self, content: str, available_agents: List[str], language: str = None) -> str:
         """
@@ -2060,36 +2203,112 @@ class UnifiedQueryProcessor:
         return self.result_context
 
     def _build_agents_info_for_llm(self, available_agents: List[str]) -> Dict[str, Any]:
-        """LLM용 에이전트 정보 구성"""
+        """LLM용 에이전트 정보 구성 (input_spec/output_spec 포함)"""
         agents_info = {}
-        
+
         for agent_id in available_agents:
             agent_info = self._find_agent_info(agent_id)
             if agent_info:
                 agents_info[agent_id] = agent_info
             else:
-                # 기본 정보 생성
+                # 기본 정보 생성 (데이터 타입 스펙 포함)
+                agent_type = self._infer_type_from_id(agent_id)
+                input_spec, output_spec = self._get_default_data_specs(agent_type)
                 agents_info[agent_id] = {
-                    'agent_type': self._infer_type_from_id(agent_id),
+                    'agent_type': agent_type,
                     'description': f'{agent_id} 에이전트',
                     'capabilities': [],
-                    'tags': [agent_id.replace('_agent', '')]
+                    'tags': [agent_id.replace('_agent', '')],
+                    'input_spec': input_spec,
+                    'output_spec': output_spec
                 }
-        
+
         return agents_info
 
+    def _get_default_data_specs(self, agent_type: str) -> tuple:
+        """에이전트 타입에 따른 기본 데이터 스펙 반환"""
+        # 에이전트 타입별 기본 input_spec, output_spec
+        specs_mapping = {
+            'INTERNET_SEARCH': (
+                {'type': 'text', 'format': ['query', 'string'], 'description': '검색 키워드'},
+                {'type': 'raw_text', 'format': ['html', 'text'], 'description': '웹 검색 결과 (비정형)'}
+            ),
+            'CRAWLER': (
+                {'type': 'text', 'format': ['query', 'string'], 'description': '검색 키워드'},
+                {'type': 'raw_text', 'format': ['html', 'text'], 'description': '크롤링 결과 (비정형)'}
+            ),
+            'ANALYSIS': (
+                {'type': 'any', 'format': ['raw_text', 'structured_data'], 'description': '분석할 데이터'},
+                {'type': 'structured_data', 'format': ['json', 'array'], 'description': '분석된 정형 데이터'}
+            ),
+            'DATA_VISUALIZATION': (
+                {'type': 'structured_data', 'format': ['json', 'array'], 'description': '시각화할 정형 데이터'},
+                {'type': 'visual', 'format': ['html', 'svg', 'chart'], 'description': '차트/그래프'}
+            ),
+            'CALCULATOR': (
+                {'type': 'numeric', 'format': ['number', 'expression'], 'description': '계산할 값'},
+                {'type': 'numeric', 'format': ['number'], 'description': '계산 결과'}
+            ),
+            'CURRENCY': (
+                {'type': 'numeric', 'format': ['number', 'currency'], 'description': '환전할 금액'},
+                {'type': 'numeric', 'format': ['number'], 'description': '환전 결과'}
+            ),
+            'WEATHER': (
+                {'type': 'text', 'format': ['location', 'query'], 'description': '위치 정보'},
+                {'type': 'structured_data', 'format': ['json'], 'description': '날씨 정보'}
+            ),
+            'LLM_SEARCH': (
+                {'type': 'text', 'format': ['query', 'question'], 'description': '질문'},
+                {'type': 'text', 'format': ['string', 'explanation'], 'description': '답변/설명'}
+            ),
+            'RAG_SEARCH': (
+                {'type': 'text', 'format': ['query'], 'description': '문서 검색 쿼리'},
+                {'type': 'raw_text', 'format': ['text', 'document'], 'description': '검색된 문서'}
+            ),
+            'SCHEDULER': (
+                {'type': 'text', 'format': ['command', 'date'], 'description': '일정 관련 요청'},
+                {'type': 'structured_data', 'format': ['json', 'calendar'], 'description': '일정 정보'}
+            ),
+            'SHOPPING': (
+                {'type': 'text', 'format': ['query', 'product'], 'description': '상품 검색 쿼리'},
+                {'type': 'structured_data', 'format': ['json', 'product_list'], 'description': '상품 목록'}
+            ),
+            'WRITER': (
+                {'type': 'any', 'format': ['text', 'structured_data'], 'description': '작성할 내용'},
+                {'type': 'text', 'format': ['document', 'markdown'], 'description': '작성된 문서'}
+            )
+        }
+
+        # 기본값
+        default_spec = (
+            {'type': 'text', 'format': ['query'], 'description': '입력'},
+            {'type': 'text', 'format': ['string'], 'description': '출력'}
+        )
+
+        return specs_mapping.get(agent_type, default_spec)
+
     def _find_agent_info(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """에이전트 정보 찾기"""
+        """에이전트 정보 찾기 (input_spec/output_spec 포함)"""
         for agent_info in self.installed_agents_info:
             if agent_info.get('agent_id') == agent_id:
                 agent_data = agent_info.get('agent_data', {})
                 metadata = agent_data.get('metadata', {})
-                
+                agent_type = metadata.get('agent_type', 'GENERAL')
+
+                # 에이전트 데이터에서 input_spec/output_spec 확인, 없으면 기본값 사용
+                input_spec = agent_data.get('input_spec') or metadata.get('input_spec')
+                output_spec = agent_data.get('output_spec') or metadata.get('output_spec')
+
+                if not input_spec or not output_spec:
+                    input_spec, output_spec = self._get_default_data_specs(agent_type)
+
                 return {
-                    'agent_type': metadata.get('agent_type', 'GENERAL'),
+                    'agent_type': agent_type,
                     'description': agent_data.get('description', f'{agent_id} 에이전트'),
                     'capabilities': agent_data.get('capabilities', []),
-                    'tags': metadata.get('tags', [])
+                    'tags': metadata.get('tags', []),
+                    'input_spec': input_spec,
+                    'output_spec': output_spec
                 }
         return None
 
