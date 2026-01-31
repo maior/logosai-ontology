@@ -214,6 +214,223 @@ await sync_service.sync_single_agent("new_agent", agent_info)
 - **파일 변경 시**: AgentFileWatcher가 5초마다 체크
 - **새 에이전트 추가 시**: 자동 감지 → sync_single_agent()
 
+### 2-2. GNN+RL 지능형 에이전트 선택 시스템 ⭐ NEW (2026-01-31)
+
+**GNN (Graph Neural Network) + RL (Reinforcement Learning)** 기반 지능형 에이전트 선택 시스템입니다.
+
+Knowledge Graph의 구조를 학습하고, 강화학습으로 최적의 에이전트 선택 정책을 학습합니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              GNN+RL Intelligent Agent Selection System                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   User Query                                                                 │
+│        │                                                                     │
+│        ▼                                                                     │
+│   ┌─────────────────────┐                                                   │
+│   │   Query Embedder    │  sentence-transformers (384-dim)                  │
+│   │   paraphrase-       │  다국어 지원                                      │
+│   │   multilingual-     │                                                   │
+│   │   MiniLM-L12-v2     │                                                   │
+│   └──────────┬──────────┘                                                   │
+│              │                                                               │
+│              ▼                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐       │
+│   │              State Composition (512-dim)                         │       │
+│   │   = Query Embedding (384) + Graph Context (64) + History (64)   │       │
+│   └──────────┬──────────────────────────────────────────────────────┘       │
+│              │                                                               │
+│      ┌───────┴───────┐                                                      │
+│      ▼               ▼                                                      │
+│   ┌─────────────┐ ┌─────────────────┐                                       │
+│   │ GNN Encoder │ │   RL Policy     │                                       │
+│   │ GraphSAGE + │ │   PPO (Actor-   │                                       │
+│   │ GAT (64-dim)│ │   Critic)       │                                       │
+│   └──────┬──────┘ └────────┬────────┘                                       │
+│          │                 │                                                 │
+│          └────────┬────────┘                                                │
+│                   ▼                                                         │
+│          ┌───────────────────┐                                              │
+│          │  Agent Selection  │                                              │
+│          │  + Confidence     │                                              │
+│          └─────────┬─────────┘                                              │
+│                    │                                                         │
+│                    ▼                                                         │
+│          ┌───────────────────┐                                              │
+│          │ Experience Buffer │  Prioritized Replay                          │
+│          │ + Feedback Loop   │  + Knowledge Graph Update                    │
+│          └───────────────────┘                                              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 시스템 구성 요소
+
+| 컴포넌트 | 파일 | 설명 |
+|----------|------|------|
+| **GNN Encoder** | `ml/gnn_encoder.py` | GraphSAGE + GAT 기반 Knowledge Graph 인코딩 |
+| **RL Policy** | `ml/rl_policy.py` | PPO 기반 Actor-Critic 에이전트 선택 정책 |
+| **Experience Buffer** | `ml/experience_buffer.py` | 우선순위 기반 경험 리플레이 버퍼 |
+| **Intelligent Selector** | `ml/intelligent_selector.py` | 통합 선택기 (GNN+RL+KG) |
+
+#### 핵심 특징
+
+| 특징 | 설명 |
+|------|------|
+| **State Composition** | Query(384) + Graph(64) + History(64) = 512-dim |
+| **GNN Architecture** | 3-layer GraphSAGE + GAT, 128-dim hidden, 64-dim output |
+| **RL Algorithm** | PPO with GAE (λ=0.95), clip ratio 0.2 |
+| **Experience Buffer** | 100K capacity, prioritized replay (α=0.6, β=0.4) |
+| **Training Mode** | 온라인/오프라인 학습 모두 지원 |
+
+#### 사용법
+
+```python
+from ontology.ml import IntelligentAgentSelector
+
+# 1. 선택기 생성
+selector = IntelligentAgentSelector(
+    query_embedding_dim=384,    # Query 임베딩 차원
+    graph_embedding_dim=64,     # Graph 컨텍스트 차원
+    num_agents=50,              # 최대 에이전트 수
+    device='cpu'                # 'cuda' for GPU
+)
+
+# 2. 에이전트 등록
+agents = ['internet_agent', 'weather_agent', 'shopping_agent', ...]
+selector.rl_policy.register_agents(agents)
+
+# 3. 에이전트 선택
+agent, metadata = await selector.select_agent(
+    query="삼성전자 주가 알려줘",
+    available_agents=["internet_agent", "analysis_agent"],
+    deterministic=False  # True for greedy selection
+)
+
+print(f"선택: {agent}")
+print(f"신뢰도: {metadata['confidence']:.1%}")
+print(f"가치 추정: {metadata['value_estimate']:.2f}")
+
+# 4. 피드백 저장 (학습)
+await selector.store_feedback(
+    success=True,           # 성공 여부
+    reward=1.0,             # 보상 (optional, 자동 계산)
+    execution_result={...}  # 실행 결과 (optional)
+)
+
+# 5. 온라인 학습 활성화
+selector.enable_training(True)
+
+# 6. 오프라인 학습
+await selector.train_offline(
+    num_iterations=1000,
+    batch_size=64,
+    num_epochs=4
+)
+
+# 7. 모델 저장/로드
+selector.save_models()
+selector.load_models()
+```
+
+#### 합성 데이터 생성 및 초기 학습
+
+새 시스템 시작 시 합성 데이터로 초기 학습:
+
+```python
+# 합성 데이터 생성 및 학습 (초기 부트스트랩)
+result = await selector.generate_synthetic_data(
+    num_samples=1000,
+    train_immediately=True
+)
+
+print(f"생성된 데이터: {result['data_generated']}개")
+print(f"학습 결과: {result['training']}")
+```
+
+#### HybridAgentSelector와 통합
+
+GNN+RL 시스템은 기존 HybridAgentSelector v2.0과 통합되어 작동합니다:
+
+```python
+# IntelligentAgentSelector가 피드백 저장 시 자동으로 HybridAgentSelector에도 저장
+await selector.store_feedback(success=True)
+# → Knowledge Graph에도 패턴 저장
+# → GNN+RL 버퍼에도 경험 저장
+```
+
+#### 모델 파일 위치
+
+```
+ontology/ml/models/
+├── intelligent_selector_gnn.pt      # GNN Encoder (430KB)
+├── intelligent_selector_policy.pt   # RL Policy (3.1MB)
+└── intelligent_selector_buffer.pkl  # Experience Buffer (878KB)
+```
+
+#### 학습 파이프라인
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Training Pipeline                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   [Phase 1: Data Collection]                                     │
+│   ├─ 실제 쿼리 처리 → Experience 저장                           │
+│   ├─ 합성 데이터 생성 (SyntheticDataGenerator)                  │
+│   └─ Knowledge Graph 피드백 통합                                │
+│                                                                  │
+│   [Phase 2: Training]                                            │
+│   ├─ Prioritized Replay로 배치 샘플링                           │
+│   ├─ PPO 알고리즘으로 정책 업데이트                             │
+│   └─ 주기적 모델 체크포인트                                     │
+│                                                                  │
+│   [Phase 3: Evaluation]                                          │
+│   ├─ 정책 손실, 가치 손실 모니터링                              │
+│   ├─ 성공률, 평균 보상 추적                                     │
+│   └─ A/B 테스트 지원 (production)                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 테스트
+
+```bash
+# GNN+RL 시스템 테스트
+cd /Users/maior/Development/skku/Logos
+source .venv/bin/activate
+
+python -c "
+import asyncio
+from ontology.ml import IntelligentAgentSelector
+
+async def test():
+    selector = IntelligentAgentSelector(auto_load=False)
+    agents = ['internet_agent', 'weather_agent', 'shopping_agent']
+    selector.rl_policy.register_agents(agents)
+
+    # 합성 데이터로 학습
+    await selector.generate_synthetic_data(num_samples=100, train_immediately=True)
+
+    # 선택 테스트
+    agent, meta = await selector.select_agent('오늘 날씨 어때?', agents)
+    print(f'선택: {agent} (신뢰도: {meta[\"confidence\"]:.1%})')
+
+asyncio.run(test())
+"
+```
+
+#### Production 고려사항
+
+| 항목 | 권장 설정 |
+|------|----------|
+| **학습 주기** | 오프라인: 매일 새벽, 온라인: 실시간 |
+| **배치 크기** | 64 (GPU), 32 (CPU) |
+| **버퍼 크기** | 100K (약 1GB 메모리) |
+| **모델 체크포인트** | 100 iterations마다 |
+| **A/B 테스트** | 10% 트래픽으로 새 모델 테스트 |
+
 ### 3. LLM 기반 처리 (LLM-Based Processing)
 
 모든 지능적 처리는 LLM을 통해 수행합니다:
@@ -388,6 +605,61 @@ print(result.get('agent_mappings', []))
 ```
 
 ## 히스토리
+
+### 2026-01-31: GNN+RL 지능형 에이전트 선택 시스템 추가 ✅
+
+**업그레이드 내용**: Knowledge Graph + GNN + RL 통합 지능형 에이전트 선택 시스템
+
+**새 모듈**: `ontology/ml/`
+
+**추가된 컴포넌트**:
+
+1. **GNN Encoder** (`ml/gnn_encoder.py`)
+   - GraphSAGE + GAT 3-layer 아키텍처
+   - Input: 14-dim 노드 특징 → Hidden: 128-dim → Output: 64-dim
+   - 노드 타입별 특징 추출 (agent, query_mapping, category, domain)
+   - Knowledge Graph 구조 학습
+
+2. **RL Policy** (`ml/rl_policy.py`)
+   - PPO (Proximal Policy Optimization) 알고리즘
+   - Actor-Critic 네트워크 (공유 특징 추출)
+   - GAE (Generalized Advantage Estimation) λ=0.95
+   - State dim: 512 (query + graph + history)
+
+3. **Experience Buffer** (`ml/experience_buffer.py`)
+   - 용량: 100K 경험
+   - Prioritized Replay (α=0.6, β=0.4)
+   - 합성 데이터 생성기 (SyntheticDataGenerator)
+   - 디스크 저장/로드 지원
+
+4. **Intelligent Selector** (`ml/intelligent_selector.py`)
+   - GNN + RL + Knowledge Graph 통합
+   - 온라인/오프라인 학습 지원
+   - HybridAgentSelector v2.0과 통합
+   - 자동 모델 저장/로드
+
+**핵심 차원 설정**:
+```python
+state_dim = 512  # query(384) + graph(64) + history(64)
+query_embedding_dim = 384  # sentence-transformers
+graph_embedding_dim = 64   # GNN output
+hidden_dim = 256           # RL policy hidden
+```
+
+**테스트 결과**:
+- ✅ 합성 데이터 생성: 100개 샘플
+- ✅ 학습: policy_loss=0.2824, value_loss=0.7112
+- ✅ 에이전트 선택: 3개 쿼리 성공
+- ✅ 피드백 저장: Knowledge Graph + Experience Buffer
+
+**모델 파일**:
+- `ml/models/intelligent_selector_gnn.pt` (430KB)
+- `ml/models/intelligent_selector_policy.pt` (3.1MB)
+- `ml/models/intelligent_selector_buffer.pkl` (878KB)
+
+**커밋**: `e0ac599` - feat(ml): Add GNN+RL intelligent agent selector module
+
+---
 
 ### 2026-01-31: Hybrid Agent Selector v2.0 업그레이드 ✅
 
