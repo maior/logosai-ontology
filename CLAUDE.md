@@ -62,28 +62,60 @@ prompt = """
 2. "전문 에이전트 우선" 규칙을 프롬프트에 명시
 3. 에이전트 registry의 description/capabilities를 기반으로 LLM이 판단하도록 유도
 
-### 2. 하이브리드 에이전트 선택 (Hybrid Agent Selection) ⭐ NEW
+### 2. 하이브리드 에이전트 선택 (Hybrid Agent Selection) ⭐ v2.0
 
 **Knowledge Graph + LLM** 하이브리드 방식으로 에이전트를 선택합니다:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Hybrid Agent Selection                        │
+│              Hybrid Agent Selection v2.0 (2026-01-31)            │
 ├─────────────────────────────────────────────────────────────────┤
-│   Phase 1: Knowledge Graph Analysis                              │
+│   Phase 1: Knowledge Graph Analysis (Enhanced)                   │
 │   ├─ 엔티티 추출: [삼성전자, 주가]                               │
 │   ├─ 관련 개념 탐색: [기업, 금융, 실시간]                        │
-│   ├─ 과거 성공 패턴: internet_agent (성공률 90%)                 │
-│   └─ 그래프 추천: [internet_agent, analysis_agent]              │
+│   ├─ 🆕 LLM 의미 분석: category=finance, pattern=stock_query    │
+│   ├─ 🆕 시간 감쇠 적용: 7일전 패턴 ×0.9, 30일전 ×0.5            │
+│   └─ 🆕 패턴 일반화: "삼성주가" → stock_query → LG주가에도 적용  │
 │                           ↓                                      │
 │   Phase 2: LLM Final Decision                                    │
 │   ├─ Input: query + graph_insights + agent_metadata              │
 │   ├─ 의미론적 분석 + 그래프 근거                                 │
 │   └─ Output: internet_agent (확신도 95%)                         │
 │                           ↓                                      │
-│   Phase 3: Feedback Loop                                         │
-│   └─ 성공 시: 패턴을 그래프에 저장 → 학습                        │
+│   Phase 3: Feedback Loop (v2.0 Enhanced)                         │
+│   ├─ 🆕 LLM 쿼리 분석: 카테고리, 의도, 엔티티, 일반화 패턴      │
+│   ├─ 🆕 EMA 성공률: 최근 결과에 높은 가중치 (α=0.3)             │
+│   └─ 🆕 카테고리 노드 연결: 패턴 일반화 학습                     │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+#### v2.0 핵심 기능 (2026-01-31)
+
+| 기능 | 설명 | 효과 |
+|------|------|------|
+| **시간 감쇠** | 30일 반감기, 1년 후 10% 가중치 | 오래된 패턴 영향 감소 |
+| **LLM 의미 분석** | 하드코딩 키워드 제거, LLM 기반 | 다국어 지원, 확장성 |
+| **패턴 일반화** | 쿼리 카테고리 기반 학습 | 유사 쿼리에 패턴 적용 |
+| **EMA 성공률** | 지수이동평균 (α=0.3) | 최근 결과 더 중요 |
+
+**시간 감쇠 설정**:
+```python
+TIME_DECAY_CONFIG = {
+    "half_life_days": 30,   # 30일 후 가중치 50%
+    "min_weight": 0.1,      # 최소 10% 가중치
+    "max_age_days": 365     # 1년 이상 → 최소 가중치
+}
+```
+
+**쿼리 의미 분석 결과 예시**:
+```python
+{
+    "category": "finance",              # 쿼리 도메인
+    "intent": "search",                 # 사용자 의도
+    "entities": ["삼성전자", "주가"],    # 추출된 엔티티
+    "keywords": ["알려줘", "금융"],      # 핵심 키워드
+    "generalization_pattern": "stock_price_query"  # 일반화 패턴
+}
 ```
 
 **핵심 파일**: `ontology/core/hybrid_agent_selector.py`
@@ -356,6 +388,40 @@ print(result.get('agent_mappings', []))
 ```
 
 ## 히스토리
+
+### 2026-01-31: Hybrid Agent Selector v2.0 업그레이드 ✅
+
+**업그레이드 내용**: Ontology 학습 메커니즘 전체 업그레이드
+
+**추가된 기능**:
+
+1. **시간 감쇠 (Time Decay)**
+   - 30일 반감기 지수 감쇠 적용
+   - 최소 10% 가중치 유지 (1년 이상 패턴)
+   - `_calculate_time_decay()` 메서드 추가
+
+2. **LLM 기반 의미론적 매칭**
+   - `_extract_intent_keywords()` 하드코딩 제거
+   - `_analyze_query_semantics()` LLM 기반 분석 추가
+   - 쿼리 카테고리, 의도, 엔티티, 일반화 패턴 추출
+
+3. **패턴 일반화 학습**
+   - `generalization_pattern` 저장
+   - 동일 패턴 쿼리에 학습 결과 적용
+   - 카테고리 노드 연결로 패턴 그룹화
+
+4. **EMA 성공률**
+   - 지수이동평균 사용 (α=0.3)
+   - 최근 결과에 높은 가중치
+
+**수정 파일**: `ontology/core/hybrid_agent_selector.py`
+
+**성과**:
+- 하드코딩 의존성 제거
+- 학습 효과 향상 (시간 감쇠로 최신 패턴 우선)
+- 일반화 능력 향상 (카테고리 기반 패턴 적용)
+
+---
 
 ### 2026-01-31: ExecutionEngine 스테이지 간 데이터 전달 수정 ✅
 
