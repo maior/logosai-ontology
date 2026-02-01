@@ -1,6 +1,11 @@
 """
-🧠 Hybrid Agent Selector v2.0
-지식그래프 + LLM 하이브리드 에이전트 선택기
+🧠 Hybrid Agent Selector v3.0
+GNN + RL + 지식그래프 + LLM 통합 에이전트 선택기
+
+Phase 0: GNN+RL Selection (NEW in v3.0)
+  - Graph Neural Network로 Knowledge Graph 구조 학습
+  - Reinforcement Learning (PPO)으로 에이전트 선택 정책 최적화
+  - 높은 신뢰도 (>0.8) 시 직접 선택
 
 Phase 1: Knowledge Graph Analysis
   - 엔티티 추출 및 관련 개념 탐색
@@ -11,11 +16,17 @@ Phase 2: LLM Final Decision
   - 그래프 인사이트를 컨텍스트로 활용
   - 의미론적 분석 + 그래프 근거로 최종 결정
 
-Phase 3: Feedback Loop (v2.0 Enhanced)
+Phase 3: Feedback Loop
   - 성공적인 쿼리-에이전트 매핑을 그래프에 저장
+  - GNN+RL 경험 버퍼에 저장 (학습)
   - LLM 기반 의미론적 쿼리 분석 (하드코딩 제거)
   - 시간 감쇠 (Time Decay) 적용
   - 패턴 일반화 학습 (카테고리 기반)
+
+v3.0 Updates (2026-02-01):
+  - GNN+RL 통합: IntelligentAgentSelector 연동
+  - 3단계 선택: GNN+RL → KG → LLM
+  - 신뢰도 기반 폴백: 낮은 신뢰도 시 다음 단계로
 
 v2.0 Updates (2026-01-31):
   - 시간 감쇠: 최근 패턴에 높은 가중치
@@ -44,38 +55,48 @@ TIME_DECAY_CONFIG = {
 
 class HybridAgentSelector:
     """
-    🧠 하이브리드 에이전트 선택기
+    🧠 하이브리드 에이전트 선택기 v3.0
 
-    Knowledge Graph + LLM을 결합하여 최적의 에이전트를 선택합니다.
+    GNN+RL + Knowledge Graph + LLM을 결합하여 최적의 에이전트를 선택합니다.
 
     Features:
+    - GNN+RL 기반 지능형 에이전트 선택 (v3.0)
     - 시작 시 Agent Marketplace와 자동 동기화
     - 지식그래프 기반 패턴 학습
     - LLM 기반 의미론적 분석
     """
 
-    def __init__(self, knowledge_graph=None, llm_manager=None, auto_sync: bool = True):
+    # GNN+RL 사용 여부 및 신뢰도 임계값
+    USE_GNN_RL = True  # GNN+RL 활성화
+    GNN_RL_CONFIDENCE_THRESHOLD = 0.7  # 이 이상이면 GNN+RL 결과 직접 사용
+
+    def __init__(self, knowledge_graph=None, llm_manager=None, auto_sync: bool = True, use_gnn_rl: bool = True):
         """
         Args:
             knowledge_graph: KnowledgeGraphEngine 인스턴스 (없으면 지연 로딩)
             llm_manager: LLM 매니저 (없으면 기본 매니저 사용)
             auto_sync: 시작 시 에이전트 자동 동기화 여부
+            use_gnn_rl: GNN+RL 사용 여부 (v3.0)
         """
         self._knowledge_graph = knowledge_graph
         self._llm_manager = llm_manager
+        self._intelligent_selector = None  # v3.0: GNN+RL 선택기
         self._sync_service = None
         self._initialized = False
+        self._gnn_rl_enabled = use_gnn_rl and self.USE_GNN_RL
 
         # 통계 추적
         self.stats = {
             "total_selections": 0,
+            "gnn_rl_selections": 0,     # v3.0: GNN+RL 직접 선택 횟수
+            "gnn_rl_fallback": 0,       # v3.0: GNN+RL 신뢰도 낮아 폴백 횟수
             "graph_assisted": 0,
             "llm_only": 0,
             "feedback_stored": 0,
             "agents_synced": 0,
-            "semantic_analysis_count": 0,  # v2.0: LLM 의미 분석 횟수
-            "pattern_generalizations": 0,   # v2.0: 패턴 일반화 횟수
-            "time_decay_applied": 0         # v2.0: 시간 감쇠 적용 횟수
+            "semantic_analysis_count": 0,
+            "pattern_generalizations": 0,
+            "time_decay_applied": 0
         }
 
         # v2.0: 쿼리 카테고리 캐시 (LLM 호출 최소화)
@@ -85,7 +106,7 @@ class HybridAgentSelector:
         if auto_sync:
             asyncio.create_task(self._initialize_async())
 
-        logger.info("🧠 하이브리드 에이전트 선택기 초기화 완료")
+        logger.info(f"🧠 하이브리드 에이전트 선택기 v3.0 초기화 완료 (GNN+RL: {'활성화' if self._gnn_rl_enabled else '비활성화'})")
 
     async def _initialize_async(self):
         """비동기 초기화 (에이전트 동기화)"""
@@ -135,6 +156,22 @@ class HybridAgentSelector:
             self._llm_manager = get_ontology_llm_manager()
         return self._llm_manager
 
+    @property
+    def intelligent_selector(self):
+        """v3.0: GNN+RL 지능형 선택기 지연 로딩"""
+        if self._intelligent_selector is None and self._gnn_rl_enabled:
+            try:
+                from ..ml.intelligent_selector import IntelligentAgentSelector
+                self._intelligent_selector = IntelligentAgentSelector(
+                    auto_load=True,  # 저장된 모델 자동 로드
+                    device='cpu'
+                )
+                logger.info("🤖 GNN+RL IntelligentAgentSelector 로드 완료")
+            except Exception as e:
+                logger.warning(f"⚠️ GNN+RL 선택기 로드 실패, 폴백 사용: {e}")
+                self._gnn_rl_enabled = False
+        return self._intelligent_selector
+
     async def select_agent(
         self,
         query: str,
@@ -143,7 +180,12 @@ class HybridAgentSelector:
         context: Optional[Dict[str, Any]] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        🧠 하이브리드 에이전트 선택 (메인 메서드)
+        🧠 하이브리드 에이전트 선택 (메인 메서드) v3.0
+
+        선택 흐름:
+        1. Phase 0 (v3.0): GNN+RL 선택 → 신뢰도 높으면 직접 반환
+        2. Phase 1: Knowledge Graph 분석 → 인사이트 수집
+        3. Phase 2: LLM 최종 결정 → 그래프 인사이트 활용
 
         Args:
             query: 사용자 쿼리
@@ -157,10 +199,66 @@ class HybridAgentSelector:
         self.stats["total_selections"] += 1
         start_time = datetime.now()
 
-        # Phase 1: Knowledge Graph Analysis
+        # ========== Phase 0 (v3.0): GNN+RL Selection ==========
+        gnn_rl_result = None
+        if self._gnn_rl_enabled and self.intelligent_selector:
+            try:
+                gnn_rl_agent, gnn_rl_meta = await self.intelligent_selector.select_agent(
+                    query=query,
+                    available_agents=available_agents,
+                    deterministic=False  # 탐험 허용
+                )
+
+                gnn_rl_confidence = gnn_rl_meta.get('confidence', 0.0)
+                gnn_rl_result = {
+                    "agent": gnn_rl_agent,
+                    "confidence": gnn_rl_confidence,
+                    "value_estimate": gnn_rl_meta.get('value_estimate', 0.0),
+                    "method": "gnn_rl"
+                }
+
+                logger.info(
+                    f"🤖 GNN+RL 선택: {gnn_rl_agent} (신뢰도: {gnn_rl_confidence:.1%})"
+                )
+
+                # 신뢰도가 충분히 높으면 직접 반환
+                if gnn_rl_confidence >= self.GNN_RL_CONFIDENCE_THRESHOLD:
+                    if gnn_rl_agent in available_agents:
+                        elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
+                        self.stats["gnn_rl_selections"] += 1
+
+                        metadata = {
+                            "selected_agent": gnn_rl_agent,
+                            "reasoning": f"GNN+RL 모델이 {gnn_rl_confidence:.1%} 신뢰도로 선택",
+                            "gnn_rl_result": gnn_rl_result,
+                            "selection_method": "gnn_rl",
+                            "elapsed_ms": elapsed_ms,
+                            "timestamp": datetime.now().isoformat()
+                        }
+
+                        logger.info(
+                            f"🤖 GNN+RL 직접 선택 완료: {gnn_rl_agent} "
+                            f"(신뢰도: {gnn_rl_confidence:.1%}, {elapsed_ms:.0f}ms)"
+                        )
+                        return gnn_rl_agent, metadata
+                    else:
+                        logger.warning(f"⚠️ GNN+RL 선택 {gnn_rl_agent}이 available_agents에 없음, 폴백")
+
+                # 신뢰도 낮으면 폴백
+                self.stats["gnn_rl_fallback"] += 1
+                logger.info(f"🔄 GNN+RL 신뢰도 낮음 ({gnn_rl_confidence:.1%}), KG+LLM 폴백")
+
+            except Exception as e:
+                logger.warning(f"⚠️ GNN+RL 선택 실패, KG+LLM 폴백: {e}")
+
+        # ========== Phase 1: Knowledge Graph Analysis ==========
         graph_insights = await self._analyze_with_knowledge_graph(query, available_agents)
 
-        # Phase 2: LLM Final Decision (with graph insights)
+        # GNN+RL 결과를 그래프 인사이트에 추가 (LLM 참고용)
+        if gnn_rl_result:
+            graph_insights["gnn_rl_suggestion"] = gnn_rl_result
+
+        # ========== Phase 2: LLM Final Decision ==========
         selected_agent, reasoning = await self._select_with_llm(
             query, available_agents, agents_info, graph_insights
         )
@@ -168,11 +266,20 @@ class HybridAgentSelector:
         elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
 
         # 메타데이터 구성
+        selection_method = "hybrid"
+        if gnn_rl_result:
+            selection_method = "gnn_rl_assisted"
+        elif graph_insights.get("has_insights"):
+            selection_method = "kg_assisted"
+        else:
+            selection_method = "llm_only"
+
         metadata = {
             "selected_agent": selected_agent,
             "reasoning": reasoning,
             "graph_insights": graph_insights,
-            "selection_method": "hybrid" if graph_insights.get("has_insights") else "llm_only",
+            "gnn_rl_result": gnn_rl_result,
+            "selection_method": selection_method,
             "elapsed_ms": elapsed_ms,
             "timestamp": datetime.now().isoformat()
         }
@@ -184,7 +291,7 @@ class HybridAgentSelector:
 
         logger.info(
             f"🧠 하이브리드 선택 완료: {selected_agent} "
-            f"(방식: {metadata['selection_method']}, {elapsed_ms:.0f}ms)"
+            f"(방식: {selection_method}, {elapsed_ms:.0f}ms)"
         )
 
         return selected_agent, metadata
@@ -869,6 +976,17 @@ class HybridAgentSelector:
                 )
 
             self.stats["feedback_stored"] += 1
+
+            # v3.0: GNN+RL 경험 버퍼에도 피드백 저장
+            if self._gnn_rl_enabled and self.intelligent_selector:
+                try:
+                    await self.intelligent_selector.store_feedback(
+                        success=success,
+                        execution_result=execution_result
+                    )
+                    logger.info(f"🤖 GNN+RL 피드백 저장 완료: {selected_agent} (success={success})")
+                except Exception as gnn_rl_error:
+                    logger.warning(f"⚠️ GNN+RL 피드백 저장 실패: {gnn_rl_error}")
 
             return True
 

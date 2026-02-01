@@ -206,11 +206,12 @@ class WorkflowOrchestrator:
         self._init_components(streamer)
 
         # Create task to run workflow
-        result_holder = {"result": None, "error": None}
+        result_holder = {"result": None, "error": None, "plan": None}
 
         async def run_workflow():
             try:
                 plan = await self._planner.create_plan(query, context)
+                result_holder["plan"] = plan
 
                 if self.enable_validation:
                     validation_result = await self._validator.validate(plan)
@@ -223,8 +224,14 @@ class WorkflowOrchestrator:
                 result = await self._engine.execute(plan, context)
                 result_holder["result"] = result
 
+                # Store success feedback to HybridAgentSelector for learning
+                await self._store_feedback_for_plan(query, plan, success=True)
+
             except Exception as e:
                 result_holder["error"] = e
+                # Store failure feedback if plan was created
+                if result_holder.get("plan"):
+                    await self._store_feedback_for_plan(query, result_holder["plan"], success=False)
                 raise
 
         # Start workflow in background
@@ -317,6 +324,47 @@ class WorkflowOrchestrator:
     def get_registry(self) -> AgentRegistry:
         """Get the agent registry"""
         return self.registry
+
+    async def _store_feedback_for_plan(
+        self,
+        query: str,
+        plan: ExecutionPlan,
+        success: bool,
+    ) -> None:
+        """
+        Store feedback for all agents in the execution plan.
+
+        This enables the GNN+RL system to learn from execution outcomes.
+
+        Args:
+            query: Original user query
+            plan: Execution plan that was run
+            success: Whether the execution was successful
+        """
+        if not self._planner:
+            return
+
+        try:
+            # Extract all unique agents from the plan
+            agents_used = set()
+            for stage in plan.stages:
+                for agent in stage.agents:
+                    agents_used.add(agent.agent_id)
+
+            # Store feedback for the primary agent (first stage, first agent)
+            if plan.stages and plan.stages[0].agents:
+                primary_agent = plan.stages[0].agents[0].agent_id
+                await self._planner.store_execution_feedback(
+                    query=query,
+                    agent_id=primary_agent,
+                    success=success,
+                )
+                logger.debug(
+                    f"[Orchestrator] Stored feedback for primary agent: {primary_agent} "
+                    f"({'success' if success else 'failure'})"
+                )
+        except Exception as e:
+            logger.warning(f"[Orchestrator] Failed to store feedback: {e}")
 
 
 # Factory functions

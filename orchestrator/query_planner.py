@@ -8,6 +8,7 @@ Key Design Principles:
 - Single LLM call for complete planning
 - No thinking mode (proven less accurate for this task)
 - Deterministic execution after planning
+- HybridAgentSelector (GNN+RL) for intelligent agent selection (v3.0)
 """
 
 import json
@@ -27,6 +28,16 @@ from .progress_streamer import ProgressStreamer
 from .exceptions import PlanningError, NoSuitableAgentError
 
 logger = logging.getLogger(__name__)
+
+# Import HybridAgentSelector for GNN+RL agent selection
+try:
+    from ..core.hybrid_agent_selector import get_hybrid_selector, HybridAgentSelector
+    HYBRID_SELECTOR_AVAILABLE = True
+except ImportError:
+    HYBRID_SELECTOR_AVAILABLE = False
+    get_hybrid_selector = None
+    HybridAgentSelector = None
+    logger.warning("[QueryPlanner] HybridAgentSelector not available, using LLM-only selection")
 
 
 # Import Google Gemini client
@@ -63,11 +74,16 @@ class QueryPlanner:
     TEMPERATURE = 0.3
     MAX_TOKENS = 4096
 
+    # GNN+RL Configuration
+    USE_HYBRID_SELECTOR = True  # Enable HybridAgentSelector for agent selection
+    HYBRID_CONFIDENCE_THRESHOLD = 0.6  # Minimum confidence to use hybrid selection
+
     def __init__(
         self,
         registry: Optional[AgentRegistry] = None,
         streamer: Optional[ProgressStreamer] = None,
         api_key: Optional[str] = None,
+        hybrid_selector: Optional["HybridAgentSelector"] = None,
     ):
         """
         Initialize Query Planner.
@@ -76,10 +92,28 @@ class QueryPlanner:
             registry: Agent registry (uses default if not provided)
             streamer: Progress streamer for real-time updates
             api_key: Google API key (uses env var if not provided)
+            hybrid_selector: HybridAgentSelector for GNN+RL agent selection
         """
         self.registry = registry or get_registry()
         self.streamer = streamer
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
+
+        # Initialize HybridAgentSelector
+        self._hybrid_selector = hybrid_selector
+        self._hybrid_selector_enabled = (
+            self.USE_HYBRID_SELECTOR and
+            HYBRID_SELECTOR_AVAILABLE and
+            hybrid_selector is not None
+        )
+
+        if self.USE_HYBRID_SELECTOR and HYBRID_SELECTOR_AVAILABLE and hybrid_selector is None:
+            try:
+                self._hybrid_selector = get_hybrid_selector()
+                self._hybrid_selector_enabled = True
+                logger.info("[QueryPlanner] HybridAgentSelector (GNN+RL) enabled")
+            except Exception as e:
+                logger.warning(f"[QueryPlanner] Failed to initialize HybridAgentSelector: {e}")
+                self._hybrid_selector_enabled = False
 
         if not GOOGLE_AVAILABLE:
             raise ImportError(
@@ -103,6 +137,9 @@ class QueryPlanner:
         """
         Create execution plan for the given query.
 
+        Uses HybridAgentSelector (GNN+RL) for intelligent agent selection,
+        then LLM for workflow design.
+
         Args:
             query: User query to analyze
             context: Optional additional context
@@ -122,8 +159,22 @@ class QueryPlanner:
             await self.streamer.planning_start(query)
 
         try:
-            # Build the prompt
-            prompt = self._build_planning_prompt(query, context)
+            # Phase 0: GNN+RL Agent Selection (if enabled)
+            recommended_agent = None
+            hybrid_metadata = None
+            if self._hybrid_selector_enabled and self._hybrid_selector:
+                try:
+                    recommended_agent, hybrid_metadata = await self._select_agent_via_hybrid(query)
+                    if recommended_agent:
+                        logger.info(
+                            f"[QueryPlanner] GNN+RL recommended: {recommended_agent} "
+                            f"(confidence: {hybrid_metadata.get('confidence', 0):.1%})"
+                        )
+                except Exception as e:
+                    logger.warning(f"[QueryPlanner] HybridAgentSelector failed: {e}")
+
+            # Build the prompt (with hybrid recommendation if available)
+            prompt = self._build_planning_prompt(query, context, recommended_agent, hybrid_metadata)
 
             # Call Gemini
             logger.info(f"[QueryPlanner] Calling {self.MODEL} for query: {query[:50]}...")
@@ -156,20 +207,121 @@ class QueryPlanner:
                 query=query,
             )
 
+    async def _select_agent_via_hybrid(
+        self,
+        query: str,
+    ) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Select agent using HybridAgentSelector (GNN+RL + Knowledge Graph + LLM).
+
+        Returns:
+            Tuple of (agent_id, metadata) or (None, None) if selection failed
+        """
+        if not self._hybrid_selector:
+            return None, None
+
+        try:
+            # Get available agents from registry
+            available_agents = [entry.agent_id for entry in self.registry.get_available_agents()]
+
+            # Build agents_info from registry
+            agents_info = {}
+            for entry in self.registry.get_available_agents():
+                agents_info[entry.agent_id] = {
+                    "name": entry.name,
+                    "description": entry.description,
+                    "capabilities": entry.capabilities,
+                    "tags": entry.tags,
+                }
+
+            # Call HybridAgentSelector
+            agent_id, metadata = await self._hybrid_selector.select_agent(
+                query=query,
+                available_agents=available_agents,
+                agents_info=agents_info,
+            )
+
+            # Check confidence threshold
+            confidence = metadata.get("confidence", 0) if metadata else 0
+            if confidence < self.HYBRID_CONFIDENCE_THRESHOLD:
+                logger.debug(
+                    f"[QueryPlanner] Hybrid confidence {confidence:.1%} below threshold "
+                    f"{self.HYBRID_CONFIDENCE_THRESHOLD:.1%}, will let LLM decide"
+                )
+                return None, None
+
+            return agent_id, metadata
+
+        except Exception as e:
+            logger.warning(f"[QueryPlanner] Hybrid selection failed: {e}")
+            return None, None
+
+    async def store_execution_feedback(
+        self,
+        query: str,
+        agent_id: str,
+        success: bool,
+        execution_result: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Store execution feedback to HybridAgentSelector for learning.
+
+        This enables the GNN+RL system to learn from execution outcomes.
+
+        Args:
+            query: Original user query
+            agent_id: Agent that was executed
+            success: Whether the execution was successful
+            execution_result: Optional execution result for additional context
+        """
+        if not self._hybrid_selector_enabled or not self._hybrid_selector:
+            return
+
+        try:
+            await self._hybrid_selector.store_feedback(
+                query=query,
+                selected_agent=agent_id,
+                success=success,
+            )
+            logger.info(
+                f"[QueryPlanner] Stored feedback: {agent_id} "
+                f"({'success' if success else 'failure'}) for query: {query[:30]}..."
+            )
+        except Exception as e:
+            logger.warning(f"[QueryPlanner] Failed to store feedback: {e}")
+
     def _build_planning_prompt(
         self,
         query: str,
         context: Optional[Dict[str, Any]] = None,
+        recommended_agent: Optional[str] = None,
+        hybrid_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build the complete prompt for the LLM"""
 
         # Get agent information from registry
         agents_context = self.registry.build_prompt_context(include_schema=True)
 
+        # Build GNN+RL recommendation section
+        gnn_rl_section = ""
+        if recommended_agent and hybrid_metadata:
+            confidence = hybrid_metadata.get("confidence", 0)
+            selection_source = hybrid_metadata.get("selection_source", "unknown")
+            gnn_rl_section = f"""
+## 🎯 GNN+RL 추천 에이전트 (IMPORTANT)
+GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
+- **추천 에이전트**: `{recommended_agent}`
+- **신뢰도**: {confidence:.1%}
+- **선택 근거**: {selection_source}
+
+⚠️ **중요**: GNN+RL 신뢰도가 60% 이상이면 이 에이전트를 **반드시 첫 번째 단계**에서 사용하세요.
+다른 에이전트를 선택하려면 명확한 이유가 있어야 합니다.
+"""
+
         # Build the full prompt
         prompt = f"""# 역할
 당신은 사용자 쿼리를 분석하여 최적의 에이전트 워크플로우를 설계하는 전문가입니다.
-
+{gnn_rl_section}
 # 사용 가능한 에이전트
 {agents_context}
 

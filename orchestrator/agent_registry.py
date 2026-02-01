@@ -51,7 +51,8 @@ class AgentRegistry:
             name="인터넷 검색 에이전트",
             description=(
                 "웹 검색을 수행하여 실시간 정보를 수집합니다. "
-                "주가, 환율, 뉴스, 날씨 등 최신 데이터를 인터넷에서 검색합니다."
+                "주가, 환율, 뉴스 등 최신 데이터를 인터넷에서 검색합니다. "
+                "날씨 정보는 weather_agent를 사용하세요."
             ),
             capabilities=[
                 "web_search",
@@ -69,6 +70,33 @@ class AgentRegistry:
             icon="🌐",
             color="#3b82f6",
             priority=5,
+        ),
+        AgentRegistryEntry(
+            agent_id="weather_agent",
+            name="날씨 정보 에이전트",
+            description=(
+                "실시간 날씨 정보를 제공하는 전문 에이전트입니다. "
+                "현재 날씨, 기온, 습도, 미세먼지, 주간 예보를 조회합니다. "
+                "날씨, 기온, 온도, 비, 눈, 미세먼지 관련 질문에 사용하세요."
+            ),
+            capabilities=[
+                "weather_forecast",
+                "current_weather",
+                "temperature",
+                "humidity",
+                "air_quality",
+                "weekly_forecast",
+            ],
+            tags=["날씨", "기온", "온도", "미세먼지", "예보", "weather"],
+            schema=AgentSchema(
+                input_type="query",
+                output_type="json",
+            ),
+            display_name="Weather Info",
+            display_name_ko="날씨 정보",
+            icon="🌤️",
+            color="#0ea5e9",
+            priority=50,  # High priority for weather queries
         ),
         AgentRegistryEntry(
             agent_id="analysis_agent",
@@ -197,6 +225,57 @@ class AgentRegistry:
             icon="🛒",
             color="#ec4899",
             priority=7,
+        ),
+        AgentRegistryEntry(
+            agent_id="scheduler_agent",
+            name="일정 관리 에이전트",
+            description=(
+                "일정 및 스케줄을 관리하는 전문 에이전트입니다. "
+                "일정 조회, 일정 추가, 일정 수정, 캘린더 관리를 수행합니다. "
+                "일정, 스케줄, 약속, 캘린더 관련 질문에 사용하세요."
+            ),
+            capabilities=[
+                "schedule_management",
+                "calendar_access",
+                "event_creation",
+                "event_query",
+                "reminder_setting",
+            ],
+            tags=["일정", "스케줄", "캘린더", "약속", "schedule"],
+            schema=AgentSchema(
+                input_type="query",
+                output_type="json",
+            ),
+            display_name="Scheduler",
+            display_name_ko="일정 관리",
+            icon="📅",
+            color="#f97316",
+            priority=50,  # High priority for schedule queries
+        ),
+        AgentRegistryEntry(
+            agent_id="calculator_agent",
+            name="계산기 에이전트",
+            description=(
+                "수학 계산 및 단위 변환을 수행하는 전문 에이전트입니다. "
+                "사칙연산, 퍼센트 계산, 단위 변환, 환율 계산을 처리합니다. "
+                "계산, 더하기, 빼기, 곱하기, 나누기 관련 질문에 사용하세요."
+            ),
+            capabilities=[
+                "math_calculation",
+                "unit_conversion",
+                "currency_conversion",
+                "percentage_calculation",
+            ],
+            tags=["계산", "수학", "단위변환", "환율", "calculator"],
+            schema=AgentSchema(
+                input_type="query",
+                output_type="json",
+            ),
+            display_name="Calculator",
+            display_name_ko="계산기",
+            icon="🔢",
+            color="#84cc16",
+            priority=40,
         ),
         AgentRegistryEntry(
             agent_id="code_agent",
