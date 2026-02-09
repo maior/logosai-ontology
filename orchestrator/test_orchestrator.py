@@ -60,10 +60,15 @@ async def mock_agent_executor(
 
     elif agent_id == "analysis_agent":
         input_data = context.get("input_data", {}) if context else {}
+        # input_data가 문자열일 수 있으므로 타입 체크
+        if isinstance(input_data, dict):
+            data_points = input_data.get("results", [])
+        else:
+            data_points = []
         return {
             "analysis_type": "stock_price",
             "summary": "최근 5일간 삼성전자 주가는 상승 추세를 보임",
-            "data_points": input_data.get("results", []),
+            "data_points": data_points,
             "trend": "upward",
             "change_percent": 2.3,
         }

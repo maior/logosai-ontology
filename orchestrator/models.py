@@ -216,7 +216,7 @@ class AgentTask:
     expected_output: Optional[str] = None
 
     # Execution configuration
-    timeout_ms: int = 30000  # 30 seconds default
+    timeout_ms: int = 120000  # 120 seconds (2 minutes) for LLM-heavy agents
     max_retries: int = 2
 
     # Runtime data (set during execution)

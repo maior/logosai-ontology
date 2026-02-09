@@ -61,7 +61,7 @@ class ExecutionEngine:
         result = await engine.execute(plan)
     """
 
-    DEFAULT_TIMEOUT_MS = 30000  # 30 seconds
+    DEFAULT_TIMEOUT_MS = 120000  # 120 seconds (2 minutes) for LLM-heavy agents
     MAX_RETRIES = 2
     RETRY_BASE_DELAY = 1.0  # seconds
 

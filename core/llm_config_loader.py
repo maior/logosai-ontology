@@ -63,11 +63,11 @@ class LLMConfigLoader:
                 "google": {
                     "api_key_env": "GOOGLE_API_KEY",
                     "models": {
-                        "high_performance": "gemini-2.5-flash-lite",
-                        "standard": "gemini-2.5-flash-lite",
-                        "fast": "gemini-2.5-flash-lite",
-                        "creative": "gemini-2.5-flash-lite",
-                        "budget": "gemini-2.5-flash-lite"
+                        "high_performance": "gemini-2.0-flash-lite",
+                        "standard": "gemini-2.0-flash-lite",
+                        "fast": "gemini-2.0-flash-lite",
+                        "creative": "gemini-2.0-flash-lite",
+                        "budget": "gemini-2.0-flash-lite"
                     }
                 }
             },
@@ -169,7 +169,7 @@ class LLMConfigLoader:
             # 폴백 설정 - Gemini로 변경
             return OntologyLLMConfig(
                 provider=LLMProvider.GOOGLE,
-                model="gemini-2.5-flash-lite",
+                model="gemini-2.0-flash-lite",
                 description=f"폴백 설정 for {llm_type_str}"
             )
     

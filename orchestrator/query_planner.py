@@ -1,7 +1,7 @@
 """
 Query Planner
 
-Uses gemini-2.5-flash-lite (non-thinking) for single-call execution planning.
+Uses gemini-2.0-flash-lite (non-thinking) for single-call execution planning.
 Based on 4-model comparison test: Flash-Lite achieves 100% accuracy at 3.63s avg.
 
 Key Design Principles:
@@ -53,13 +53,13 @@ except ImportError:
 
 class QueryPlanner:
     """
-    Query analysis and execution planning using gemini-2.5-flash-lite.
+    Query analysis and execution planning using gemini-2.0-flash-lite.
 
     Based on comprehensive 4-model comparison testing:
-    - gemini-2.5-flash-lite: 100% accuracy, 3.63s avg (WINNER)
-    - gemini-2.5-flash: 100% accuracy, 9.39s avg
-    - gemini-2.5-flash-lite+thinking: 81.8% accuracy
-    - gemini-2.5-flash+thinking: 54.5% accuracy
+    - gemini-2.0-flash-lite: 100% accuracy, 3.63s avg (WINNER)
+    - gemini-2.0-flash: 100% accuracy, 9.39s avg
+    - gemini-2.0-flash-lite+thinking: 81.8% accuracy
+    - gemini-2.0-flash+thinking: 54.5% accuracy
 
     Single LLM call generates complete execution plan including:
     - Workflow strategy (sequential/parallel/hybrid)
@@ -70,7 +70,7 @@ class QueryPlanner:
     """
 
     # LLM Configuration
-    MODEL = "gemini-2.5-flash-lite"
+    MODEL = "gemini-2.0-flash-lite"
     TEMPERATURE = 0.3
     MAX_TOKENS = 4096
 
@@ -318,6 +318,19 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 다른 에이전트를 선택하려면 명확한 이유가 있어야 합니다.
 """
 
+        # Build user memory section
+        user_memory_section = ""
+        if context and context.get("user_memories"):
+            user_memory_section = f"""{context["user_memories"]}
+
+⚠️ 메모리 활용 원칙:
+- 사용자의 현재 쿼리 의도가 항상 최우선입니다
+- "지시사항"은 항상 따르되, "사용자 정보"는 쿼리와 직접 관련된 경우에만 활용하세요
+- 메모리와 현재 쿼리가 충돌하면 현재 쿼리를 따르세요
+- 메모리를 근거로 사용자가 명시하지 않은 내용을 추측하지 마세요
+
+"""
+
         # Build the full prompt
         prompt = f"""# 역할
 당신은 사용자 쿼리를 분석하여 최적의 에이전트 워크플로우를 설계하는 전문가입니다.
@@ -340,13 +353,13 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 - 예시:
   - 날씨 쿼리 + weather_agent 존재 → weather_agent 사용 (internet_agent 아님)
   - 쇼핑 쿼리 + shopping_agent 존재 → shopping_agent 사용
-  - 코딩 쿼리 + code_agent 존재 → code_agent 사용
+  - 코딩 쿼리 + code_generation_agent 존재 → code_generation_agent 사용
 
 ## 3. 도메인 구분 원칙
 - 삼성반도체 제조공정/FAB/NAND/수율/EUV/Particle 이슈 → samsung_gateway_agent
   (주의: 삼성전자 주가/재무/투자 정보는 samsung_gateway_agent가 아닌 internet_agent 사용!)
 - 상품 검색/가격 비교 → shopping_agent
-- 코드/프로그래밍 → code_agent
+- 코드/프로그래밍 → code_generation_agent
 - 문서 검색 → rag_search_agent
 
 ## 4. 워크플로우 전략
@@ -358,6 +371,26 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 - 모든 쿼리 결과는 사용자에게 깔끔하게 정리되어야 함
 - 단순 정보 검색(날씨, 뉴스, 일반 질문)도 마지막에 llm_search_agent로 결과 정리
 - 최종 단계에서 사용자 친화적인 형태로 요약 및 포맷팅
+
+### 응답 포맷 가이드라인
+최종 정리 에이전트(llm_search_agent 등)의 sub_query에 아래 포맷 지시를 포함하세요:
+
+**검색/리서치 쿼리** (트렌드, 뉴스, 최신 정보 등):
+→ "결과를 Markdown 형식으로 정리: 핵심 요약을 먼저, 각 항목은 ## 소제목과 bullet point로 구분, 출처가 있으면 말미에 표기"
+
+**계산/단순 답변 쿼리** (수학, 환율, 날씨 등):
+→ "간결하게 핵심 답변을 먼저 제시하고, 필요시 부연 설명 추가"
+
+**비교/분석 쿼리** (제품 비교, 장단점, 분석 등):
+→ "Markdown 표(table) 또는 항목별 비교 형식으로 정리, 결론을 마지막에 제시"
+
+**코드/기술 쿼리** (프로그래밍, 기술 설명 등):
+→ "코드는 ```언어 코드블록으로 감싸고, 설명은 단계별로 정리"
+
+**일반 원칙**:
+- 긴 텍스트 덩어리(wall of text) 금지 — 반드시 구조화된 Markdown 사용
+- 핵심 내용을 상단에 배치 (inverted pyramid)
+- 항목이 3개 이상이면 bullet point 또는 번호 목록 사용
 
 ## 6. 금지 사항
 - 불필요한 에이전트 추가 금지 (필요한 에이전트만 선택)
@@ -467,7 +500,7 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
       "agents": [
         {{
           "agent_id": "analysis_agent",
-          "sub_query": "삼성전자와 애플 실적 비교 분석",
+          "sub_query": "삼성전자와 애플 실적 비교 분석. Markdown 표(table)로 주요 지표를 비교하고, 결론을 마지막에 제시",
           "input_from": ["stage_1.internet_agent"],
           "output_to": ["final"]
         }}
@@ -481,7 +514,7 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
   "reasoning": "두 회사 데이터를 병렬로 수집하고 통합 분석"
 }}
 
-# 사용자 쿼리
+{user_memory_section}# 사용자 쿼리
 "{query}"
 
 # 지시사항

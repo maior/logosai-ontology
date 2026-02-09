@@ -174,7 +174,7 @@ class ProgressStreamer:
         "samsung_gateway_agent": "📱",
         "llm_search_agent": "🔍",
         "shopping_agent": "🛒",
-        "code_agent": "💻",
+        "code_generation_agent": "💻",
         "weather_agent": "🌤️",
         "scheduler_agent": "📅",
     }

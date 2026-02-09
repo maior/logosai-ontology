@@ -278,11 +278,12 @@ class AgentRegistry:
             priority=40,
         ),
         AgentRegistryEntry(
-            agent_id="code_agent",
+            agent_id="code_generation_agent",
             name="코드 생성 에이전트",
             description=(
-                "프로그래밍 코드를 생성하고 분석합니다. "
-                "코드 작성, 버그 수정, 코드 설명, 최적화 제안에 사용됩니다."
+                "다양한 프로그래밍 언어에서 고품질 코드를 생성하는 전문 에이전트입니다. "
+                "Python, JavaScript, Java, C++ 등 다양한 언어로 코드를 작성합니다. "
+                "함수, 클래스, 알고리즘 구현, 버그 수정, 코드 최적화를 수행합니다."
             ),
             capabilities=[
                 "code_generation",
@@ -290,6 +291,7 @@ class AgentRegistry:
                 "bug_fixing",
                 "code_explanation",
                 "optimization",
+                "algorithm_implementation",
             ],
             tags=["코드", "프로그래밍", "개발", "코딩"],
             schema=AgentSchema(
@@ -325,6 +327,33 @@ class AgentRegistry:
             icon="📚",
             color="#14b8a6",
             priority=9,
+        ),
+        AgentRegistryEntry(
+            agent_id="currency_exchange_agent",
+            name="환율 변환 에이전트",
+            description=(
+                "실시간 환율 정보를 제공하고 통화 변환을 수행합니다. "
+                "USD, EUR, JPY, CNY, GBP 등 30개 이상의 통화를 지원합니다. "
+                "환율 조회, 통화 변환, 환율 추이 분석에 사용하세요. "
+                "exchange rate, currency conversion, 환율, 달러, 엔화 관련 질문에 적합합니다."
+            ),
+            capabilities=[
+                "exchange_rate",
+                "currency_conversion",
+                "real_time_rate",
+                "rate_history",
+                "multi_currency",
+            ],
+            tags=["환율", "통화", "달러", "엔화", "유로", "exchange", "currency", "USD", "EUR", "JPY"],
+            schema=AgentSchema(
+                input_type="query",
+                output_type="json",
+            ),
+            display_name="Currency Exchange",
+            display_name_ko="환율 변환",
+            icon="💱",
+            color="#f59e0b",
+            priority=50,  # High priority for currency queries
         ),
     ]
 
