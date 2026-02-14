@@ -1,197 +1,244 @@
-# 🧠 LogosAI 온톨로지 시스템
+# LogosAI Ontology System
 
-## 📋 개요
+**Knowledge-driven multi-agent orchestration with LLM-powered query analysis and intelligent agent selection.**
 
-LogosAI의 온톨로지 시스템은 지식 기반 멀티에이전트 시스템으로, 사용자 쿼리를 의미론적으로 분석하고 최적의 워크플로우를 동적으로 생성하여 실행하는 지능형 시스템입니다.
-
-## 🎯 주요 목표
-
-1. **지능적 쿼리 이해**: LLM을 활용한 사용자 의도 정확 파악
-2. **동적 워크플로우**: 쿼리에 맞는 최적 에이전트 조합 자동 생성
-3. **효율적 실행**: 단일/순차/병렬/하이브리드 전략 자동 선택
-4. **의미론적 통합**: 다중 에이전트 결과의 지능적 통합
-5. **지속적 학습**: 온톨로지 기반 시스템 개선
-
-## 🏗️ 시스템 아키텍처
-
-```mermaid
-graph TD
-    A[사용자 쿼리] --> B[Enhanced Ontology System]
-    B --> C[LLM 기반 종합 분석]
-    C --> D[동적 워크플로우 계획]
-    D --> E[지능적 실행 전략]
-    E --> F[의미론적 결과 통합]
-    F --> G[온톨로지 업데이트]
-    G --> H[최종 결과]
-    
-    subgraph "핵심 컴포넌트"
-        I[Knowledge Graph Engine]
-        J[Workflow Designer]
-        K[Execution Engine]
-        L[Query Manager]
-    end
-    
-    B --> I
-    B --> J
-    B --> K
-    B --> L
-```
-
-## 📚 문서 구조
-
-### 🔧 시스템 구성
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) - 전체 시스템 아키텍처
-- [`COMPONENTS.md`](./COMPONENTS.md) - 핵심 컴포넌트 상세 설명
-- [`DATA_FLOW.md`](./DATA_FLOW.md) - 데이터 흐름 및 처리 과정
-
-### 🧠 지식 관리
-- [`KNOWLEDGE_GRAPH.md`](./KNOWLEDGE_GRAPH.md) - 지식 그래프 구조 및 관리
-- [`CONCEPTS_RELATIONS.md`](./CONCEPTS_RELATIONS.md) - 개념과 관계 정의
-- [`ONTOLOGY_UPDATES.md`](./ONTOLOGY_UPDATES.md) - 온톨로지 업데이트 메커니즘
-
-### ⚡ 실행 시스템
-- [`WORKFLOW_DESIGN.md`](./WORKFLOW_DESIGN.md) - 워크플로우 설계 원리
-- [`EXECUTION_STRATEGIES.md`](./EXECUTION_STRATEGIES.md) - 실행 전략 및 최적화
-- [`AGENT_INTEGRATION.md`](./AGENT_INTEGRATION.md) - 에이전트 통합 방법
-
-### 🎨 사용자 경험
-- [`QUERY_ANALYSIS.md`](./QUERY_ANALYSIS.md) - 쿼리 분석 및 의도 파악
-- [`RESULT_INTEGRATION.md`](./RESULT_INTEGRATION.md) - 결과 통합 및 UI/UX
-- [`USER_INTERFACE.md`](./USER_INTERFACE.md) - 사용자 인터페이스 설계
-
-### 🔍 문제 해결
-- [`PROBLEM_ANALYSIS.md`](./PROBLEM_ANALYSIS.md) - 기존 문제점 분석 및 해결책
-- [`PERFORMANCE_OPTIMIZATION.md`](./PERFORMANCE_OPTIMIZATION.md) - 성능 최적화 방안
-- [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) - 문제 해결 가이드
-
-### 📊 모니터링 및 분석
-- [`METRICS_MONITORING.md`](./METRICS_MONITORING.md) - 성능 메트릭 및 모니터링
-- [`LEARNING_ADAPTATION.md`](./LEARNING_ADAPTATION.md) - 학습 및 적응 메커니즘
-- [`QUALITY_ASSURANCE.md`](./QUALITY_ASSURANCE.md) - 품질 보증 및 테스트
-
-## 🚀 주요 개선사항
-
-### 🆕 NEW: LLM 기반 에이전트 선택 (2024-12)
-
-**핵심 원칙**: 하드코딩된 키워드 매칭을 **완전히 제거**하고, LLM 기반 의미론적 분석으로 전환
-
-#### 의미론적 에이전트 매칭
-- 모든 에이전트가 **동등하게 평가**됨 (특정 폴백 에이전트 없음)
-- 쿼리 의도와 에이전트 capabilities의 의미론적 분석
-- 에이전트 메타데이터 (description, capabilities, tags) 활용
-
-#### 유용한 피드백 시스템
-적합한 에이전트가 없을 때 사용자에게 건설적인 피드백 제공:
-
-| 유형 | 설명 |
-|------|------|
-| `clarification_needed` | 질문 구체화 유도 |
-| `alternative_suggested` | 대안 제시 |
-| `impossible_request` | 불가능 이유 설명 |
-
-#### 테스트 결과
-- **100% 통과** (22/22 테스트 케이스)
-- 상세: [`tests/LLM_AGENT_SELECTION_TEST_RESULTS.md`](./tests/LLM_AGENT_SELECTION_TEST_RESULTS.md)
-
-### ✅ 해결된 문제점
-1. **LLM 활용 부족** → LLM 기반 종합 분석 시스템
-2. **하드코딩된 워크플로우** → 동적 워크플로우 생성
-3. **부정확한 에이전트 선택** → **LLM 기반 의미론적 매칭** ⭐
-4. **비효율적 실행** → 최적화된 실행 전략
-5. **단순한 결과 통합** → 의미론적 결과 통합
-6. **온톨로지 업데이트 부족** → 자동 지식 업데이트
-7. **중복 호출 문제** → 캐싱 및 최적화
-
-### 📈 성능 개선
-| 항목 | 기존 | 개선 후 | 향상률 |
-|------|------|---------|--------|
-| 쿼리 이해도 | 60% | 90% | +50% |
-| 에이전트 선택 정확도 | 70% | 95% | +36% |
-| 실행 효율성 | 65% | 85% | +31% |
-| 결과 품질 | 75% | 92% | +23% |
-| 사용자 만족도 | 70% | 90% | +29% |
-
-## 🔧 시작하기
-
-### 1. 시스템 초기화
-```python
-from logos_server.app_agent.enhanced_ontology_system import create_enhanced_ontology_system
-
-# 시스템 생성
-system = create_enhanced_ontology_system(
-    email="user@example.com",
-    prompt="사용자 쿼리",
-    sessionid="session_123"
-)
-
-# 에이전트 초기화
-await system.initialize(installed_agents)
-```
-
-### 2. 쿼리 처리
-```python
-# 비동기 처리
-async for result in system.process_query():
-    if result["type"] == "final_result":
-        print("결과:", result["result"])
-        print("UI 컴포넌트:", result["result"]["ui_components"])
-```
-
-### 3. 시스템 종료
-```python
-await system.close()
-```
-
-## 📊 사용 예시
-
-### 복합 쿼리 처리
-```
-입력: "달러와 유로 환율을 조회하고 100만원을 각각 환전했을 때 금액을 계산해서 비교 차트로 보여줘"
-
-처리 과정:
-1. 🧠 LLM 분석: 환율 조회 + 계산 + 시각화
-2. 🌊 워크플로우: currency_agent → calculator_agent → chart_agent
-3. ⚡ 실행: 순차 실행 전략
-4. 🔗 통합: 차트 중심의 UI/UX
-5. 📊 업데이트: 환율 분석 패턴 학습
-
-출력:
-- 주요 콘텐츠: 환율 비교 차트
-- 보조 정보: 계산 결과 테이블
-- 상호작용: 환율 계산기
-```
-
-## 🎯 향후 계획
-
-### Phase 1: 핵심 기능 완성 ✅
-- Enhanced Ontology System 구축
-- LLM 기반 분석 및 실행
-- 기본 온톨로지 업데이트
-
-### Phase 2: 고도화 (진행 중)
-- 실시간 학습 및 적응
-- 고급 UI/UX 통합
-- 성능 최적화
-
-### Phase 3: 확장 (계획)
-- 분산 처리 지원
-- 다중 사용자 환경
-- 자동 에이전트 생성
-- 고급 추론 엔진
-
-## 🤝 기여하기
-
-1. 문제점 발견 시 이슈 등록
-2. 개선 아이디어 제안
-3. 코드 리뷰 및 피드백
-4. 문서 개선 및 번역
-
-## 📞 지원
-
-- 📧 이메일: support@logosai.com
-- 📚 문서: [온톨로지 시스템 가이드](./ARCHITECTURE.md)
-- 🐛 버그 리포트: [이슈 트래커](https://github.com/logosai/issues)
+The Ontology System is the brain of the LogosAI platform. It analyzes user queries semantically, selects the optimal agent(s), designs execution workflows, and integrates results from multiple agents.
 
 ---
 
-**LogosAI 온톨로지 시스템**은 지능적이고 확장 가능하며 사용자 친화적인 멀티에이전트 시스템으로, 복잡한 쿼리를 효율적으로 처리하고 고품질의 결과를 제공합니다. 
+## How It Works
+
+```
+User Query
+    |
+    v
+Query Analysis (LLM) ──> Intent, entities, complexity
+    |
+    v
+Agent Selection (Hybrid: Knowledge Graph + LLM)
+    |
+    v
+Workflow Design ──> single | sequential | parallel | hybrid
+    |
+    v
+Execution Engine ──> Agent calls with data piping
+    |
+    v
+Result Integration ──> Unified response
+```
+
+## Key Features
+
+### LLM-Based Agent Selection
+- **No hardcoded keyword matching** -- all agent selection is semantic via LLM
+- Agents are evaluated equally based on their metadata (description, capabilities, tags)
+- When no suitable agent exists, the system provides constructive feedback instead of a wrong answer
+
+### Hybrid Agent Selection (v2.0)
+Combines Knowledge Graph pattern learning with LLM reasoning:
+
+| Phase | Method | Purpose |
+|-------|--------|---------|
+| 1 | Knowledge Graph | Entity extraction, pattern matching, time-decayed success rates |
+| 2 | LLM Decision | Semantic analysis using graph insights + agent metadata |
+| 3 | Feedback Loop | EMA success tracking, pattern generalization |
+
+### Workflow Orchestration
+Automatically determines the optimal execution strategy:
+
+| Strategy | When to Use | Example |
+|----------|-------------|---------|
+| `single_agent` | One agent can handle it | "What's the weather?" |
+| `parallel` | Independent subtasks | "Search restaurants AND tourist spots" |
+| `sequential` | Results feed forward | "Get price -> Convert currency" |
+| `hybrid` | Mix of both | "(Weather \|\| Exchange rate) -> Calculate expenses" |
+
+### Agent Sync Service
+Automatically synchronizes agent metadata from the ACP runtime server:
+- Full sync on system startup
+- File watcher detects new/changed agents every 5 seconds
+- Updates Knowledge Graph, Agent Registry, and metadata in real-time
+
+## Project Structure
+
+```
+ontology/
+├── core/                          # Core processing modules
+│   ├── unified_query_processor.py # LLM-based unified query processing
+│   ├── hybrid_agent_selector.py   # Knowledge Graph + LLM agent selection
+│   ├── agent_sync_service.py      # Agent metadata synchronization
+│   ├── llm_manager.py             # LLM client management
+│   ├── llm_config_loader.py       # LLM configuration loading
+│   ├── context_manager.py         # Query context management
+│   ├── models.py                  # Data models
+│   └── interfaces.py              # Abstract interfaces
+│
+├── engines/                       # Processing engines
+│   ├── workflow_designer.py       # Dynamic workflow generation
+│   ├── execution_engine.py        # Agent execution with data piping
+│   ├── knowledge_graph.py         # Knowledge graph operations
+│   ├── semantic_query_manager.py  # Semantic query handling
+│   └── graph/                     # Graph engine and visualization
+│
+├── orchestrator/                  # Workflow orchestration
+│   ├── query_planner.py           # LLM-powered execution planning
+│   ├── execution_engine.py        # Multi-stage execution
+│   ├── workflow_orchestrator.py   # Top-level orchestration
+│   ├── progress_streamer.py       # Real-time progress streaming
+│   ├── agent_registry.py          # Agent registration and discovery
+│   ├── result_aggregator.py       # Multi-agent result aggregation
+│   └── models.py                  # Orchestration data models
+│
+├── system/                        # System-level modules
+│   ├── ontology_system.py         # Main ontology system
+│   ├── knowledge_graph_manager.py # Knowledge graph lifecycle
+│   ├── reasoning_generator.py     # Reasoning and inference
+│   ├── result_integration.py      # Result integration logic
+│   ├── strategy_manager.py        # Execution strategy selection
+│   └── metrics_manager.py         # Performance metrics
+│
+├── services/                      # Support services
+│   ├── agent_detector.py          # Agent capability detection
+│   └── visualization_response_formatter.py
+│
+├── processors/                    # Query processors
+│   └── enhanced_ontology_query_processor.py
+│
+├── config/                        # Configuration
+│   └── llm_config.yaml            # LLM provider settings
+│
+├── utils/                         # Utilities
+│   └── performance_analyzer.py
+│
+└── examples/                      # Usage examples
+    ├── basic_usage.py
+    └── advanced_usage.py
+```
+
+## Quick Start
+
+### Prerequisites
+- Python 3.11+
+- Google API key (for Gemini LLM) or OpenAI API key
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+
+# Set API keys
+export GOOGLE_API_KEY="your-google-api-key"
+```
+
+### Basic Usage
+
+```python
+import asyncio
+from ontology.core.unified_query_processor import UnifiedQueryProcessor
+
+async def main():
+    processor = UnifiedQueryProcessor()
+
+    available_agents = ['weather_agent', 'calculator_agent', 'search_agent']
+
+    result = await processor.process_unified_query(
+        query="What's the weather in Seoul?",
+        available_agents=available_agents
+    )
+
+    print(f"Selected agent: {result['agent_mappings']}")
+    print(f"Strategy: {result['execution_plan']['strategy']}")
+
+asyncio.run(main())
+```
+
+### Hybrid Agent Selection
+
+```python
+from ontology.core.hybrid_agent_selector import get_hybrid_selector
+
+selector = get_hybrid_selector()
+
+# Select agent with Knowledge Graph + LLM
+agent, metadata = await selector.select_agent(
+    query="Show me Samsung stock price",
+    available_agents=["search_agent", "finance_agent", "analysis_agent"],
+    agents_info={...}
+)
+
+print(f"Selected: {agent} (confidence: {metadata['confidence']:.0%})")
+
+# Store feedback for learning
+await selector.store_feedback(query, agent, success=True)
+```
+
+### Workflow Orchestration
+
+```python
+from ontology.orchestrator import WorkflowOrchestrator
+
+orchestrator = WorkflowOrchestrator()
+
+# Process a complex multi-step query
+async for event in orchestrator.process(query="Convert 100 USD to KRW and EUR, then compare"):
+    if event["type"] == "progress":
+        print(f"Stage: {event['stage']}")
+    elif event["type"] == "final_result":
+        print(f"Result: {event['result']}")
+```
+
+## Configuration
+
+### LLM Settings (`config/llm_config.yaml`)
+
+```yaml
+default_provider: gemini
+providers:
+  gemini:
+    model: gemini-2.5-flash-lite
+    temperature: 0.3
+    max_tokens: 4096
+  openai:
+    model: gpt-4
+    temperature: 0.3
+```
+
+### Agent Selection Settings
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Time decay half-life | 30 days | How quickly old patterns lose influence |
+| Min weight | 0.1 | Minimum weight for old patterns |
+| EMA alpha | 0.3 | Exponential moving average smoothing factor |
+
+## Architecture
+
+### Core Design Principles
+
+1. **No Hardcoded Matching** -- All agent selection uses LLM semantic analysis
+2. **Hybrid Intelligence** -- Knowledge Graph patterns + LLM reasoning
+3. **Dynamic Workflows** -- Execution strategies determined at runtime
+4. **Continuous Learning** -- Feedback loop improves selection over time
+5. **Equal Agent Evaluation** -- No agent is a "fallback"; all are scored equally
+
+### Integration with LogosAI
+
+The Ontology System integrates with:
+- **ACP Server** (port 8888) -- Executes selected agents
+- **Django Backend** (port 8080) -- Receives user queries
+- **FORGE AI** (port 8030) -- Generates new agents when needed
+- **Knowledge Graph** -- Stores and retrieves learned patterns
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | Python 3.11+ |
+| LLM | Google Gemini, OpenAI GPT |
+| Knowledge Graph | NetworkX, custom graph engine |
+| Query Processing | Async/await, aiohttp |
+| Configuration | YAML, Pydantic |
+
+## License
+
+MIT License
