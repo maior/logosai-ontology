@@ -1,36 +1,33 @@
 """
-🧠 Ontology System Package
-온톨로지 시스템 패키지
-
-분할된 모듈들을 통한 깔끔한 시스템 구조
+Ontology System Package — Modular system components.
 """
 
-# 깔끔한 온톨로지 시스템 (메인)
+# Main ontology system
 from .ontology_system_clean import CleanOntologySystem, OntologySystem
 
-# 분할된 모듈들
+# Sub-modules
 from .query_processing import QueryProcessor
 from .result_integration import ResultIntegrator
 from .knowledge_management import KnowledgeGraphManager
 from .metrics_manager import MetricsManager
 
-# 기존 시스템 (하위 호환성)
+# Legacy system (backward compatibility)
 try:
     from .ontology_system import OntologySystem as LegacyOntologySystem
 except ImportError:
     LegacyOntologySystem = None
 
 __all__ = [
-    # 메인 시스템
+    # Main system
     'CleanOntologySystem',
     'OntologySystem',
-    
-    # 분할된 모듈들
+
+    # Sub-modules
     'QueryProcessor',
-    'ResultIntegrator', 
+    'ResultIntegrator',
     'KnowledgeGraphManager',
     'MetricsManager',
-    
-    # 하위 호환성
+
+    # Backward compatibility
     'LegacyOntologySystem'
-] 
+]

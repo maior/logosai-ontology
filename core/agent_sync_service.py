@@ -1,17 +1,17 @@
 """
 🔄 Agent Sync Service
-에이전트 마켓플레이스 ↔ Knowledge Graph ↔ Agent Registry 동기화 서비스
+Synchronization service for Agent Marketplace ↔ Knowledge Graph ↔ Agent Registry
 
-동기화 대상:
+Sync targets:
 1. ACP Server (logosai/logosai/examples/agents/) - Source of Truth
 2. Agent Metadata JSON (agents/config/agent_metadata.json)
 3. Agent Registry (orchestrator/agent_registry.py)
 4. Knowledge Graph (knowledge_graph_clean.py)
 
-동기화 방식:
-- 시작 시 전체 동기화 (full_sync)
-- 실시간 이벤트 기반 동기화 (event-driven)
-- 주기적 동기화 (periodic_sync)
+Sync methods:
+- Full sync on startup (full_sync)
+- Real-time event-driven sync (event-driven)
+- Periodic sync (periodic_sync)
 """
 
 import asyncio
@@ -22,19 +22,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from loguru import logger
 
-# ACP Server 에이전트 디렉토리
-# ontology/core/agent_sync_service.py 기준 경로 계산
+# ACP Server agent directory
+# Path calculated relative to ontology/core/agent_sync_service.py
 _PROJECT_ROOT = Path(__file__).parent.parent.parent  # /Users/maior/Development/skku/Logos
-DEFAULT_AGENTS_DIR = _PROJECT_ROOT / "logosai" / "logosai" / "examples" / "agents"
+DEFAULT_AGENTS_DIR = _PROJECT_ROOT / "acp_server" / "agents"
 DEFAULT_METADATA_FILE = _PROJECT_ROOT / "agents" / "config" / "agent_metadata.json"
 
 
 class AgentSyncService:
     """
-    🔄 에이전트 동기화 서비스
+    🔄 Agent Synchronization Service
 
-    ACP Server의 에이전트 정보를 Knowledge Graph와 Agent Registry에 동기화합니다.
-    새 에이전트가 추가되면 자동으로 감지하여 시스템 전체에 반영합니다.
+    Synchronizes agent information from ACP Server to Knowledge Graph and Agent Registry.
+    Automatically detects newly added agents and reflects them across the system.
     """
 
     def __init__(
@@ -46,10 +46,10 @@ class AgentSyncService:
     ):
         """
         Args:
-            agents_dir: ACP 에이전트 디렉토리 경로
-            metadata_file: 에이전트 메타데이터 JSON 파일 경로
-            knowledge_graph: KnowledgeGraphEngine 인스턴스
-            agent_registry: AgentRegistry 인스턴스
+            agents_dir: ACP agent directory path
+            metadata_file: Agent metadata JSON file path
+            knowledge_graph: KnowledgeGraphEngine instance
+            agent_registry: AgentRegistry instance
         """
         self.agents_dir = agents_dir or DEFAULT_AGENTS_DIR
         self.metadata_file = metadata_file or DEFAULT_METADATA_FILE
@@ -57,54 +57,54 @@ class AgentSyncService:
         self._knowledge_graph = knowledge_graph
         self._agent_registry = agent_registry
 
-        # 동기화 상태 추적
+        # Sync state tracking
         self._synced_agents: Set[str] = set()
         self._last_sync: Optional[datetime] = None
         self._sync_in_progress = False
 
-        # 파일 감시 상태
+        # File watching state
         self._file_hashes: Dict[str, str] = {}
 
-        logger.info(f"🔄 에이전트 동기화 서비스 초기화 (agents_dir: {self.agents_dir})")
+        logger.info(f"🔄 Agent sync service initialized (agents_dir: {self.agents_dir})")
 
     @property
     def knowledge_graph(self):
-        """지식그래프 지연 로딩"""
+        """Lazy-load knowledge graph"""
         if self._knowledge_graph is None:
             try:
                 from ..engines.knowledge_graph_clean import KnowledgeGraphEngine
                 self._knowledge_graph = KnowledgeGraphEngine(fast_mode=True)
-                logger.info("📊 지식그래프 엔진 로드 완료")
+                logger.info("📊 Knowledge graph engine loaded")
             except Exception as e:
-                logger.warning(f"⚠️ 지식그래프 로드 실패: {e}")
+                logger.warning(f"⚠️ Knowledge graph load failed: {e}")
         return self._knowledge_graph
 
     @property
     def agent_registry(self):
-        """에이전트 레지스트리 지연 로딩"""
+        """Lazy-load agent registry"""
         if self._agent_registry is None:
             try:
                 from ..orchestrator.agent_registry import get_registry
                 self._agent_registry = get_registry()
-                logger.info("📋 에이전트 레지스트리 로드 완료")
+                logger.info("📋 Agent registry loaded")
             except Exception as e:
-                logger.warning(f"⚠️ 에이전트 레지스트리 로드 실패: {e}")
+                logger.warning(f"⚠️ Agent registry load failed: {e}")
         return self._agent_registry
 
     async def full_sync(self) -> Dict[str, Any]:
         """
-        🔄 전체 동기화 실행
+        🔄 Run full synchronization
 
-        1. ACP Server 에이전트 스캔
-        2. 메타데이터 파일 로드
-        3. Agent Registry 업데이트
+        1. Scan ACP Server agents
+        2. Load metadata file
+        3. Update Agent Registry
         4. Knowledge Graph 업데이트
 
         Returns:
-            동기화 결과 {added, updated, removed, errors}
+            Sync result {added, updated, removed, errors}
         """
         if self._sync_in_progress:
-            logger.warning("⚠️ 동기화가 이미 진행 중입니다")
+            logger.warning("⚠️ Sync is already in progress")
             return {"status": "already_in_progress"}
 
         self._sync_in_progress = True
@@ -119,44 +119,44 @@ class AgentSyncService:
         }
 
         try:
-            logger.info("🔄 전체 에이전트 동기화 시작...")
+            logger.info("🔄 Starting full agent synchronization...")
 
-            # 1. ACP Server 에이전트 스캔
+            # 1. Scan ACP Server agents
             acp_agents = await self._scan_acp_agents()
-            logger.info(f"   📁 ACP 에이전트 스캔 완료: {len(acp_agents)}개")
+            logger.info(f"   📁 ACP agent scan complete: {len(acp_agents)} agents")
 
-            # 2. 메타데이터 파일 로드
+            # 2. Load metadata file
             metadata_agents = await self._load_metadata_file()
-            logger.info(f"   📄 메타데이터 파일 로드 완료: {len(metadata_agents)}개")
+            logger.info(f"   📄 Metadata file loaded: {len(metadata_agents)} agents")
 
-            # 3. 에이전트 정보 병합
+            # 3. Merge agent information
             merged_agents = self._merge_agent_info(acp_agents, metadata_agents)
             result["total_agents"] = len(merged_agents)
 
-            # 4. Agent Registry 업데이트
+            # 4. Update Agent Registry
             registry_result = await self._sync_to_registry(merged_agents)
             result["added"].extend(registry_result.get("added", []))
             result["updated"].extend(registry_result.get("updated", []))
 
-            # 5. Knowledge Graph 업데이트
+            # 5. Update Knowledge Graph
             kg_result = await self._sync_to_knowledge_graph(merged_agents)
             if kg_result.get("errors"):
                 result["errors"].extend(kg_result["errors"])
 
-            # 6. 동기화 상태 업데이트
+            # 6. Update sync state
             self._synced_agents = set(merged_agents.keys())
             self._last_sync = datetime.now()
 
             elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
             logger.info(
-                f"✅ 전체 동기화 완료: "
-                f"{len(result['added'])}개 추가, "
-                f"{len(result['updated'])}개 업데이트, "
+                f"✅ Full sync complete: "
+                f"{len(result['added'])} added, "
+                f"{len(result['updated'])} updated, "
                 f"{elapsed_ms:.0f}ms"
             )
 
         except Exception as e:
-            logger.error(f"❌ 전체 동기화 실패: {e}")
+            logger.error(f"❌ Full sync failed: {e}")
             result["errors"].append(str(e))
 
         finally:
@@ -165,14 +165,14 @@ class AgentSyncService:
         return result
 
     async def _scan_acp_agents(self) -> Dict[str, Dict[str, Any]]:
-        """ACP Server 에이전트 디렉토리 스캔"""
+        """Scan ACP Server agent directory"""
         agents = {}
 
         if not self.agents_dir.exists():
-            logger.warning(f"⚠️ 에이전트 디렉토리 없음: {self.agents_dir}")
+            logger.warning(f"⚠️ Agent directory not found: {self.agents_dir}")
             return agents
 
-        # .py 파일 스캔 (테스트 파일 제외)
+        # Scan .py files (exclude test files)
         for file_path in self.agents_dir.glob("*_agent.py"):
             if file_path.name.startswith("test_") or file_path.name.startswith("_"):
                 continue
@@ -185,40 +185,40 @@ class AgentSyncService:
                         agents[agent_id] = agent_info
 
             except Exception as e:
-                logger.warning(f"⚠️ 에이전트 파일 파싱 실패 ({file_path.name}): {e}")
+                logger.warning(f"⚠️ Agent file parsing failed ({file_path.name}): {e}")
 
         return agents
 
     async def _parse_agent_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
-        """에이전트 Python 파일에서 메타데이터 추출"""
+        """Extract metadata from agent Python file"""
         try:
             content = file_path.read_text(encoding='utf-8')
 
-            # 에이전트 ID 추출 (파일명 기반)
+            # Extract agent ID (based on filename)
             agent_id = file_path.stem  # e.g., "internet_agent"
 
-            # 클래스명 추출
+            # Extract class name
             import re
             class_match = re.search(r'class\s+(\w+Agent)\s*[:\(]', content)
             class_name = class_match.group(1) if class_match else f"{agent_id.title()}Agent"
 
-            # description 추출 (docstring 또는 description 변수)
+            # Extract description (from docstring or description variable)
             desc_match = re.search(r'description\s*[=:]\s*["\']([^"\']+)["\']', content)
             if not desc_match:
-                # 클래스 docstring 시도
+                # Try class docstring
                 docstring_match = re.search(r'class\s+\w+.*?:\s*"""([^"]+)"""', content, re.DOTALL)
                 description = docstring_match.group(1).strip()[:200] if docstring_match else ""
             else:
                 description = desc_match.group(1)[:200]
 
-            # capabilities 추출
+            # Extract capabilities
             caps_match = re.search(r'capabilities\s*[=:]\s*\[([^\]]+)\]', content)
             capabilities = []
             if caps_match:
                 caps_str = caps_match.group(1)
                 capabilities = [c.strip().strip('"\'') for c in caps_str.split(',') if c.strip()]
 
-            # tags 추출
+            # Extract tags
             tags_match = re.search(r'tags\s*[=:]\s*\[([^\]]+)\]', content)
             tags = []
             if tags_match:
@@ -236,15 +236,15 @@ class AgentSyncService:
             }
 
         except Exception as e:
-            logger.debug(f"에이전트 파일 파싱 오류 ({file_path}): {e}")
+            logger.debug(f"Agent file parsing error ({file_path}): {e}")
             return None
 
     async def _load_metadata_file(self) -> Dict[str, Dict[str, Any]]:
-        """에이전트 메타데이터 JSON 파일 로드"""
+        """Load agent metadata JSON file"""
         agents = {}
 
         if not self.metadata_file.exists():
-            logger.debug(f"메타데이터 파일 없음: {self.metadata_file}")
+            logger.debug(f"Metadata file not found: {self.metadata_file}")
             return agents
 
         try:
@@ -252,7 +252,7 @@ class AgentSyncService:
                 data = json.load(f)
 
             for agent_name, agent_info in data.items():
-                # agent_id 정규화 (예: "internet" → "internet_agent")
+                # Normalize agent_id (e.g. "internet" → "internet_agent")
                 agent_id = agent_name if agent_name.endswith("_agent") else f"{agent_name}_agent"
 
                 agents[agent_id] = {
@@ -267,7 +267,7 @@ class AgentSyncService:
                 }
 
         except Exception as e:
-            logger.warning(f"⚠️ 메타데이터 파일 로드 실패: {e}")
+            logger.warning(f"⚠️ Metadata file load failed: {e}")
 
         return agents
 
@@ -276,17 +276,17 @@ class AgentSyncService:
         acp_agents: Dict[str, Dict[str, Any]],
         metadata_agents: Dict[str, Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
-        """여러 소스의 에이전트 정보 병합 (ACP 우선)"""
+        """Merge agent information from multiple sources (ACP takes priority)"""
         merged = {}
 
-        # ACP 에이전트 기준
+        # Based on ACP agents
         all_agent_ids = set(acp_agents.keys()) | set(metadata_agents.keys())
 
         for agent_id in all_agent_ids:
             acp_info = acp_agents.get(agent_id, {})
             meta_info = metadata_agents.get(agent_id, {})
 
-            # ACP 정보 우선, 메타데이터로 보충
+            # ACP info takes priority, supplemented by metadata
             merged[agent_id] = {
                 "agent_id": agent_id,
                 "name": acp_info.get("name") or meta_info.get("name") or agent_id,
@@ -306,7 +306,7 @@ class AgentSyncService:
         self,
         agents: Dict[str, Dict[str, Any]]
     ) -> Dict[str, List[str]]:
-        """Agent Registry에 동기화"""
+        """Sync to Agent Registry"""
         result = {"added": [], "updated": []}
 
         if not self.agent_registry:
@@ -316,7 +316,7 @@ class AgentSyncService:
             from ..orchestrator.models import AgentSchema, AgentRegistryEntry
 
             for agent_id, info in agents.items():
-                # 기존 에이전트 확인
+                # Check existing agent
                 existing = self.agent_registry.get_agent_safe(agent_id)
 
                 # AgentRegistryEntry 생성
@@ -336,7 +336,7 @@ class AgentSyncService:
                     priority=0,
                 )
 
-                # 등록/업데이트
+                # Register/update
                 self.agent_registry.register_agent(entry)
 
                 if existing:
@@ -345,7 +345,7 @@ class AgentSyncService:
                     result["added"].append(agent_id)
 
         except Exception as e:
-            logger.warning(f"⚠️ 레지스트리 동기화 실패: {e}")
+            logger.warning(f"⚠️ Registry sync failed: {e}")
 
         return result
 
@@ -353,7 +353,7 @@ class AgentSyncService:
         self,
         agents: Dict[str, Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Knowledge Graph에 에이전트 정보 동기화"""
+        """Sync agent info to Knowledge Graph"""
         result = {"synced": 0, "errors": []}
 
         if not self.knowledge_graph:
@@ -361,7 +361,7 @@ class AgentSyncService:
 
         try:
             for agent_id, info in agents.items():
-                # 에이전트 노드 추가
+                # Add agent node
                 await self.knowledge_graph.add_concept(
                     agent_id,
                     "agent",
@@ -376,7 +376,7 @@ class AgentSyncService:
                     }
                 )
 
-                # 능력 노드 및 관계 추가
+                # Add capability nodes and relationships
                 for capability in info.get("capabilities", []):
                     cap_id = f"capability_{capability}"
                     await self.knowledge_graph.add_concept(
@@ -388,7 +388,7 @@ class AgentSyncService:
                         agent_id, cap_id, "has_capability"
                     )
 
-                # 태그 노드 및 관계 추가
+                # Add tag nodes and relationships
                 for tag in info.get("tags", []):
                     tag_id = f"tag_{tag}"
                     await self.knowledge_graph.add_concept(
@@ -402,46 +402,46 @@ class AgentSyncService:
 
                 result["synced"] += 1
 
-            logger.info(f"📊 지식그래프 동기화 완료: {result['synced']}개 에이전트")
+            logger.info(f"📊 Knowledge graph sync complete: {result['synced']} agents")
 
         except Exception as e:
-            logger.warning(f"⚠️ 지식그래프 동기화 실패: {e}")
+            logger.warning(f"⚠️ Knowledge graph sync failed: {e}")
             result["errors"].append(str(e))
 
         return result
 
     async def sync_single_agent(self, agent_id: str, agent_info: Dict[str, Any]) -> bool:
         """
-        단일 에이전트 동기화 (실시간 추가/업데이트용)
+        Sync a single agent (for real-time add/update)
 
         Args:
-            agent_id: 에이전트 ID
-            agent_info: 에이전트 정보
+            agent_id: Agent ID
+            agent_info: Agent information
 
         Returns:
-            성공 여부
+            Success status
         """
         try:
-            logger.info(f"🔄 단일 에이전트 동기화: {agent_id}")
+            logger.info(f"🔄 Syncing single agent: {agent_id}")
 
-            # Registry 업데이트
+            # Update registry
             await self._sync_to_registry({agent_id: agent_info})
 
-            # Knowledge Graph 업데이트
+            # Update Knowledge Graph
             await self._sync_to_knowledge_graph({agent_id: agent_info})
 
             self._synced_agents.add(agent_id)
 
-            logger.info(f"✅ 에이전트 동기화 완료: {agent_id}")
+            logger.info(f"✅ Agent sync complete: {agent_id}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ 에이전트 동기화 실패 ({agent_id}): {e}")
+            logger.error(f"❌ Agent sync failed ({agent_id}): {e}")
             return False
 
     async def check_for_changes(self) -> Dict[str, List[str]]:
         """
-        변경사항 확인 (주기적 동기화용)
+        Check for changes (for periodic sync)
 
         Returns:
             {"added": [...], "modified": [...], "removed": [...]}
@@ -449,17 +449,17 @@ class AgentSyncService:
         changes = {"added": [], "modified": [], "removed": []}
 
         try:
-            # 현재 ACP 에이전트 스캔
+            # Scan current ACP agents
             current_agents = await self._scan_acp_agents()
             current_ids = set(current_agents.keys())
 
-            # 추가된 에이전트
+            # Added agents
             changes["added"] = list(current_ids - self._synced_agents)
 
-            # 제거된 에이전트
+            # Removed agents
             changes["removed"] = list(self._synced_agents - current_ids)
 
-            # 수정된 에이전트 (파일 해시 비교)
+            # Modified agents (file hash comparison)
             for agent_id in current_ids & self._synced_agents:
                 file_path = current_agents[agent_id].get("file_path")
                 if file_path:
@@ -470,12 +470,12 @@ class AgentSyncService:
                     self._file_hashes[agent_id] = new_hash
 
         except Exception as e:
-            logger.warning(f"⚠️ 변경사항 확인 실패: {e}")
+            logger.warning(f"⚠️ Change detection failed: {e}")
 
         return changes
 
     def _get_file_hash(self, file_path: str) -> str:
-        """파일 해시 계산"""
+        """Calculate file hash"""
         import hashlib
         try:
             with open(file_path, 'rb') as f:
@@ -484,7 +484,7 @@ class AgentSyncService:
             return ""
 
     def get_sync_status(self) -> Dict[str, Any]:
-        """동기화 상태 조회"""
+        """Get sync status"""
         return {
             "synced_agents": list(self._synced_agents),
             "total_synced": len(self._synced_agents),
@@ -494,7 +494,7 @@ class AgentSyncService:
         }
 
 
-# 싱글톤 인스턴스
+# Singleton instance
 _sync_service_instance: Optional[AgentSyncService] = None
 
 

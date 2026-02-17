@@ -1,6 +1,7 @@
 """
 Performance Analyzer for Ontology System
-성능 분석 및 메트릭 수집 유틸리티
+
+Utility for performance analysis and metrics collection.
 """
 
 import time
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PerformanceMetric:
-    """개별 성능 메트릭"""
+    """Individual performance metric."""
     name: str
     value: float
     unit: str = "ms"
@@ -24,12 +25,12 @@ class PerformanceMetric:
 
 class PerformanceAnalyzer:
     """
-    온톨로지 시스템 성능 분석기
+    Ontology system performance analyzer.
 
-    기능:
-    - 실행 시간 측정
-    - 성능 메트릭 수집
-    - 통계 분석
+    Features:
+    - Execution time measurement
+    - Performance metrics collection
+    - Statistical analysis
     """
 
     def __init__(self):
@@ -38,16 +39,16 @@ class PerformanceAnalyzer:
         self._enabled = True
 
     def start_timer(self, operation: str) -> None:
-        """작업 타이머 시작"""
+        """Start a timer for an operation."""
         if self._enabled:
             self.start_times[operation] = time.time()
 
     def stop_timer(self, operation: str, metadata: Optional[Dict[str, Any]] = None) -> float:
-        """작업 타이머 종료 및 메트릭 기록"""
+        """Stop a timer for an operation and record the metric."""
         if not self._enabled or operation not in self.start_times:
             return 0.0
 
-        elapsed = (time.time() - self.start_times[operation]) * 1000  # ms로 변환
+        elapsed = (time.time() - self.start_times[operation]) * 1000  # convert to ms
         del self.start_times[operation]
 
         metric = PerformanceMetric(
@@ -62,7 +63,7 @@ class PerformanceAnalyzer:
 
     def record_metric(self, name: str, value: float, unit: str = "ms",
                      metadata: Optional[Dict[str, Any]] = None) -> None:
-        """커스텀 메트릭 기록"""
+        """Record a custom metric."""
         if not self._enabled:
             return
 
@@ -75,7 +76,7 @@ class PerformanceAnalyzer:
         self.metrics[name].append(metric)
 
     def get_statistics(self, operation: str) -> Dict[str, float]:
-        """특정 작업의 통계 반환"""
+        """Return statistics for a specific operation."""
         if operation not in self.metrics or not self.metrics[operation]:
             return {"count": 0, "avg": 0, "min": 0, "max": 0, "total": 0}
 
@@ -89,11 +90,11 @@ class PerformanceAnalyzer:
         }
 
     def get_all_statistics(self) -> Dict[str, Dict[str, float]]:
-        """모든 작업의 통계 반환"""
+        """Return statistics for all operations."""
         return {op: self.get_statistics(op) for op in self.metrics}
 
     def get_recent_metrics(self, operation: str, count: int = 10) -> List[Dict[str, Any]]:
-        """최근 메트릭 반환"""
+        """Return the most recent metrics for an operation."""
         if operation not in self.metrics:
             return []
 
@@ -110,7 +111,7 @@ class PerformanceAnalyzer:
         ]
 
     def reset(self, operation: Optional[str] = None) -> None:
-        """메트릭 초기화"""
+        """Reset metrics."""
         if operation:
             self.metrics[operation] = []
             if operation in self.start_times:
@@ -120,19 +121,19 @@ class PerformanceAnalyzer:
             self.start_times.clear()
 
     def enable(self) -> None:
-        """성능 분석 활성화"""
+        """Enable performance analysis."""
         self._enabled = True
 
     def disable(self) -> None:
-        """성능 분석 비활성화"""
+        """Disable performance analysis."""
         self._enabled = False
 
     def is_enabled(self) -> bool:
-        """활성화 상태 확인"""
+        """Check whether performance analysis is enabled."""
         return self._enabled
 
     def get_summary(self) -> Dict[str, Any]:
-        """전체 성능 요약"""
+        """Return an overall performance summary."""
         all_stats = self.get_all_statistics()
         total_operations = sum(s["count"] for s in all_stats.values())
         total_time = sum(s["total"] for s in all_stats.values())
@@ -145,5 +146,5 @@ class PerformanceAnalyzer:
         }
 
 
-# 싱글톤 인스턴스
+# Singleton instance
 performance_analyzer = PerformanceAnalyzer()

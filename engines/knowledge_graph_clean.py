@@ -1,8 +1,7 @@
 """
-온톨로지 지식 그래프 엔진 - 깔끔한 통합 버전
 Ontology Knowledge Graph Engine - Clean Integrated Version
 
-새로운 분할된 엔진들을 활용한 통합 지식 그래프 엔진
+Integrated knowledge graph engine leveraging the new split engines.
 """
 import networkx as nx
 import time
@@ -18,21 +17,21 @@ from .graph.visualization_engine import VisualizationEngine
 
 
 class KnowledgeGraphEngine(KnowledgeGraph):
-    """🧠 온톨로지 지식 그래프 엔진 - 깔끔한 통합 버전"""
-    
+    """🧠 Ontology Knowledge Graph Engine - Clean Integrated Version"""
+
     def __init__(self, max_nodes: int = 1000, fast_mode: bool = True):
         self.max_nodes = max_nodes
-        
-        # 핵심 그래프 엔진 (CRUD 작업) - 고속 모드 적용
+
+        # Core graph engine (CRUD operations) - fast mode applied
         self.graph_engine = GraphEngine(fast_mode=fast_mode)
-        
-        # 시각화 엔진
+
+        # Visualization engine
         self.visualization_engine = VisualizationEngine(self.graph_engine.graph)
-        
-        # LLM 관리자
+
+        # LLM manager
         self.llm_manager = get_ontology_llm_manager()
-        
-        # 메타데이터
+
+        # Metadata
         self.metadata = {
             "created_at": datetime.now().isoformat(),
             "last_updated": datetime.now().isoformat(),
@@ -41,75 +40,75 @@ class KnowledgeGraphEngine(KnowledgeGraph):
             "fast_mode": fast_mode
         }
         
-        logger.info(f"🧠 통합 온톨로지 지식 그래프 엔진 초기화 완료 (고속 모드: {'ON' if fast_mode else 'OFF'})")
-    
+        logger.info(f"🧠 Integrated ontology knowledge graph engine initialized (fast mode: {'ON' if fast_mode else 'OFF'})")
+
     @property
     def graph(self):
-        """하위 호환성을 위한 그래프 직접 접근"""
+        """Direct graph access for backward compatibility"""
         return self.graph_engine.graph
-    
-    # 🔗 KnowledgeGraph 인터페이스 구현
+
+    # 🔗 KnowledgeGraph interface implementation
     async def add_concept(self, concept_id: str, concept_type: str, attributes: Dict[str, Any]) -> bool:
-        """개념 추가 - GraphEngine에 위임"""
+        """Add concept - delegates to GraphEngine"""
         result = await self.graph_engine.add_concept(concept_id, concept_type, attributes)
         if result:
             self._update_metadata()
-            # 시각화 엔진에 그래프 업데이트 알림
+            # Notify visualization engine of graph update
             self.visualization_engine.graph = self.graph_engine.graph
         return result
-    
-    async def add_relationship(self, source: str, target: str, relationship: str, 
-                             attributes: Dict[str, Any] = None) -> bool:
-        """관계 추가 - GraphEngine에 위임"""
+
+    async def add_relationship(self, source: str, target: str, relationship: str,
+                               attributes: Dict[str, Any] = None) -> bool:
+        """Add relationship - delegates to GraphEngine"""
         if attributes is None:
             attributes = {}
-        
+
         result = await self.graph_engine.add_relationship(source, target, relationship, attributes)
         if result:
             self._update_metadata()
-            # 시각화 엔진에 그래프 업데이트 알림
+            # Notify visualization engine of graph update
             self.visualization_engine.graph = self.graph_engine.graph
         return result
-    
-    async def add_relation(self, subject: str, predicate: str, object: str, 
-                          properties: Dict[str, Any] = None) -> bool:
-        """관계 추가 (add_relationship의 별칭)"""
+
+    async def add_relation(self, subject: str, predicate: str, object: str,
+                           properties: Dict[str, Any] = None) -> bool:
+        """Add relation (alias for add_relationship)"""
         if properties is None:
             properties = {}
         return await self.add_relationship(subject, object, predicate, properties)
-    
+
     def get_graph_stats(self) -> Dict[str, Any]:
-        """그래프 통계 조회 - GraphEngine에 위임하되 메타데이터 추가"""
+        """Retrieve graph statistics - delegates to GraphEngine with metadata added"""
         stats = self.graph_engine.get_graph_stats()
         stats["metadata"].update(self.metadata)
         return stats
-    
+
     def generate_visualization(self, max_nodes: int = 100) -> Dict[str, Any]:
-        """시각화 데이터 생성 - VisualizationEngine에 위임"""
+        """Generate visualization data - delegates to VisualizationEngine"""
         try:
-            logger.info(f"🎨 시각화 데이터 생성 시작 - 최대 노드: {max_nodes}")
-            
-            # 비동기 메서드를 동기적으로 호출하는 안전한 방법
+            logger.info(f"🎨 Visualization data generation started - max nodes: {max_nodes}")
+
+            # Safe way to call async method synchronously
             import asyncio
-            
+
             try:
-                # 현재 실행 중인 이벤트 루프가 있는지 확인
+                # Check if there is a running event loop
                 loop = asyncio.get_running_loop()
-                # 이미 루프가 실행 중이면 동기적 대안 사용
-                logger.info("기존 이벤트 루프 감지, 동기적 시각화 생성 사용")
+                # If loop is already running, use synchronous alternative
+                logger.info("Existing event loop detected, using synchronous visualization generation")
                 visualization_data = self._generate_visualization_sync(max_nodes)
             except RuntimeError:
-                # 실행 중인 루프가 없으면 새로운 루프 생성
-                logger.info("새로운 이벤트 루프 생성하여 시각화 생성")
+                # If no running loop, create a new one
+                logger.info("Creating new event loop for visualization generation")
                 visualization_data = asyncio.run(
                     self.visualization_engine.generate_visualization(max_nodes)
                 )
-            
-            logger.info(f"✅ 시각화 데이터 생성 완료")
+
+            logger.info("✅ Visualization data generation complete")
             return visualization_data
-            
+
         except Exception as e:
-            logger.error(f"시각화 데이터 생성 실패: {e}")
+            logger.error(f"Visualization data generation failed: {e}")
             return {
                 "nodes": [],
                 "edges": [],
@@ -120,21 +119,21 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 }
             }
     
-    # 🔍 추가 편의 메서드들
+    # 🔍 Additional convenience methods
     async def query_graph(self, query: str) -> List[Dict[str, Any]]:
-        """그래프 쿼리 - GraphEngine에 위임"""
+        """Graph query - delegates to GraphEngine"""
         return await self.graph_engine.query_graph(query)
-    
+
     async def semantic_query_analysis(self, natural_query: str) -> SemanticQuery:
-        """의미론적 쿼리 분석 - GraphEngine에 위임"""
+        """Semantic query analysis - delegates to GraphEngine"""
         return await self.graph_engine.semantic_query_analysis(natural_query)
-    
+
     async def add_semantic_query_concepts(self, semantic_query: SemanticQuery) -> bool:
-        """의미론적 쿼리로부터 개념 추가"""
+        """Add concepts from semantic query"""
         try:
             success_count = 0
-            
-            # 쿼리 자체를 개념으로 추가
+
+            # Add the query itself as a concept
             query_result = await self.add_concept(
                 f"query_{semantic_query.query_id}",
                 "query",
@@ -149,8 +148,8 @@ class KnowledgeGraphEngine(KnowledgeGraph):
             )
             if query_result:
                 success_count += 1
-            
-            # 엔티티들을 개념으로 추가
+
+            # Add entities as concepts
             for entity in semantic_query.entities:
                 entity_result = await self.add_concept(
                     entity,
@@ -162,14 +161,14 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 )
                 if entity_result:
                     success_count += 1
-                    # 쿼리와 엔티티 관계 추가
+                    # Add query-entity relationship
                     await self.add_relationship(
                         f"query_{semantic_query.query_id}",
                         entity,
                         "contains_entity"
                     )
-            
-            # 개념들을 추가
+
+            # Add concepts
             for concept in semantic_query.concepts:
                 concept_result = await self.add_concept(
                     concept,
@@ -181,16 +180,16 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 )
                 if concept_result:
                     success_count += 1
-                    # 쿼리와 개념 관계 추가
+                    # Add query-concept relationship
                     await self.add_relationship(
                         f"query_{semantic_query.query_id}",
                         concept,
                         "involves_concept"
                     )
-            
-            # 관계들을 처리
+
+            # Process relations
             for relation in semantic_query.relations:
-                # 관계는 개념으로 추가
+                # Add relation as a concept
                 relation_result = await self.add_concept(
                     relation,
                     "relation",
@@ -201,26 +200,26 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 )
                 if relation_result:
                     success_count += 1
-                    # 쿼리와 관계 관계 추가
+                    # Add query-relation relationship
                     await self.add_relationship(
                         f"query_{semantic_query.query_id}",
                         relation,
                         "uses_relation"
                     )
-            
-            logger.info(f"의미론적 쿼리 개념 추가 완료: {success_count}개 성공")
+
+            logger.info(f"Semantic query concept addition complete: {success_count} succeeded")
             return success_count > 0
-            
+
         except Exception as e:
-            logger.error(f"의미론적 쿼리 개념 추가 실패: {e}")
+            logger.error(f"Semantic query concept addition failed: {e}")
             return False
     
     async def add_execution_results(self, results: List[AgentExecutionResult], workflow_id: str) -> bool:
-        """실행 결과들을 그래프에 추가"""
+        """Add execution results to the graph"""
         try:
             success_count = 0
-            
-            # 워크플로우 개념 추가 (아직 없다면)
+
+            # Add workflow concept (if not already present)
             workflow_result = await self.add_concept(
                 workflow_id,
                 "workflow",
@@ -231,8 +230,8 @@ class KnowledgeGraphEngine(KnowledgeGraph):
             )
             if workflow_result:
                 success_count += 1
-            
-            # 각 실행 결과를 개념으로 추가
+
+            # Add each execution result as a concept
             for i, result in enumerate(results):
                 result_id = f"{workflow_id}_result_{i}"
                 
@@ -254,8 +253,8 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 
                 if result_success:
                     success_count += 1
-                    
-                    # 워크플로우와 결과 관계 추가
+
+                    # Add workflow-result relationship
                     await self.add_relationship(
                         workflow_id,
                         result_id,
@@ -265,8 +264,8 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                             "agent_type": result.agent_type.value if hasattr(result.agent_type, 'value') else str(result.agent_type)
                         }
                     )
-                    
-                    # 에이전트 개념 추가 (아직 없다면)
+
+                    # Add agent concept (if not already present)
                     agent_success = await self.add_concept(
                         result.agent_id,
                         "agent",
@@ -275,8 +274,8 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                             "last_execution": result.created_at.isoformat() if hasattr(result.created_at, 'isoformat') else str(result.created_at)
                         }
                     )
-                    
-                    # 에이전트와 결과 관계 추가
+
+                    # Add agent-result relationship
                     if agent_success:
                         await self.add_relationship(
                             result.agent_id,
@@ -287,136 +286,136 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                                 "success": result.success
                             }
                         )
-            
-            logger.info(f"실행 결과 추가 완료: {success_count}개 성공")
+
+            logger.info(f"Execution result addition complete: {success_count} succeeded")
             return success_count > 0
-            
+
         except Exception as e:
-            logger.error(f"실행 결과 추가 실패: {e}")
+            logger.error(f"Execution result addition failed: {e}")
             return False
     
     async def enhance_with_llm_insights(self, query: str) -> Dict[str, Any]:
-        """LLM을 활용한 그래프 인사이트 생성"""
+        """Generate graph insights using LLM"""
         try:
-            # 현재 그래프 상태 분석
+            # Analyze current graph state
             stats = self.get_graph_stats()
-            
-            # LLM을 통한 인사이트 생성
+
+            # Generate insights via LLM
             context = f"""
             현재 온톨로지 그래프 상태:
             - 총 노드 수: {stats.get('total_nodes', 0)}
             - 총 엣지 수: {stats.get('total_edges', 0)}
             - 노드 타입 분포: {stats.get('node_types', {})}
             - 평균 연결도: {stats.get('average_degree', 0)}
-            
+
             사용자 쿼리: {query}
-            
+
             이 그래프의 현재 상태와 패턴을 분석하고, 사용자 쿼리와 관련된 인사이트를 제공해주세요.
             """
-            
+
             insights = await self.llm_manager.invoke_llm(
                 OntologyLLMType.KNOWLEDGE_REASONER,
                 {"reasoning_context": context}
             )
-            
+
             return {
                 "insights": insights,
                 "graph_stats": stats,
                 "generated_at": datetime.now().isoformat(),
                 "query": query
             }
-            
+
         except Exception as e:
-            logger.error(f"LLM 인사이트 생성 실패: {e}")
+            logger.error(f"LLM insight generation failed: {e}")
             return {"error": str(e)}
-    
+
     def export_graph_data(self) -> Dict[str, Any]:
-        """그래프 데이터 전체 내보내기"""
+        """Export full graph data"""
         return self.graph_engine.export_graph_data()
-    
-    # 🔍 KnowledgeGraph 인터페이스의 누락된 추상 메서드들 구현
+
+    # 🔍 Implement missing abstract methods from the KnowledgeGraph interface
     async def find_related_concepts(self, concept: str, max_depth: int = 2) -> List[str]:
-        """관련 개념 찾기 - GraphEngine에 위임"""
+        """Find related concepts - delegates to GraphEngine"""
         try:
-            # GraphEngine의 그래프를 사용하여 관련 개념 찾기
+            # Use GraphEngine's graph to find related concepts
             if not hasattr(self.graph_engine, 'graph') or concept not in self.graph_engine.graph:
-                logger.warning(f"개념 '{concept}'을 그래프에서 찾을 수 없습니다")
+                logger.warning(f"Concept '{concept}' not found in graph")
                 return []
-            
+
             related_concepts = []
             visited = set()
-            
+
             def _find_neighbors(node: str, current_depth: int):
-                """재귀적으로 이웃 노드 찾기"""
+                """Recursively find neighboring nodes"""
                 if current_depth >= max_depth or node in visited:
                     return
-                
+
                 visited.add(node)
-                
-                # 직접 연결된 노드들 찾기
+
+                # Find directly connected nodes
                 if node in self.graph_engine.graph:
                     neighbors = list(self.graph_engine.graph.neighbors(node))
                     for neighbor in neighbors:
                         if neighbor not in related_concepts and neighbor != concept:
                             related_concepts.append(neighbor)
-                        
-                        # 다음 깊이로 재귀 호출
+
+                        # Recursive call for next depth
                         if current_depth + 1 < max_depth:
                             _find_neighbors(neighbor, current_depth + 1)
-            
-            # 관련 개념 찾기 시작
+
+            # Start finding related concepts
             _find_neighbors(concept, 0)
-            
-            logger.info(f"개념 '{concept}'의 관련 개념 {len(related_concepts)}개 발견 (깊이: {max_depth})")
-            return related_concepts[:50]  # 최대 50개로 제한
-            
+
+            logger.info(f"Found {len(related_concepts)} related concepts for '{concept}' (depth: {max_depth})")
+            return related_concepts[:50]  # Limit to 50
+
         except Exception as e:
-            logger.error(f"관련 개념 찾기 실패: {e}")
+            logger.error(f"Finding related concepts failed: {e}")
             return []
     
     def visualize_graph(self, output_path: str = None) -> str:
-        """그래프 시각화 - VisualizationEngine에 위임"""
+        """Visualize graph - delegates to VisualizationEngine"""
         try:
-            logger.info("🎨 그래프 시각화 생성 시작")
-            
-            # 시각화 데이터 생성
+            logger.info("🎨 Graph visualization generation started")
+
+            # Generate visualization data
             visualization_data = self.generate_visualization()
-            
+
             if not visualization_data or not visualization_data.get('nodes'):
-                logger.warning("시각화할 데이터가 없습니다")
-                return "시각화할 데이터가 없습니다"
-            
-            # 출력 경로 설정
+                logger.warning("No data to visualize")
+                return "No data to visualize"
+
+            # Set output path
             if output_path is None:
                 from pathlib import Path
                 output_path = Path("graph_visualization.html")
-            
-            # HTML 시각화 생성
+
+            # Generate HTML visualization
             html_content = self._generate_html_visualization(visualization_data)
-            
-            # 파일로 저장
+
+            # Save to file
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
-            
-            logger.info(f"✅ 그래프 시각화 저장 완료: {output_path}")
+
+            logger.info(f"✅ Graph visualization saved: {output_path}")
             return str(output_path)
-            
+
         except Exception as e:
-            logger.error(f"그래프 시각화 실패: {e}")
-            return f"시각화 실패: {str(e)}"
-    
+            logger.error(f"Graph visualization failed: {e}")
+            return f"Visualization failed: {str(e)}"
+
     def _generate_html_visualization(self, visualization_data: Dict[str, Any]) -> str:
-        """HTML 시각화 생성"""
+        """Generate HTML visualization"""
         nodes = visualization_data.get('nodes', [])
         edges = visualization_data.get('edges', [])
         metadata = visualization_data.get('metadata', {})
-        
-        # 간단한 HTML + D3.js 시각화
+
+        # Simple HTML + D3.js visualization
         html_template = f"""
 <!DOCTYPE html>
 <html>
 <head>
-    <title>온톨로지 지식 그래프 시각화</title>
+    <title>Ontology Knowledge Graph Visualization</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 20px; }}
@@ -427,14 +426,14 @@ class KnowledgeGraphEngine(KnowledgeGraph):
     </style>
 </head>
 <body>
-    <h1>🧠 온톨로지 지식 그래프</h1>
-    
+    <h1>🧠 Ontology Knowledge Graph</h1>
+
     <div class="info">
-        <h3>📊 그래프 통계</h3>
-        <p><strong>노드 수:</strong> {len(nodes)}</p>
-        <p><strong>엣지 수:</strong> {len(edges)}</p>
-        <p><strong>생성 시간:</strong> {metadata.get('generated_at', 'Unknown')}</p>
-        <p><strong>버전:</strong> {metadata.get('version', 'Unknown')}</p>
+        <h3>📊 Graph Statistics</h3>
+        <p><strong>Nodes:</strong> {len(nodes)}</p>
+        <p><strong>Edges:</strong> {len(edges)}</p>
+        <p><strong>Generated at:</strong> {metadata.get('generated_at', 'Unknown')}</p>
+        <p><strong>Version:</strong> {metadata.get('version', 'Unknown')}</p>
     </div>
     
     <svg width="800" height="600"></svg>
@@ -522,20 +521,20 @@ class KnowledgeGraphEngine(KnowledgeGraph):
         return html_template
     
     def _generate_visualization_sync(self, max_nodes: int = 100) -> Dict[str, Any]:
-        """동기적 시각화 데이터 생성 (이벤트 루프 충돌 방지용)"""
+        """Synchronous visualization data generation (to prevent event loop conflicts)"""
         try:
-            logger.info(f"🎨 동기적 시각화 생성 시작 - 최대 노드: {max_nodes}")
-            
-            # 노드 수 제한 서브그래프 생성
+            logger.info(f"🎨 Synchronous visualization generation started - max nodes: {max_nodes}")
+
+            # Create subgraph with node count limit
             if self.graph_engine.graph.number_of_nodes() <= max_nodes:
                 subgraph = self.graph_engine.graph
             else:
-                # 중요도 기반 선택
+                # Select by importance
                 node_degrees = dict(self.graph_engine.graph.degree())
                 top_nodes = sorted(node_degrees.items(), key=lambda x: x[1], reverse=True)[:max_nodes]
                 subgraph = self.graph_engine.graph.subgraph([node for node, _ in top_nodes])
-            
-            # 노드 데이터 생성
+
+            # Generate node data
             nodes = []
             for node_id, attrs in subgraph.nodes(data=True):
                 node_type = attrs.get('type', 'unknown')
@@ -550,7 +549,7 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 }
                 nodes.append(node_data)
             
-            # 엣지 데이터 생성
+            # Generate edge data
             edges = []
             for i, (source, target, attrs) in enumerate(subgraph.edges(data=True)):
                 relationship_type = attrs.get('relationship_type', attrs.get('predicate', 'related_to'))
@@ -566,7 +565,7 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 }
                 edges.append(edge_data)
             
-            # 메타데이터 생성
+            # Generate metadata
             metadata = {
                 "total_nodes": len(nodes),
                 "total_edges": len(edges),
@@ -577,7 +576,7 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                 "generation_method": "synchronous"
             }
             
-            logger.info(f"✅ 동기적 시각화 생성 완료: {len(nodes)}개 노드, {len(edges)}개 엣지")
+            logger.info(f"✅ Synchronous visualization generation complete: {len(nodes)} nodes, {len(edges)} edges")
             
             return {
                 "nodes": nodes,
@@ -586,7 +585,7 @@ class KnowledgeGraphEngine(KnowledgeGraph):
             }
             
         except Exception as e:
-            logger.error(f"동기적 시각화 생성 실패: {e}")
+            logger.error(f"Synchronous visualization generation failed: {e}")
             return {
                 "nodes": [],
                 "edges": [],
@@ -597,29 +596,29 @@ class KnowledgeGraphEngine(KnowledgeGraph):
                     "generation_method": "synchronous_fallback"
                 }
             }
-    
+
     def _get_sync_display_label(self, node_id: str, attrs: Dict[str, Any]) -> str:
-        """동기적 표시 레이블 생성"""
+        """Generate synchronous display label"""
         if "agent_id" in attrs:
             return f"🤖 {attrs['agent_id']}"
         return str(node_id)[:20]
-    
+
     def _get_sync_node_size(self, node_id: str, subgraph: nx.MultiDiGraph) -> int:
-        """동기적 노드 크기 계산"""
+        """Calculate synchronous node size"""
         degree = subgraph.degree(node_id)
         return min(10 + degree * 3, 40)
-    
+
     def _get_sync_type_distribution(self, items: List[Dict], type_key: str) -> Dict[str, int]:
-        """동기적 타입별 분포 계산"""
+        """Calculate synchronous type distribution"""
         distribution = {}
         for item in items:
             item_type = item.get(type_key, "unknown")
             distribution[item_type] = distribution.get(item_type, 0) + 1
         return distribution
-    
+
     def _update_metadata(self):
-        """메타데이터 업데이트"""
+        """Update metadata"""
         self.metadata["last_updated"] = datetime.now().isoformat()
 
 
-logger.info("🧠 통합 온톨로지 지식 그래프 엔진 로드 완료!") 
+logger.info("🧠 Integrated ontology knowledge graph engine loaded!")

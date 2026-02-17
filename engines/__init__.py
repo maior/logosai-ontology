@@ -1,6 +1,5 @@
 """
-🚀 Engines Package
-엔진 패키지 - 핵심 실행 엔진들
+Engines Package — Core execution engines.
 """
 
 from .semantic_query_manager import SemanticQueryManager, InMemoryCacheManager
@@ -12,15 +11,15 @@ __all__ = [
     # Semantic Query Management
     "SemanticQueryManager",
     "InMemoryCacheManager",
-    
+
     # Execution Engine
     "AdvancedExecutionEngine",
     "SmartDataTransformer",
     "MockAgentCaller",
-    
+
     # Workflow Design
     "SmartWorkflowDesigner",
-    
+
     # Knowledge Graph
-    "SimpleKnowledgeGraphEngine"
-] 
+    "KnowledgeGraphEngine"
+]

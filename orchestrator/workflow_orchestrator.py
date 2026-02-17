@@ -46,7 +46,7 @@ class WorkflowOrchestrator:
 
     Example (simple):
         orchestrator = WorkflowOrchestrator(agent_executor=my_executor)
-        result = await orchestrator.run("삼성전자 5일 종가 그래프로 그려줘")
+        result = await orchestrator.run("Draw a graph of Samsung Electronics' 5-day closing price")
         print(result.final_output)
 
     Example (with streaming):

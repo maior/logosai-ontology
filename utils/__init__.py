@@ -1,6 +1,5 @@
 """
-유틸리티 모듈
-온톨로지 시스템의 보조 기능들
+Utilities Module — Helper functions for the ontology system.
 """
 
 from .performance_analyzer import PerformanceAnalyzer, performance_analyzer

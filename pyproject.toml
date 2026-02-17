@@ -1,0 +1,46 @@
+[project]
+name = "logosai-ontology"
+version = "2.0.0"
+description = "Knowledge-driven multi-agent orchestration with LLM-powered query analysis and intelligent agent selection"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "LogosAI Team"},
+]
+keywords = ["ai", "agents", "ontology", "orchestration", "llm", "knowledge-graph"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "loguru>=0.7.0",
+    "networkx>=3.0",
+    "pyyaml>=6.0",
+    "aiohttp>=3.9.0",
+    "langchain-core>=0.2.0",
+    "langchain-openai>=0.1.0",
+]
+
+[project.optional-dependencies]
+gemini = ["google-generativeai>=0.5.0"]
+ml = ["torch>=2.0.0", "sentence-transformers>=2.2.0"]
+all = ["google-generativeai>=0.5.0", "torch>=2.0.0", "sentence-transformers>=2.2.0"]
+
+[project.urls]
+Homepage = "https://github.com/maior/logosai-ontology"
+Issues = "https://github.com/maior/logosai-ontology/issues"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]

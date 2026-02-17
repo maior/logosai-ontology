@@ -46,7 +46,7 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
         # Thread pool for parallel execution
         self.thread_pool = ThreadPoolExecutor(max_workers=5)
         
-        logger.info("🚀 Enhanced Ontology Execution Engine 초기화 완료")
+        logger.info("🚀 Enhanced Ontology Execution Engine initialized")
     
     def _initialize_data_transformers(self) -> Dict[str, Any]:
         """Initialize data transformation rules between agent types"""
@@ -82,9 +82,9 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
             )
             parallel_groups = workflow_plan.metadata.get('parallel_groups', [])
             
-            logger.info(f"🚀 워크플로우 실행 시작: {execution_id}")
-            logger.info(f"  실행 전략: {execution_strategy}")
-            logger.info(f"  총 단계: {len(workflow_plan.steps)}")
+            logger.info(f"🚀 Workflow execution started: {execution_id}")
+            logger.info(f"  Execution strategy: {execution_strategy}")
+            logger.info(f"  Total steps: {len(workflow_plan.steps)}")
             
             # Yield initial status
             yield ExecutionResult(
@@ -92,7 +92,7 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
                 agent_id="system",
                 status="starting",
                 result={
-                    "message": "워크플로우 실행을 시작합니다",
+                    "message": "Starting workflow execution",
                     "total_steps": len(workflow_plan.steps),
                     "strategy": execution_strategy.value
                 },
@@ -122,14 +122,14 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
                 agent_id="system",
                 status="completed",
                 result={
-                    "message": "워크플로우 실행이 완료되었습니다",
+                    "message": "Workflow execution completed",
                     "total_results": len(self.execution_history[execution_id])
                 },
                 timestamp=datetime.now()
             )
             
         except Exception as e:
-            logger.error(f"워크플로우 실행 오류: {str(e)}")
+            logger.error(f"Workflow execution error: {str(e)}")
             logger.error(traceback.format_exc())
             
             yield ExecutionResult(
@@ -190,7 +190,7 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
         
         # Execute each parallel group
         for group_idx, group in enumerate(parallel_groups):
-            logger.info(f"🔄 병렬 그룹 {group_idx + 1} 실행 시작: {group}")
+            logger.info(f"🔄 Parallel group {group_idx + 1} execution started: {group}")
             
             # Collect tasks for parallel execution
             tasks = []
@@ -218,7 +218,7 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
                 # Process results
                 for idx, result_list in enumerate(results):
                     if isinstance(result_list, Exception):
-                        logger.error(f"병렬 실행 오류: {result_list}")
+                        logger.error(f"Parallel execution error: {result_list}")
                         continue
                     
                     # Yield all results from the step
@@ -250,14 +250,14 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
         start_time = datetime.now()
         
         try:
-            logger.info(f"📍 단계 실행: {step.step_id} - 에이전트: {step.agent_id}")
+            logger.info(f"📍 Step execution: {step.step_id} - Agent: {step.agent_id}")
             
             # Yield starting status
             yield ExecutionResult(
                 step_id=step.step_id,
                 agent_id=step.agent_id,
                 status="running",
-                result={"message": f"{step.agent_id} 실행 중..."},
+                result={"message": f"Running {step.agent_id}..."},
                 timestamp=start_time
             )
             
@@ -325,7 +325,7 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
                 )
                 
         except Exception as e:
-            logger.error(f"단계 실행 오류 {step.step_id}: {str(e)}")
+            logger.error(f"Step execution error {step.step_id}: {str(e)}")
             
             yield ExecutionResult(
                 step_id=step.step_id,
@@ -423,7 +423,7 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
             try:
                 return transformer(source_data)
             except Exception as e:
-                logger.error(f"데이터 변환 오류: {e}")
+                logger.error(f"Data transformation error: {e}")
                 return source_data
         
         # Default: pass through
@@ -545,30 +545,30 @@ class EnhancedOntologyExecutionEngine(IExecutionEngine):
         try:
             # Check workflow plan
             if not workflow_plan or not workflow_plan.steps:
-                logger.error("워크플로우 플랜이 비어있습니다")
+                logger.error("Workflow plan is empty")
                 return False
-            
+
             # Check context
             if not context:
-                logger.error("실행 컨텍스트가 없습니다")
+                logger.error("Execution context is missing")
                 return False
-            
+
             # Check agent executor
             if not self.agent_executor:
-                logger.warning("에이전트 실행기가 설정되지 않았습니다 (모의 실행 모드)")
-            
+                logger.warning("Agent executor not configured (mock execution mode)")
+
             # Validate execution strategy
             if hasattr(workflow_plan, 'metadata'):
                 strategy = workflow_plan.metadata.get('execution_strategy')
                 if strategy and strategy not in ExecutionStrategy:
-                    logger.error(f"잘못된 실행 전략: {strategy}")
+                    logger.error(f"Invalid execution strategy: {strategy}")
                     return False
-            
-            logger.info("✅ 실행 검증 통과")
+
+            logger.info("✅ Execution validation passed")
             return True
-            
+
         except Exception as e:
-            logger.error(f"실행 검증 실패: {e}")
+            logger.error(f"Execution validation failed: {e}")
             return False
     
     def get_execution_metrics(self, execution_id: str) -> Dict[str, Any]:

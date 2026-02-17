@@ -1,12 +1,11 @@
 """
-🚀 통합 쿼리 프로세서
-Unified Query Processor
+🚀 Unified Query Processor
 
-기존의 여러 번 나뉜 LLM 호출을 하나로 통합하여 
-쿼리 분석 → 에이전트 선택 → 워크플로우 설계 → 쿼리 최적화까지 
-한 번의 LLM 호출로 처리하는 효율적인 시스템
+An efficient system that consolidates previously fragmented LLM calls into one,
+handling query analysis → agent selection → workflow design → query optimization
+in a single LLM call.
 
-🔄 v3.1: 다국어 지원 및 하드코딩 제거
+🔄 v3.1: Multilingual support and hardcoding removal
 """
 
 import asyncio
@@ -23,7 +22,7 @@ from .hybrid_agent_selector import get_hybrid_selector, HybridAgentSelector
 
 
 class LanguageConfig:
-    """언어별 설정 클래스"""
+    """Language-specific configuration class"""
     
     def __init__(self):
         self.configs = {
@@ -52,7 +51,7 @@ class LanguageConfig:
                     'collect': ['수집', '모으기', '가져오기', '크롤링'],
                     'compare': ['비교', '대조', '견주기'],
                     'summarize': ['요약', '정리', '종합'],
-                    # 🚀 여행/추천 의도 추가
+                    # 🚀 Travel/recommendation intent added
                     'recommend': ['추천', '추천해줘', '추천해', '좋을까', '괜찮을까', '어떨까', '어디가', '뭐가'],
                     'plan': ['계획', '일정', '코스', '여정', '플랜']
                 },
@@ -64,10 +63,10 @@ class LanguageConfig:
                     'search': ['검색', '정보', '조사', '알려줘', '알아봐'],
                     'analysis': ['분석', '해석', '평가'],
                     'visualization': ['시각화', '차트', '그래프'],
-                    # 🗓️ 일정/캘린더 도메인 추가
+                    # 🗓️ Schedule/calendar domain added
                     'schedule': ['일정', '스케줄', '약속', '캘린더', '등록', '추가해줘', '추가해', '알려줘', '목요일', '금요일', '이번주', '다음주'],
                     'calendar': ['일정', '스케줄', '약속', '캘린더', '등록', '추가해줘', '추가해', '알려줘', '이번주', '다음주'],
-                    # 🚀 여행/추천 도메인 추가
+                    # 🚀 Travel/recommendation domain added
                     'travel': ['여행', '관광', '여행지', '가볼만한', '가볼곳', '방문', '코스'],
                     'recommendation': ['추천', '추천해줘', '추천해', '어디', '뭐', '뭘', '좋을까', '괜찮을까', '어떨까'],
                     'food': ['맛집', '음식', '식당', '레스토랑', '카페', '먹을곳', '먹거리', '맛있는'],
@@ -126,8 +125,8 @@ class LanguageConfig:
         }
     
     def detect_language(self, text: str) -> str:
-        """텍스트에서 언어 감지"""
-        # 간단한 언어 감지 로직
+        """Detect language from text"""
+        # Simple language detection logic
         korean_chars = len(re.findall(r'[가-힣]', text))
         english_chars = len(re.findall(r'[a-zA-Z]', text))
         
@@ -137,40 +136,40 @@ class LanguageConfig:
             return 'en'
     
     def get_config(self, language: str) -> Dict[str, Any]:
-        """언어별 설정 반환"""
+        """Return language-specific configuration"""
         return self.configs.get(language, self.configs['en'])
     
     def get_stopwords(self, language: str) -> set:
-        """언어별 불용어 반환"""
+        """Return language-specific stopwords"""
         return self.get_config(language).get('stopwords', set())
     
     def get_connectors(self, language: str) -> List[str]:
-        """언어별 연결어 반환"""
+        """Return language-specific connectors"""
         return self.get_config(language).get('connectors', [])
     
     def get_sequential_patterns(self, language: str) -> List[str]:
-        """언어별 순차 패턴 반환"""
+        """Return language-specific sequential patterns"""
         return self.get_config(language).get('sequential_patterns', [])
     
     def get_intent_keywords(self, language: str) -> Dict[str, List[str]]:
-        """언어별 의도 키워드 반환"""
+        """Return language-specific intent keywords"""
         return self.get_config(language).get('intent_keywords', {})
     
     def get_agent_keywords(self, language: str) -> Dict[str, List[str]]:
-        """언어별 에이전트 키워드 반환"""
+        """Return language-specific agent keywords"""
         return self.get_config(language).get('agent_keywords', {})
 
 
 class TaskDependency:
-    """작업 의존성 정보"""
+    """Task dependency information"""
     def __init__(self, task_id: str, depends_on: List[str], data_flow: Dict[str, str]):
         self.task_id = task_id
-        self.depends_on = depends_on  # 의존하는 작업 ID들
-        self.data_flow = data_flow    # 데이터 흐름 정보 {"from_task": "data_field"}
+        self.depends_on = depends_on  # Dependent task IDs
+        self.data_flow = data_flow    # Data flow information {"from_task": "data_field"}
 
 
 class QueryChain:
-    """쿼리 체인 - 의존성 있는 작업들의 순서와 데이터 전달"""
+    """Query chain - execution order and data passing for dependent tasks"""
     def __init__(self, chain_id: str, tasks: List[Dict[str, Any]], dependencies: List[TaskDependency]):
         self.chain_id = chain_id
         self.tasks = tasks
@@ -178,11 +177,11 @@ class QueryChain:
         self.execution_order = self._calculate_execution_order()
     
     def _calculate_execution_order(self) -> List[List[str]]:
-        """의존성을 고려한 실행 순서 계산 (위상 정렬)"""
-        # 간단한 위상 정렬 구현
+        """Calculate execution order considering dependencies (topological sort)"""
+        # Simple topological sort implementation
         in_degree = {task["task_id"]: 0 for task in self.tasks}
         
-        # 각 작업의 in-degree 계산
+        # Calculate in-degree for each task
         for dep in self.dependencies:
             in_degree[dep.task_id] = len(dep.depends_on)
         
@@ -190,20 +189,20 @@ class QueryChain:
         remaining_tasks = set(task["task_id"] for task in self.tasks)
         
         while remaining_tasks:
-            # in-degree가 0인 작업들 찾기 (동시 실행 가능)
+            # Find tasks with in-degree 0 (can run concurrently)
             ready_tasks = [task_id for task_id in remaining_tasks if in_degree[task_id] == 0]
             
             if not ready_tasks:
-                # 순환 의존성이 있는 경우 남은 작업들을 순서대로 처리
+                # Circular dependency detected - process remaining tasks in order
                 ready_tasks = [list(remaining_tasks)[0]]
             
             execution_order.append(ready_tasks)
             
-            # 처리된 작업들 제거 및 의존성 업데이트
+            # Remove processed tasks and update dependencies
             for task_id in ready_tasks:
                 remaining_tasks.remove(task_id)
                 
-                # 이 작업에 의존하는 다른 작업들의 in-degree 감소
+                # Decrease in-degree for tasks that depend on this one
                 for dep in self.dependencies:
                     if task_id in dep.depends_on:
                         in_degree[dep.task_id] -= 1
@@ -212,22 +211,22 @@ class QueryChain:
 
 
 class AgentResultContext:
-    """에이전트 실행 결과 컨텍스트 - 순차 처리를 위한 결과 전달"""
+    """Agent execution result context - result passing for sequential processing"""
     def __init__(self):
         self.results = {}  # {task_id: result}
         self.execution_history = []  # [(task_id, timestamp, result)]
     
     def add_result(self, task_id: str, result: Any):
-        """결과 추가"""
+        """Add result"""
         self.results[task_id] = result
         self.execution_history.append((task_id, datetime.now(), result))
     
     def get_result(self, task_id: str) -> Any:
-        """특정 작업 결과 가져오기"""
+        """Get result for a specific task"""
         return self.results.get(task_id)
     
     def get_previous_results(self, current_task_id: str, dependency_map: Dict[str, List[str]]) -> Dict[str, Any]:
-        """현재 작업이 의존하는 이전 결과들 가져오기"""
+        """Get previous results that the current task depends on"""
         dependent_tasks = dependency_map.get(current_task_id, [])
         previous_results = {}
         for dep_task in dependent_tasks:
@@ -236,23 +235,23 @@ class AgentResultContext:
         return previous_results
     
     def format_context_for_agent(self, task_id: str, dependency_map: Dict[str, List[str]]) -> str:
-        """에이전트에게 전달할 컨텍스트 포맷팅"""
+        """Format context to pass to agent"""
         previous_results = self.get_previous_results(task_id, dependency_map)
         if not previous_results:
             return ""
         
-        context_parts = ["이전 작업 결과를 참고하여 처리하세요:"]
+        context_parts = ["Refer to the previous task results:"]
         for dep_task, result in previous_results.items():
-            # 결과에서 핵심 정보 추출
+            # Extract key information from result
             result_summary = self._extract_key_info_from_result(result)
             context_parts.append(f"- {dep_task}: {result_summary}")
         
         return "\n".join(context_parts)
     
     def _extract_key_info_from_result(self, result: Any) -> str:
-        """결과에서 핵심 정보 추출"""
+        """Extract key information from result"""
         if isinstance(result, dict):
-            # answer, content, result 등의 키에서 정보 추출
+            # Extract info from keys like answer, content, result, etc.
             for key in ['answer', 'content', 'result', 'data', 'output']:
                 if key in result:
                     value = result[key]
@@ -261,7 +260,7 @@ class AgentResultContext:
                     else:
                         return str(value)[:200] + "..." if len(str(value)) > 200 else str(value)
             
-            # 전체 결과를 문자열로 변환
+            # Convert entire result to string
             return str(result)[:200] + "..." if len(str(result)) > 200 else str(result)
         elif isinstance(result, str):
             return result[:200] + "..." if len(result) > 200 else result
@@ -270,7 +269,7 @@ class AgentResultContext:
 
 
 class UnifiedQueryProcessor:
-    """🚀 통합 쿼리 프로세서 - 다국어 지원 및 하드코딩 제거"""
+    """🚀 Unified Query Processor - multilingual support and hardcoding removal"""
     
     def __init__(self):
         self.llm_manager = get_ontology_llm_manager()
@@ -279,11 +278,11 @@ class UnifiedQueryProcessor:
         self.language_config = LanguageConfig()
         
     def set_installed_agents_info(self, installed_agents_info: List[Dict[str, Any]]):
-        """설치된 에이전트 정보 설정"""
+        """Set installed agent information"""
         self.installed_agents_info = installed_agents_info
-        logger.info(f"🎯 설치된 에이전트 정보 업데이트: {len(installed_agents_info)}개")
+        logger.info(f"🎯 Installed agent info updated: {len(installed_agents_info)} agents")
         
-        # 에이전트 정보 요약 로깅
+        # Log agent info summary
         for agent in installed_agents_info:
             agent_id = agent.get('agent_id', 'unknown')
             agent_data = agent.get('agent_data', {})
@@ -291,43 +290,43 @@ class UnifiedQueryProcessor:
             agent_type = agent_data.get('metadata', {}).get('agent_type', 'UNKNOWN')
             capabilities = agent_data.get('capabilities', [])
             
-            logger.info(f"  📋 {agent_id}: {agent_name} ({agent_type}) - {len(capabilities)}개 능력")
+            logger.info(f"  📋 {agent_id}: {agent_name} ({agent_type}) - {len(capabilities)} capabilities")
 
     async def process_unified_query(self, 
                                   query: str, 
                                   available_agents: List[str]) -> Dict[str, Any]:
         """
-        통합 쿼리 처리 - 다국어 지원 LLM 기반 완전 자동화 + 에이전트 간 결과 전달
+        Unified query processing - multilingual LLM-based full automation + inter-agent result passing
         
         Args:
-            query: 원본 사용자 쿼리
-            available_agents: 사용 가능한 에이전트 목록
+            query: Original user query
+            available_agents: List of available agents
             
         Returns:
-            Dict: 통합 분석 결과 (에이전트 간 결과 전달 포함)
+            Dict: Integrated analysis result (including inter-agent result passing)
         """
         try:
-            # 언어 감지
+            # Detect language
             detected_language = self.language_config.detect_language(query)
-            logger.info(f"🌐 감지된 언어: {self.language_config.get_config(detected_language)['name']}")
+            logger.info(f"🌐 Detected language: {self.language_config.get_config(detected_language)['name']}")
             
-            logger.info(f"🚀 통합 쿼리 처리 시작 (v3.1 - 다국어 지원): {query}")
+            logger.info(f"🚀 Unified query processing started (v3.1 - multilingual): {query}")
 
-            # 🏢 Samsung 도메인 우선 체크 (비즈니스 로직 - LLM 호출 전 처리)
-            # CLAUDE.md 지침: "삼성 도메인은 특수한 비즈니스 로직으로, 별도의 게이트웨이 에이전트로 라우팅 필요"
+            # 🏢 Samsung domain priority check (business logic - handled before LLM call)
+            # CLAUDE.md guideline: "Samsung domain is special business logic requiring routing to dedicated gateway agent"
             normalized_query = self._normalize_samsung_typos(query)
             if self._is_samsung_domain_query(normalized_query):
                 samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
                 if samsung_agents:
                     samsung_agent = samsung_agents[0]
-                    logger.info(f"🏢 Samsung 도메인 감지 - 우선 라우팅: {samsung_agent}")
-                    # Samsung 에이전트로 직접 라우팅하는 결과 반환
+                    logger.info(f"🏢 Samsung domain detected - priority routing: {samsung_agent}")
+                    # Return result with direct routing to Samsung agent
                     return {
                         "intent": "samsung_domain_analysis",
                         "complexity": {"level": "moderate", "score": 0.6},
                         "execution_plan": {
                             "strategy": "SINGLE_AGENT",
-                            "reasoning": f"삼성/반도체 도메인 전문 에이전트 ({samsung_agent})가 이 쿼리를 처리하는 것이 최적입니다.",
+                            "reasoning": f"Samsung/semiconductor domain specialist agent ({samsung_agent}) is optimal for this query.",
                             "estimated_time": 30
                         },
                         "agent_mappings": [{
@@ -336,33 +335,33 @@ class UnifiedQueryProcessor:
                             "task_type": "samsung_domain_analysis",
                             "individual_query": query,
                             "confidence": 0.95,
-                            "reasoning": "삼성/반도체 도메인 쿼리 - 전문 에이전트로 우선 라우팅"
+                            "reasoning": "Samsung/semiconductor domain query - priority routing to specialist agent"
                         }],
                         "query_chains": [],
-                        "reasoning": f"삼성/반도체 관련 쿼리로 감지되어 전문 에이전트({samsung_agent})로 직접 라우팅됩니다.",
+                        "reasoning": f"Detected as Samsung/semiconductor-related query, routing directly to specialist agent ({samsung_agent}).",
                         "language": detected_language,
                         "samsung_priority_routing": True
                     }
                 else:
-                    logger.warning(f"⚠️ Samsung 도메인 감지됨, 하지만 samsung_gateway_agent가 설치되지 않음. LLM 기반 선택으로 진행.")
+                    logger.warning(f"⚠️ Samsung domain detected, but samsung_gateway_agent is not installed. Proceeding with LLM-based selection.")
 
-            # 결과 컨텍스트 초기화
+            # Initialize result context
             self.result_context = AgentResultContext()
             
-            # 설치된 에이전트 정보 구성
+            # Build installed agent information
             agents_info = self._build_agents_info_for_llm(available_agents)
             
-            # LLM 기반 완전 통합 분석
+            # LLM-based complete unified analysis
             unified_prompt = self._create_llm_based_unified_prompt(query, agents_info, detected_language)
             
-            logger.info("🧠 LLM 기반 완전 통합 분석 실행...")
+            logger.info("🧠 Running LLM-based complete unified analysis...")
             start_time = datetime.now()
             
-            # LLM 호출
+            # Call LLM
             llm = self.llm_manager.get_llm(OntologyLLMType.SEMANTIC_ANALYZER)
             response = await llm.ainvoke(unified_prompt["query"])
             
-            # AIMessage에서 content 추출
+            # Extract content from AIMessage
             if hasattr(response, 'content'):
                 response_text = response.content
             else:
@@ -370,36 +369,36 @@ class UnifiedQueryProcessor:
             
             end_time = datetime.now()
             processing_time = (end_time - start_time).total_seconds()
-            logger.info(f"⏱️ LLM 처리 완료: {processing_time:.2f}초")
+            logger.info(f"⏱️ LLM processing complete: {processing_time:.2f}s")
 
-            # 🔍 DEBUG: LLM 원본 응답 로깅
-            logger.info(f"🔍 [DEBUG] LLM 원본 응답 (처음 800자): {response_text[:800] if len(response_text) > 800 else response_text}")
+            # 🔍 DEBUG: Log raw LLM response
+            logger.info(f"🔍 [DEBUG] Raw LLM response (first 800 chars): {response_text[:800] if len(response_text) > 800 else response_text}")
 
-            # 결과 파싱 및 검증 (에이전트 간 결과 전달 포함)
+            # Parse and validate result (including inter-agent result passing)
             result = await self._parse_and_validate_llm_response(response_text, query, available_agents, detected_language)
             
-            logger.info(f"✅ 다국어 지원 통합 처리 완료: {len(result.get('agent_mappings', []))}개 매핑, {len(result.get('query_chains', []))}개 체인 생성")
+            logger.info(f"✅ Multilingual unified processing complete: {len(result.get('agent_mappings', []))} mappings, {len(result.get('query_chains', []))} chains created")
             return result
             
         except Exception as e:
-            logger.error(f"통합 쿼리 처리 실패: {e}")
-            # 폴백 처리 (다국어 지원)
+            logger.error(f"Unified query processing failed: {e}")
+            # Fallback processing (multilingual)
             return await self._create_llm_based_fallback(query, available_agents, detected_language)
 
     def _create_llm_based_unified_prompt(self, query: str, agents_info: Dict[str, Any], language: str) -> Dict[str, str]:
-        """다국어 지원 완전 LLM 기반 통합 프롬프트 생성 - 🚀 개선된 에이전트 정보 포맷팅"""
+        """Generate multilingual LLM-based unified prompt - 🚀 improved agent info formatting"""
 
-        # 🚀 개선: 에이전트 정보를 LLM이 이해하기 쉬운 상세 형태로 정리
+        # 🚀 Improvement: Format agent info in detail for LLM to understand easily
         agents_list = []
         for agent_id, info in agents_info.items():
-            agent_data = info.get('agent_data', info)  # agent_data가 있으면 사용
+            agent_data = info.get('agent_data', info)  # use agent_data if available
             agent_type = agent_data.get('agent_type', info.get('agent_type', 'UNKNOWN'))
-            description = agent_data.get('description', info.get('description', '설명 없음'))
+            description = agent_data.get('description', info.get('description', 'No description'))
             name = agent_data.get('name', info.get('name', agent_id))
             capabilities = agent_data.get('capabilities', info.get('capabilities', []))
             tags = agent_data.get('tags', info.get('tags', []))
 
-            # 🚀 개선: 모든 능력 추출 (최대 10개)
+            # 🚀 Improvement: Extract all capabilities (max 10)
             all_capabilities = []
             for cap in capabilities[:10]:
                 if isinstance(cap, dict):
@@ -410,32 +409,32 @@ class UnifiedQueryProcessor:
                 elif cap:
                     all_capabilities.append(str(cap))
 
-            # 🚀 개선: 태그를 도메인 힌트로 활용 (최대 15개)
+            # 🚀 Improvement: Use tags as domain hints (max 15)
             all_tags = tags[:15] if tags else []
 
-            # 🚀 데이터 타입 스펙 추출 (지능형 워크플로우용)
+            # 🚀 Extract data type spec (for intelligent workflow)
             input_spec = info.get('input_spec', {})
             output_spec = info.get('output_spec', {})
             input_type = input_spec.get('type', 'text') if input_spec else 'text'
             output_type = output_spec.get('type', 'text') if output_spec else 'text'
 
-            # 🚀 개선: 에이전트 ID와 이름을 명확히 구분 + 데이터 타입 스펙 포함
+            # 🚀 Improvement: Clearly distinguish agent ID and name + include data type spec
             agent_entry = f"""
-📌 에이전트 ID: {agent_id}
-   이름: {name}
-   타입: {agent_type}
-   설명: {description[:300]}{'...' if len(description) > 300 else ''}
-   능력: {', '.join(all_capabilities) if all_capabilities else '일반 처리'}
-   도메인 태그: {', '.join(all_tags) if all_tags else '일반'}
-   📥 입력 타입: {input_type}
-   📤 출력 타입: {output_type}
-   ✅ 이 에이전트를 선택하려면 agent_mappings의 selected_agent에 "{agent_id}"를 입력하세요.
+📌 Agent ID: {agent_id}
+   Name: {name}
+   Type: {agent_type}
+   Description: {description[:300]}{'...' if len(description) > 300 else ''}
+   Capabilities: {', '.join(all_capabilities) if all_capabilities else 'General processing'}
+   Domain tags: {', '.join(all_tags) if all_tags else 'General'}
+   📥 Input type: {input_type}
+   📤 Output type: {output_type}
+   ✅ To select this agent, enter "{agent_id}" in selected_agent of agent_mappings.
 """
             agents_list.append(agent_entry)
         
         agents_formatted = '\n'.join(agents_list)
         
-        # 언어별 예시 및 패턴
+        # Language-specific examples and patterns
         if language == 'ko':
             examples = {
                 'single_agent': '"제주도 여행 어디 추천해줘" → 여행/검색 에이전트가 제주도 관광지, 맛집, 명소 정보를 종합 검색',
@@ -455,7 +454,7 @@ class UnifiedQueryProcessor:
                 'recommendation': '"recommend day trip destinations near Seoul" → internet search agent for latest recommendations'
             }
         
-        # LLM 기반 쿼리 분석 프롬프트
+        # LLM-based query analysis prompt
         unified_prompt = f"""당신은 사용자 쿼리를 분석하여 최적의 에이전트를 선택하는 전문가입니다.
 
 언어: {self.language_config.get_config(language)['name']}
@@ -840,37 +839,37 @@ class UnifiedQueryProcessor:
                                              original_query: str, 
                                              available_agents: List[str],
                                              language: str) -> Dict[str, Any]:
-        """LLM 응답 파싱 및 검증 - 다국어 지원"""
+        """Parse and validate LLM response - multilingual support"""
         try:
-            logger.info(f"🔍 LLM 응답 파싱 시작... (길이: {len(response)})")
+            logger.info(f"🔍 LLM response parsing started... (length: {len(response)})")
             
-            # JSON 추출 및 파싱
+            # Extract and parse JSON
             result = self._safe_json_parse_from_response(response)
             
             if not result:
-                logger.warning("JSON 파싱 실패, LLM 기반 폴백 분석으로 전환")
+                logger.warning("JSON parsing failed, switching to LLM-based fallback analysis")
                 return await self._create_llm_based_fallback(original_query, available_agents, language)
             
-            # 결과 검증 및 보완
+            # Validate and supplement result
             result = self._validate_and_enhance_llm_result(result, original_query, available_agents, language)
             
-            # 에이전트 간 결과 전달을 위한 쿼리 체인 생성
+            # Create query chains for inter-agent result passing
             result = self._create_context_aware_query_chains(result)
             
-            # 실행 계획 검증 및 보완
+            # Validate and supplement execution plan
             result = self._validate_execution_plan(result)
             
-            logger.info(f"✅ LLM 응답 검증 완료: {len(result.get('agent_mappings', []))}개 유효한 매핑")
+            logger.info(f"✅ LLM response validation complete: {len(result.get('agent_mappings', []))} valid mappings")
             return result
             
         except Exception as e:
-            logger.error(f"LLM 응답 파싱 중 오류: {e}")
+            logger.error(f"Error during LLM response parsing: {e}")
             return await self._create_llm_based_fallback(original_query, available_agents, language)
 
     def _safe_json_parse_from_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """응답에서 안전한 JSON 파싱"""
+        """Safe JSON parsing from response"""
         try:
-            # JSON 블록 찾기
+            # Find JSON block
             if '```json' in response:
                 start = response.find('```json') + 7
                 end = response.find('```', start)
@@ -878,7 +877,7 @@ class UnifiedQueryProcessor:
             elif response.strip().startswith('{'):
                 json_str = response.strip()
             else:
-                # JSON 부분만 추출 시도
+                # Attempt to extract JSON portion only
                 import re
                 json_match = re.search(r'\{.*\}', response, re.DOTALL)
                 if json_match:
@@ -886,31 +885,31 @@ class UnifiedQueryProcessor:
                 else:
                     return None
             
-            # JSON 문자열 정리
+            # Clean JSON string
             cleaned_json = self._clean_json_string(json_str)
             
-            # JSON 파싱
+            # Parse JSON
             return json.loads(cleaned_json)
             
         except Exception as e:
-            logger.warning(f"JSON 파싱 실패: {e}")
+            logger.warning(f"JSON parsing failed: {e}")
             return None
 
     def _validate_and_enhance_llm_result(self, result: Dict[str, Any], original_query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
-        """LLM 결과 검증 및 향상"""
+        """Validate and enhance LLM result"""
 
-        # 필수 키 확인
+        # Check required keys
         required_keys = ['query_analysis', 'task_breakdown', 'agent_mappings', 'execution_plan', 'dependency_analysis']
         for key in required_keys:
             if key not in result:
                 result[key] = self._create_default_section(key, original_query, available_agents, language)
 
-        # query_analysis 검증 및 향상
+        # Validate and enhance query_analysis
         query_analysis = result.get('query_analysis', {})
 
-        # query_type 필드 검증 및 기본값 설정
+        # Validate query_type field and set default
         if 'query_type' not in query_analysis:
-            # 간단한 휴리스틱으로 기본 타입 추정
+            # Infer basic type with simple heuristic
             query_lower = original_query.lower().strip()
             if any(op in query_lower for op in ['+', '-', '*', '/', '^', 'sqrt', 'sin', 'cos']) and query_lower.replace(' ', '').replace('+', '').replace('-', '').replace('*', '').replace('/', '').replace('.', '').isdigit():
                 query_analysis['query_type'] = 'DIRECT_ANSWER'
@@ -928,22 +927,22 @@ class UnifiedQueryProcessor:
                 query_analysis['query_type'] = 'AGENT_TASK'
                 query_analysis['query_subtype'] = 'complex_reasoning'
 
-        # classification_confidence 기본값 설정
+        # Set classification_confidence default
         if 'classification_confidence' not in query_analysis:
             query_analysis['classification_confidence'] = 0.7
 
-        # classification_reasoning 기본값 설정
+        # Set classification_reasoning default
         if 'classification_reasoning' not in query_analysis:
-            query_analysis['classification_reasoning'] = f"자동 분류: {query_analysis.get('query_type', 'AGENT_TASK')}/{query_analysis.get('query_subtype', 'unknown')}"
+            query_analysis['classification_reasoning'] = f"Auto-classified: {query_analysis.get('query_type', 'AGENT_TASK')}/{query_analysis.get('query_subtype', 'unknown')}"
 
         result['query_analysis'] = query_analysis
-        logger.info(f"🎯 쿼리 타입 분류: {query_analysis.get('query_type')}/{query_analysis.get('query_subtype')} (신뢰도: {query_analysis.get('classification_confidence')})")
+        logger.info(f"🎯 Query type classified: {query_analysis.get('query_type')}/{query_analysis.get('query_subtype')} (confidence: {query_analysis.get('classification_confidence')})")
 
-        # 🚀 개선된 에이전트 매핑 검증 - LLM 의도 최대한 존중
-        # 🔍 DEBUG: LLM이 선택한 에이전트 매핑 원본
+        # 🚀 Improved agent mapping validation - respect LLM intent as much as possible
+        # 🔍 DEBUG: Raw agent mapping selected by LLM
         raw_mappings = result.get('agent_mappings', [])
-        logger.info(f"🔍 [DEBUG] LLM agent_mappings 원본: {raw_mappings}")
-        logger.info(f"🔍 [DEBUG] available_agents: {available_agents[:5]}... (총 {len(available_agents)}개)")
+        logger.info(f"🔍 [DEBUG] LLM agent_mappings raw: {raw_mappings}")
+        logger.info(f"🔍 [DEBUG] available_agents: {available_agents[:5]}... (total: {len(available_agents)})")
 
         valid_mappings = []
         for mapping in raw_mappings:
@@ -952,11 +951,11 @@ class UnifiedQueryProcessor:
             individual_query = mapping.get('individual_query', original_query)
 
             if agent_id in available_agents:
-                # 정확히 매칭됨
-                logger.info(f"✅ LLM 에이전트 선택 유효: {agent_id}")
+                # Exact match found
+                logger.info(f"✅ LLM agent selection valid: {agent_id}")
                 valid_mappings.append(mapping)
             else:
-                # 🚀 개선: LLM의 의도(selection_reasoning)와 원본 쿼리를 함께 전달
+                # 🚀 Improvement: Pass LLM intent (selection_reasoning) along with original query
                 similar_agent = self._find_similar_agent(
                     agent_id,
                     available_agents,
@@ -966,61 +965,61 @@ class UnifiedQueryProcessor:
                 if similar_agent:
                     original_agent = agent_id
                     mapping['selected_agent'] = similar_agent
-                    mapping['selection_reasoning'] = f"{selection_reasoning} (🔄 LLM 의도 기반 대체: {original_agent} → {similar_agent})"
-                    mapping['llm_original_selection'] = original_agent  # 원래 LLM 선택 기록
+                    mapping['selection_reasoning'] = f"{selection_reasoning} (🔄 LLM intent-based replacement: {original_agent} → {similar_agent})"
+                    mapping['llm_original_selection'] = original_agent  # Record original LLM selection
                     valid_mappings.append(mapping)
-                    logger.info(f"🔄 LLM 의도 기반 에이전트 대체: {original_agent} → {similar_agent}")
+                    logger.info(f"🔄 LLM intent-based agent replacement: {original_agent} → {similar_agent}")
                 else:
-                    logger.warning(f"⚠️ 에이전트 매칭 실패, 건너뜀: {agent_id}")
+                    logger.warning(f"⚠️ Agent matching failed, skipping: {agent_id}")
 
-        # 🚀 개선: 유효한 매핑이 없을 때만 폴백 (최후의 수단)
+        # 🚀 Improvement: Fallback only when no valid mappings (last resort)
         if not valid_mappings:
-            logger.warning(f"⚠️ 모든 에이전트 매핑 실패, 쿼리 기반 폴백 실행")
-            # LLM이 선택하려던 첫 번째 에이전트의 의도 활용
+            logger.warning(f"⚠️ All agent mappings failed, running query-based fallback")
+            # Use intent from the first agent LLM tried to select
             first_mapping = result.get('agent_mappings', [{}])[0] if result.get('agent_mappings') else {}
             first_reasoning = first_mapping.get('selection_reasoning', '')
 
-            # 폴백 에이전트 선택 (쿼리 분석 기반)
+            # Select fallback agent (based on query analysis)
             fallback_agent = self._select_agent_by_content(original_query, available_agents, language)
             valid_mappings = [{
                 "task_id": "fallback_task",
                 "selected_agent": fallback_agent,
                 "agent_type": "GENERAL",
-                "selection_reasoning": f"폴백 선택: {fallback_agent} (원래 LLM 추론: {first_reasoning[:100]})" if first_reasoning else f"폴백 선택: {fallback_agent}",
+                "selection_reasoning": f"Fallback selection: {fallback_agent} (original LLM reasoning: {first_reasoning[:100]})" if first_reasoning else f"Fallback selection: {fallback_agent}",
                 "individual_query": original_query,
-                "context_integration": "없음",
+                "context_integration": "None",
                 "confidence": 0.6,
                 "is_fallback": True
             }]
 
         result['agent_mappings'] = valid_mappings
 
-        # 🧠 agent_availability 검증 및 처리
+        # 🧠 Validate and process agent_availability
         agent_availability = result.get('agent_availability', {})
         no_suitable_agent = agent_availability.get('no_suitable_agent', False)
 
         if no_suitable_agent:
-            # LLM이 적합한 에이전트가 없다고 판단한 경우 - 유용한 피드백 제공
+            # LLM determined no suitable agent - provide useful feedback
             feedback_type = agent_availability.get('feedback_type', 'none')
-            user_message = agent_availability.get('user_message', '요청하신 작업에 적합한 에이전트를 찾지 못했습니다.')
+            user_message = agent_availability.get('user_message', 'No suitable agent found for the requested task.')
             required_capabilities = agent_availability.get('required_capabilities', [])
 
-            logger.warning(f"⚠️ 적합한 에이전트 없음 (피드백 타입: {feedback_type})")
-            logger.warning(f"   메시지: {user_message}")
+            logger.warning(f"⚠️ No suitable agent (feedback type: {feedback_type})")
+            logger.warning(f"   Message: {user_message}")
 
-            # 피드백 타입별 추가 정보
+            # Additional info by feedback type
             feedback_details = {}
             if feedback_type == 'clarification_needed':
                 feedback_details['clarification_questions'] = agent_availability.get('clarification_questions', [])
-                logger.info(f"   구체화 질문: {feedback_details['clarification_questions']}")
+                logger.info(f"   Clarification questions: {feedback_details['clarification_questions']}")
             elif feedback_type == 'alternative_suggested':
                 feedback_details['suggested_alternatives'] = agent_availability.get('suggested_alternatives', [])
-                logger.info(f"   대안 제안: {feedback_details['suggested_alternatives']}")
+                logger.info(f"   Suggested alternatives: {feedback_details['suggested_alternatives']}")
             elif feedback_type == 'impossible_request':
                 feedback_details['impossible_reason'] = agent_availability.get('impossible_reason', '')
-                logger.info(f"   불가능 이유: {feedback_details['impossible_reason']}")
+                logger.info(f"   Reason impossible: {feedback_details['impossible_reason']}")
 
-            # 결과에 사용자 알림 정보 추가
+            # Add user notification info to result
             result['no_suitable_agent_info'] = {
                 'status': True,
                 'feedback_type': feedback_type,
@@ -1029,18 +1028,18 @@ class UnifiedQueryProcessor:
                 **feedback_details
             }
         else:
-            # 적합한 에이전트가 있는 경우 - agent_availability 기본값 설정
+            # Suitable agent found - set agent_availability defaults
             if 'agent_availability' not in result:
                 result['agent_availability'] = {
                     'no_suitable_agent': False,
                     'feedback_type': 'none',
-                    'availability_reasoning': '쿼리에 적합한 에이전트를 찾았습니다.',
+                    'availability_reasoning': 'Found a suitable agent for the query.',
                     'user_message': '',
                     'suggested_alternatives': [],
                     'required_capabilities': []
                 }
 
-        # 의존성 분석 검증
+        # Validate dependency analysis
         dependency_analysis = result.get('dependency_analysis', {})
         if not dependency_analysis.get('execution_order'):
             task_ids = [task.get('task_id') for task in result.get('task_breakdown', [])]
@@ -1062,7 +1061,7 @@ class UnifiedQueryProcessor:
         return result
 
     def _create_context_aware_query_chains(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """컨텍스트 인식 쿼리 체인 생성 - 에이전트 간 결과 전달 포함"""
+        """Create context-aware query chains - including inter-agent result passing"""
         try:
             dependency_analysis = result.get('dependency_analysis', {})
             tasks = result.get('task_breakdown', [])
@@ -1070,7 +1069,7 @@ class UnifiedQueryProcessor:
             
             query_chains = []
             
-            # 의존성 체인이 있는 경우
+            # When dependency chains exist
             if dependency_analysis.get('has_dependencies', False):
                 dependency_chains = dependency_analysis.get('dependency_chains', [])
                 
@@ -1079,7 +1078,7 @@ class UnifiedQueryProcessor:
                     tasks_in_order = chain_info.get('tasks_in_order', [])
                     data_flow = chain_info.get('data_flow', [])
                     
-                    # TaskDependency 객체들 생성
+                    # Create TaskDependency objects
                     dependencies = []
                     dependency_map = {}
                     
@@ -1096,22 +1095,22 @@ class UnifiedQueryProcessor:
                         if depends_on:
                             data_flow_info = {}
                             for dep in depends_on:
-                                data_flow_info[dep] = 'result'  # 기본값
+                                data_flow_info[dep] = 'result'  # default value
                             
                             dependency = TaskDependency(task_id, depends_on, data_flow_info)
                             dependencies.append(dependency)
                     
-                    # 체인에 포함된 작업들 필터링
+                    # Filter tasks included in chain
                     chain_tasks = [task for task in tasks if task.get('task_id') in tasks_in_order]
                     
-                    # 에이전트 매핑에 컨텍스트 전달 정보 추가
+                    # Add context passing info to agent mappings
                     for mapping in agent_mappings:
                         task_id = mapping.get('task_id')
                         if task_id in dependency_map:
-                            # 의존성이 있는 작업의 경우 컨텍스트 전달 방법 추가
+                            # Add context passing method for tasks with dependencies
                             mapping['requires_context'] = True
                             mapping['context_dependencies'] = dependency_map[task_id]
-                            mapping['context_integration'] = f"이전 작업 결과를 참고: {', '.join(dependency_map[task_id])}"
+                            mapping['context_integration'] = f"Refer to previous task results: {', '.join(dependency_map[task_id])}"
                         else:
                             mapping['requires_context'] = False
                     
@@ -1133,27 +1132,27 @@ class UnifiedQueryProcessor:
             result['query_chains'] = query_chains
             result['context_passing_enabled'] = len(query_chains) > 0
             
-            logger.info(f"✅ 컨텍스트 인식 쿼리 체인 생성 완료: {len(query_chains)}개")
+            logger.info(f"✅ Context-aware query chains created: {len(query_chains)}")
             return result
             
         except Exception as e:
-            logger.error(f"컨텍스트 인식 쿼리 체인 생성 실패: {e}")
+            logger.error(f"Failed to create context-aware query chains: {e}")
             result['query_chains'] = []
             result['context_passing_enabled'] = False
             return result
 
     def _validate_execution_plan(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """실행 계획 검증 및 보완"""
+        """Validate and supplement execution plan"""
         try:
             execution_plan = result.get('execution_plan', {})
             dependency_analysis = result.get('dependency_analysis', {})
             
-            # 전략 검증
+            # Validate strategy
             strategy = execution_plan.get('strategy', 'parallel')
             if strategy not in ['single_agent', 'parallel', 'sequential', 'hybrid']:
                 strategy = 'parallel'
             
-            # 병렬 그룹 검증
+            # Validate parallel groups
             parallel_groups = dependency_analysis.get('parallel_groups', [])
             if not parallel_groups:
                 task_ids = [task.get('task_id') for task in result.get('task_breakdown', [])]
@@ -1164,7 +1163,7 @@ class UnifiedQueryProcessor:
                 else:  # hybrid
                     parallel_groups = [task_ids] if task_ids else []
             
-            # 실행 순서 검증
+            # Validate execution order
             execution_order = dependency_analysis.get('execution_order', [])
             if not execution_order:
                 task_ids = [task.get('task_id') for task in result.get('task_breakdown', [])]
@@ -1173,7 +1172,7 @@ class UnifiedQueryProcessor:
                 else:
                     execution_order = task_ids
             
-            # 실행 계획 업데이트
+            # Update execution plan
             execution_plan.update({
                 'strategy': strategy,
                 'parallel_groups': parallel_groups,
@@ -1187,19 +1186,19 @@ class UnifiedQueryProcessor:
             dependency_analysis['execution_order'] = execution_order
             result['dependency_analysis'] = dependency_analysis
             
-            logger.info(f"✅ 실행 계획 검증 완료: {strategy} 전략, {len(parallel_groups)}개 그룹")
+            logger.info(f"✅ Execution plan validation complete: {strategy} strategy, {len(parallel_groups)} groups")
             return result
             
         except Exception as e:
-            logger.error(f"실행 계획 검증 실패: {e}")
+            logger.error(f"Execution plan validation failed: {e}")
             return result
 
     async def _create_llm_based_fallback(self, query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
-        """LLM 기반 폴백 결과 생성"""
-        logger.warning("🔄 LLM 기반 폴백 모드로 통합 결과 생성")
+        """Generate LLM-based fallback result"""
+        logger.warning("🔄 Generating unified result in LLM-based fallback mode")
         
         try:
-            # 간단한 LLM 프롬프트로 기본 분석
+            # Basic analysis with simple LLM prompt
             simple_prompt = f"""사용자 쿼리를 분석하여 기본적인 작업 분해를 수행하세요.
 
 쿼리: "{query}"
@@ -1227,77 +1226,77 @@ class UnifiedQueryProcessor:
             else:
                 response_text = str(response)
             
-            # 간단한 파싱
+            # Simple parsing
             fallback_result = self._safe_json_parse_from_response(response_text)
             
             if fallback_result:
                 return self._convert_fallback_to_full_result(fallback_result, query, available_agents, language)
             
         except Exception as e:
-            logger.error(f"LLM 기반 폴백도 실패: {e}")
+            logger.error(f"LLM-based fallback also failed: {e}")
         
-        # 최종 폴백 - 기본 구조
+        # Final fallback - basic structure
         return self._create_emergency_fallback(query, available_agents, language)
 
     def _create_emergency_fallback(self, query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
-        """최종 폴백 - 기본 구조 생성"""
-        logger.warning("🚨 최종 폴백 모드: 기본 구조로 결과 생성")
+        """Final fallback - create basic structure"""
+        logger.warning("🚨 Final fallback mode: generating result with basic structure")
         
-        # 가장 기본적인 작업 분해
+        # Most basic task decomposition
         if not available_agents:
             available_agents = ['default_agent']
         
-        # 삼성 쿼리 확인 후 적절한 에이전트 선택
+        # Check for Samsung query then select appropriate agent
         if self._is_samsung_domain_query(query):
             samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
             primary_agent = samsung_agents[0] if samsung_agents else available_agents[0]
         else:
             primary_agent = available_agents[0]
         
-        # 언어 감지
+        # Detect language
         if language is None:
             language = self.language_config.detect_language(query)
         
-        # 단순 키워드 기반 분석
+        # Simple keyword-based analysis
         keywords = self._extract_simple_keywords(query, language)
         
-        # 정규식 기반 순차 처리 패턴 감지
+        # Detect sequential processing pattern via regex
         sequential_detected = self._detect_sequential_pattern_regex(query, language)
         
         if sequential_detected:
-            # 순차 처리가 필요한 경우 - 작업을 분해
+            # Sequential processing required - decompose tasks
             task_breakdown, agent_mappings = self._create_sequential_tasks_emergency(query, available_agents, keywords, language)
             
-            # 순차 실행 계획
+            # Sequential execution plan
             task_ids = [task["task_id"] for task in task_breakdown]
-            parallel_groups = [[task_id] for task_id in task_ids]  # 각 작업을 개별 그룹으로
+            parallel_groups = [[task_id] for task_id in task_ids]  # Each task as its own group
             execution_order = task_ids
             strategy = "sequential"
         else:
-            # 기본 단일 작업
+            # Default single task
             task_breakdown = [{
                 "task_id": "emergency_task_1",
-                "task_description": f"'{query}' 처리",
+                "task_description": f"'{query}' processing",
                 "individual_query": query,
                 "extracted_keywords": keywords,
-                "domain": "일반",
+                "domain": "general",
                 "complexity": "simple",
                 "depends_on": [],
                 "expected_output_type": "text"
             }]
             
-            # 기본 에이전트 매핑
+            # Default agent mapping
             agent_mappings = [{
                 "task_id": "emergency_task_1",
                 "selected_agent": primary_agent,
                 "agent_type": "GENERAL",
-                "selection_reasoning": "최종 폴백 - 기본 에이전트 선택",
+                "selection_reasoning": "Final fallback - default agent selection",
                 "individual_query": query,
-                "context_integration": "없음",
+                "context_integration": "None",
                 "confidence": 0.5
             }]
             
-            # 기본 실행 계획
+            # Default execution plan
             parallel_groups = [["emergency_task_1"]]
             execution_order = ["emergency_task_1"]
             strategy = "single_agent"
@@ -1308,10 +1307,10 @@ class UnifiedQueryProcessor:
                 "complexity": "simple",
                 "multi_task": False,
                 "task_count": 1,
-                "primary_intent": "정보검색",
-                "domains": ["일반"],
+                "primary_intent": "information_search",
+                "domains": ["general"],
                 "dependency_detected": False,
-                "reasoning": "최종 폴백 - 기본 분석"
+                "reasoning": "Final fallback - basic analysis"
             },
             "task_breakdown": task_breakdown,
             "agent_mappings": agent_mappings,
@@ -1320,7 +1319,7 @@ class UnifiedQueryProcessor:
                 "dependency_type": "single_agent",
                 "parallel_groups": parallel_groups,
                 "execution_order": execution_order,
-                "reasoning": "최종 폴백 - 단일 작업"
+                "reasoning": "Final fallback - single task"
             },
             "execution_plan": {
                 "strategy": strategy,
@@ -1328,7 +1327,7 @@ class UnifiedQueryProcessor:
                 "parallel_groups": parallel_groups,
                 "execution_order": execution_order,
                 "data_passing_required": sequential_detected,
-                "reasoning": f"최종 폴백: {strategy} 전략을 선택한 이유는 작업들 간의 의존성 분석 결과 기반"
+                "reasoning": f"Final fallback: {strategy} strategy selected based on task dependency analysis"
             },
             "quality_assessment": {
                 "completeness": 0.5,
@@ -1340,27 +1339,27 @@ class UnifiedQueryProcessor:
         }
 
     def _extract_simple_keywords(self, query: str, language: str = None) -> List[str]:
-        """다국어 지원 간단한 키워드 추출"""
+        """Multilingual simple keyword extraction"""
         if language is None:
             language = self.language_config.detect_language(query)
         
-        # 언어별 불용어 가져오기
+        # Get language-specific stopwords
         stopwords = self.language_config.get_stopwords(language)
         
-        # 간단한 토큰화 (공백 기준)
+        # Simple tokenization (whitespace-based)
         tokens = query.split()
         
-        # 불용어 제거 및 길이 필터링
+        # Remove stopwords and filter by length
         keywords = [token for token in tokens if token not in stopwords and len(token) > 1]
         
-        return keywords[:5]  # 최대 5개만
+        return keywords[:5]  # Max 5
 
     def _detect_sequential_pattern_regex(self, query: str, language: str = None) -> bool:
-        """다국어 지원 정규식 기반 순차 처리 패턴 감지"""
+        """Multilingual regex-based sequential processing pattern detection"""
         if language is None:
             language = self.language_config.detect_language(query)
         
-        # 언어별 순차 패턴 가져오기
+        # Get language-specific sequential patterns
         sequential_patterns = self.language_config.get_sequential_patterns(language)
         
         query_lower = query.lower()
@@ -1371,20 +1370,20 @@ class UnifiedQueryProcessor:
         return False
 
     def _create_sequential_tasks_emergency(self, query: str, available_agents: List[str], keywords: List[str], language: str) -> Tuple[List[Dict], List[Dict]]:
-        """다국어 지원 긴급 폴백용 순차 작업 분해"""
+        """Multilingual emergency fallback sequential task decomposition"""
         import re
         
-        # 언어별 특별 패턴 처리
+        # Language-specific special pattern handling
         if language == 'ko':
-            # 금 시세 + 계산 패턴 특별 처리
+            # Gold price + calculation pattern special handling
             if re.search(r'금.*?시세.*?(?:하고|한\s*다음|후에|다음에|이후).*?(?:계산|변환|원화)', query.lower()):
                 return self._create_gold_price_sequential_tasks(query, available_agents, language)
             
-            # AI 트렌드 + 분석 + 시각화 패턴 특별 처리
+            # AI trend + analysis + visualization pattern special handling
             if re.search(r'(?:AI|인공지능|기술).*?(?:트렌드|동향).*?(?:조사|분석).*?(?:해서|하고).*?(?:시각|보고서|리포트)', query.lower()):
                 return self._create_ai_trend_analysis_tasks(query, available_agents, language)
             
-            # 일반적인 조사 + 분석 + 생성 패턴
+            # General research + analysis + generation pattern
             if re.search(r'(.+?)(?:조사|수집).*?(?:해서|하고).*?(.+?)(?:분석|처리).*?(?:하고).*?(.+?)(?:만들어|생성|작성)', query.lower()):
                 return self._create_research_analysis_generation_tasks(query, available_agents, language)
         else:  # English
@@ -1400,7 +1399,7 @@ class UnifiedQueryProcessor:
             if re.search(r'(.+?)(?:research|collect).*?(?:and|then).*?(.+?)(?:analyze|process).*?(?:and|then).*?(.+?)(?:create|generate|make)', query.lower()):
                 return self._create_research_analysis_generation_tasks(query, available_agents, language)
         
-        # 일반적인 순차 패턴 분해
+        # General sequential pattern decomposition
         connectors = self.language_config.get_connectors(language)
         for connector in connectors:
             if connector in query:
@@ -1408,16 +1407,16 @@ class UnifiedQueryProcessor:
                 if len(parts) >= 2:
                     return self._create_general_sequential_tasks(parts, available_agents, language)
         
-        # 폴백: 기본 단일 작업
+        # Fallback: default single task
         return self._create_default_single_task(query, available_agents, keywords, language)
 
     def _create_gold_price_sequential_tasks(self, query: str, available_agents: List[str], language: str) -> Tuple[List[Dict], List[Dict]]:
-        """다국어 지원 금 시세 + 계산 순차 작업 생성"""
-        # 1단계: 금 시세 조회
-        # 2단계: 원화 계산
-        # 3단계: 정리
+        """Multilingual gold price + calculation sequential task creation"""
+        # Step 1: Get gold price
+        # Step 2: Calculate KRW amount
+        # Step 3: Summarize
         
-        # 적절한 에이전트 선택
+        # Select appropriate agents
         crawler_agent = self._find_best_agent_for_task(['crawler_agent', 'internet_agent', 'llm_search_agent'], available_agents)
         calculator_agent = self._find_best_agent_for_task(['calculator_agent', 'currency_exchange_agent', 'math_agent'], available_agents)
         analysis_agent = self._find_best_agent_for_task(['analysis_agent', 'content_formatter_agent', 'llm_search_agent'], available_agents)
@@ -1425,30 +1424,30 @@ class UnifiedQueryProcessor:
         task_breakdown = [
             {
                 "task_id": "gold_price_task",
-                "task_description": "오늘의 금 시세를 확인합니다.",
-                "individual_query": "현재 금의 시세 정보를 알려주세요. 가격과 변동률을 포함해주세요.",
-                "extracted_keywords": ["금", "시세", "가격"],
-                "domain": "금융",
+                "task_description": "Check today's gold price.",
+                "individual_query": "Please provide the current gold price information. Include the price and change rate.",
+                "extracted_keywords": ["gold", "price", "rate"],
+                "domain": "finance",
                 "complexity": "simple",
                 "depends_on": [],
                 "expected_output_type": "text"
             },
             {
                 "task_id": "calculation_task",
-                "task_description": "확인된 금 시세를 1온스당 원화 가격으로 계산합니다.",
-                "individual_query": "1온스당 원화 가격을 정확히 계산해주세요. 계산 과정과 결과를 포함해주세요.",
-                "extracted_keywords": ["1온스", "원화", "계산"],
-                "domain": "계산",
+                "task_description": "Calculate the confirmed gold price per ounce in KRW.",
+                "individual_query": "Please accurately calculate the KRW price per ounce. Include the calculation process and result.",
+                "extracted_keywords": ["1oz", "KRW", "calculate"],
+                "domain": "calculation",
                 "complexity": "moderate",
                 "depends_on": ["gold_price_task"],
                 "expected_output_type": "number"
             },
             {
                 "task_id": "summary_task",
-                "task_description": "금 시세와 계산 결과를 정리합니다.",
-                "individual_query": "금 시세 정보와 계산 결과를 사용자 친화적으로 정리해주세요.",
-                "extracted_keywords": ["정리", "요약"],
-                "domain": "분석",
+                "task_description": "Summarize the gold price and calculation results.",
+                "individual_query": "Please organize the gold price information and calculation results in a user-friendly format.",
+                "extracted_keywords": ["summarize", "organize"],
+                "domain": "analysis",
                 "complexity": "simple",
                 "depends_on": ["calculation_task"],
                 "expected_output_type": "text"
@@ -1460,27 +1459,27 @@ class UnifiedQueryProcessor:
                 "task_id": "gold_price_task",
                 "selected_agent": crawler_agent,
                 "agent_type": "CRAWLER",
-                "selection_reasoning": "금 시세 조회를 위한 크롤링 에이전트 선택",
-                "individual_query": "현재 금의 시세 정보를 알려주세요. 가격과 변동률을 포함해주세요.",
-                "context_integration": "없음",
+                "selection_reasoning": "Crawler agent selected for gold price lookup",
+                "individual_query": "Please provide the current gold price information. Include the price and change rate.",
+                "context_integration": "None",
                 "confidence": 0.85
             },
             {
                 "task_id": "calculation_task",
                 "selected_agent": calculator_agent,
                 "agent_type": "CALCULATOR",
-                "selection_reasoning": "원화 계산을 위한 계산기 에이전트 선택",
-                "individual_query": "1온스당 원화 가격을 정확히 계산해주세요. 계산 과정과 결과를 포함해주세요.",
-                "context_integration": "이전 금 시세 결과 활용",
+                "selection_reasoning": "Calculator agent selected for KRW calculation",
+                "individual_query": "Please accurately calculate the KRW price per ounce. Include the calculation process and result.",
+                "context_integration": "Use previous gold price result",
                 "confidence": 0.90
             },
             {
                 "task_id": "summary_task",
                 "selected_agent": analysis_agent,
                 "agent_type": "ANALYSIS",
-                "selection_reasoning": "결과 정리를 위한 분석 에이전트 선택",
-                "individual_query": "금 시세 정보와 계산 결과를 사용자 친화적으로 정리해주세요.",
-                "context_integration": "이전 모든 결과 활용",
+                "selection_reasoning": "Analysis agent selected for result summarization",
+                "individual_query": "Please organize the gold price information and calculation results in a user-friendly format.",
+                "context_integration": "Use all previous results",
                 "confidence": 0.80
             }
         ]
@@ -1488,12 +1487,12 @@ class UnifiedQueryProcessor:
         return task_breakdown, agent_mappings
 
     def _create_ai_trend_analysis_tasks(self, query: str, available_agents: List[str], language: str) -> Tuple[List[Dict], List[Dict]]:
-        """다국어 지원 AI 트렌드 분석 + 시각화 순차 작업 생성"""
-        # 1단계: AI 기술 트렌드 조사
-        # 2단계: 수집된 데이터 분석  
-        # 3단계: 시각적 보고서 생성
+        """Multilingual AI trend analysis + visualization sequential task creation"""
+        # Step 1: Research AI technology trends
+        # Step 2: Analyze collected data
+        # Step 3: Generate visual report
         
-        # 적절한 에이전트 선택
+        # Select appropriate agents
         research_agent = self._find_best_agent_for_task(['internet_agent', 'crawler_agent', 'llm_search_agent'], available_agents)
         analysis_agent = self._find_best_agent_for_task(['analysis_agent', 'task_classifier_agent', 'llm_search_agent'], available_agents)
         visualization_agent = self._find_best_agent_for_task(['data_visualization_agent', 'content_formatter_agent', 'document_agent'], available_agents)
@@ -1501,30 +1500,30 @@ class UnifiedQueryProcessor:
         task_breakdown = [
             {
                 "task_id": "ai_trend_research_task",
-                "task_description": "AI 기술 트렌드를 조사합니다.",
-                "individual_query": "최신 AI 기술 트렌드와 동향을 조사해주세요. 주요 기술, 시장 동향, 핵심 플레이어들에 대한 정보를 수집해주세요.",
-                "extracted_keywords": ["AI", "기술", "트렌드", "동향", "조사"],
-                "domain": "기술조사",
+                "task_description": "Research AI technology trends.",
+                "individual_query": "Please research the latest AI technology trends. Collect information on key technologies, market trends, and major players.",
+                "extracted_keywords": ["AI", "technology", "trend", "research"],
+                "domain": "technology_research",
                 "complexity": "moderate",
                 "depends_on": [],
                 "expected_output_type": "text"
             },
             {
                 "task_id": "ai_trend_analysis_task", 
-                "task_description": "수집된 AI 기술 트렌드 데이터를 분석합니다.",
-                "individual_query": "AI 기술 트렌드 데이터를 분석하여 패턴, 성장률, 주요 인사이트를 도출해주세요. 데이터 간의 상관관계와 미래 전망을 포함해주세요.",
-                "extracted_keywords": ["분석", "패턴", "인사이트", "전망"],
-                "domain": "데이터분석",
+                "task_description": "Analyze the collected AI technology trend data.",
+                "individual_query": "Analyze AI technology trend data to derive patterns, growth rates, and key insights. Include correlations between data and future outlook.",
+                "extracted_keywords": ["analysis", "pattern", "insight", "outlook"],
+                "domain": "data_analysis",
                 "complexity": "high",
                 "depends_on": ["ai_trend_research_task"],
                 "expected_output_type": "structured_data"
             },
             {
                 "task_id": "visual_report_task",
-                "task_description": "분석 결과를 바탕으로 시각적 보고서를 생성합니다.",
-                "individual_query": "AI 기술 트렌드 분석 결과를 시각적 보고서로 만들어주세요. 차트, 그래프, 인포그래픽을 포함한 종합적인 보고서를 작성해주세요.",
-                "extracted_keywords": ["시각화", "보고서", "차트", "그래프"],
-                "domain": "시각화",
+                "task_description": "Generate a visual report based on the analysis results.",
+                "individual_query": "Please create a visual report of the AI technology trend analysis. Write a comprehensive report including charts, graphs, and infographics.",
+                "extracted_keywords": ["visualization", "report", "chart", "graph"],
+                "domain": "visualization",
                 "complexity": "high", 
                 "depends_on": ["ai_trend_analysis_task"],
                 "expected_output_type": "visual_report"
@@ -1536,27 +1535,27 @@ class UnifiedQueryProcessor:
                 "task_id": "ai_trend_research_task",
                 "selected_agent": research_agent,
                 "agent_type": "INTERNET_SEARCH",
-                "selection_reasoning": "AI 기술 트렌드 조사를 위한 인터넷 검색 에이전트 선택",
-                "individual_query": "최신 AI 기술 트렌드와 동향을 조사해주세요. 주요 기술, 시장 동향, 핵심 플레이어들에 대한 정보를 수집해주세요.",
-                "context_integration": "없음",
+                "selection_reasoning": "Internet search agent selected for AI technology trend research",
+                "individual_query": "Please research the latest AI technology trends. Collect information on key technologies, market trends, and major players.",
+                "context_integration": "None",
                 "confidence": 0.90
             },
             {
                 "task_id": "ai_trend_analysis_task",
                 "selected_agent": analysis_agent,
                 "agent_type": "ANALYSIS",
-                "selection_reasoning": "AI 트렌드 데이터 분석을 위한 분석 에이전트 선택",
-                "individual_query": "AI 기술 트렌드 데이터를 분석하여 패턴, 성장률, 주요 인사이트를 도출해주세요. 데이터 간의 상관관계와 미래 전망을 포함해주세요.",
-                "context_integration": "이전 조사 결과 활용",
+                "selection_reasoning": "Analysis agent selected for AI trend data analysis",
+                "individual_query": "Analyze AI technology trend data to derive patterns, growth rates, and key insights. Include correlations between data and future outlook.",
+                "context_integration": "Use previous research result",
                 "confidence": 0.85
             },
             {
                 "task_id": "visual_report_task",
                 "selected_agent": visualization_agent,
                 "agent_type": "DATA_VISUALIZATION",
-                "selection_reasoning": "시각적 보고서 생성을 위한 데이터 시각화 에이전트 선택",
-                "individual_query": "AI 기술 트렌드 분석 결과를 시각적 보고서로 만들어주세요. 차트, 그래프, 인포그래픽을 포함한 종합적인 보고서를 작성해주세요.",
-                "context_integration": "이전 모든 결과 활용",
+                "selection_reasoning": "Data visualization agent selected for visual report generation",
+                "individual_query": "Please create a visual report of the AI technology trend analysis. Write a comprehensive report including charts, graphs, and infographics.",
+                "context_integration": "Use all previous results",
                 "confidence": 0.95
             }
         ]
@@ -1564,24 +1563,24 @@ class UnifiedQueryProcessor:
         return task_breakdown, agent_mappings
 
     def _create_research_analysis_generation_tasks(self, query: str, available_agents: List[str], language: str) -> Tuple[List[Dict], List[Dict]]:
-        """다국어 지원 일반적인 조사 + 분석 + 생성 순차 작업 생성"""
+        """Multilingual general research + analysis + generation sequential task creation"""
         import re
         
-        # 쿼리에서 주요 부분 추출
+        # Extract main parts from query
         match = re.search(r'(.+?)(?:조사|수집).*?(?:해서|하고).*?(.+?)(?:분석|처리).*?(?:하고).*?(.+?)(?:만들어|생성|작성)', query.lower())
         
         if match:
             research_topic = match.group(1).strip()
-            analysis_focus = match.group(2).strip() if len(match.groups()) > 1 else "데이터"
-            output_type = match.group(3).strip() if len(match.groups()) > 2 else "결과"
+            analysis_focus = match.group(2).strip() if len(match.groups()) > 1 else "data"
+            output_type = match.group(3).strip() if len(match.groups()) > 2 else "result"
         else:
-            # 폴백: 간단한 분할
+            # Fallback: simple split
             parts = query.split('하고')
             research_topic = parts[0].strip() if len(parts) > 0 else query
-            analysis_focus = parts[1].strip() if len(parts) > 1 else "분석"
-            output_type = parts[2].strip() if len(parts) > 2 else "보고서"
+            analysis_focus = parts[1].strip() if len(parts) > 1 else "analysis"
+            output_type = parts[2].strip() if len(parts) > 2 else "report"
         
-        # 적절한 에이전트 선택
+        # Select appropriate agents
         research_agent = self._find_best_agent_for_task(['internet_agent', 'crawler_agent', 'llm_search_agent'], available_agents)
         analysis_agent = self._find_best_agent_for_task(['analysis_agent', 'task_classifier_agent', 'math_agent'], available_agents)
         generation_agent = self._find_best_agent_for_task(['content_formatter_agent', 'document_agent', 'data_visualization_agent'], available_agents)
@@ -1589,30 +1588,30 @@ class UnifiedQueryProcessor:
         task_breakdown = [
             {
                 "task_id": "research_task",
-                "task_description": f"{research_topic}에 대해 조사합니다.",
-                "individual_query": f"{research_topic}에 대한 최신 정보와 데이터를 조사하여 수집해주세요. 신뢰할 수 있는 출처에서 종합적인 정보를 제공해주세요.",
+                "task_description": f"Researching {research_topic}.",
+                "individual_query": f"Please research and collect the latest information and data on {research_topic}. Provide comprehensive information from reliable sources.",
                 "extracted_keywords": research_topic.split()[:3],
-                "domain": "조사",
+                "domain": "research",
                 "complexity": "moderate",
                 "depends_on": [],
                 "expected_output_type": "text"
             },
             {
                 "task_id": "analysis_task",
-                "task_description": f"수집된 데이터를 {analysis_focus} 관점에서 분석합니다.",
-                "individual_query": f"수집된 정보를 {analysis_focus} 관점에서 분석해주세요. 주요 패턴, 트렌드, 인사이트를 도출하고 의미 있는 결론을 제시해주세요.",
+                "task_description": f"Analyzing collected data from the {analysis_focus} perspective.",
+                "individual_query": f"Please analyze the collected information from the {analysis_focus} perspective. Identify key patterns, trends, and insights and provide meaningful conclusions.",
                 "extracted_keywords": analysis_focus.split()[:3],
-                "domain": "분석",
+                "domain": "analysis",
                 "complexity": "high",
                 "depends_on": ["research_task"],
                 "expected_output_type": "structured_data"
             },
             {
                 "task_id": "generation_task",
-                "task_description": f"분석 결과를 바탕으로 {output_type}을 생성합니다.",
-                "individual_query": f"분석 결과를 바탕으로 {output_type}을 생성해주세요. 사용자가 이해하기 쉽고 실용적인 형태로 정리해주세요.",
+                "task_description": f"Generating {output_type} based on analysis results.",
+                "individual_query": f"Please generate {output_type} based on the analysis results. Organize it in a user-friendly and practical format.",
                 "extracted_keywords": output_type.split()[:3],
-                "domain": "생성",
+                "domain": "generation",
                 "complexity": "moderate",
                 "depends_on": ["analysis_task"],
                 "expected_output_type": "document"
@@ -1624,27 +1623,27 @@ class UnifiedQueryProcessor:
                 "task_id": "research_task",
                 "selected_agent": research_agent,
                 "agent_type": "INTERNET_SEARCH",
-                "selection_reasoning": f"{research_topic} 조사를 위한 검색 에이전트 선택",
-                "individual_query": f"{research_topic}에 대한 최신 정보와 데이터를 조사하여 수집해주세요. 신뢰할 수 있는 출처에서 종합적인 정보를 제공해주세요.",
-                "context_integration": "없음",
+                "selection_reasoning": f"Selecting search agent for {research_topic} research",
+                "individual_query": f"Please research and collect the latest information and data on {research_topic}. Provide comprehensive information from reliable sources.",
+                "context_integration": "None",
                 "confidence": 0.80
             },
             {
                 "task_id": "analysis_task",
                 "selected_agent": analysis_agent,
                 "agent_type": "ANALYSIS",
-                "selection_reasoning": f"{analysis_focus} 분석을 위한 분석 에이전트 선택",
-                "individual_query": f"수집된 정보를 {analysis_focus} 관점에서 분석해주세요. 주요 패턴, 트렌드, 인사이트를 도출하고 의미 있는 결론을 제시해주세요.",
-                "context_integration": "이전 조사 결과 활용",
+                "selection_reasoning": f"Selecting analysis agent for {analysis_focus} analysis",
+                "individual_query": f"Please analyze the collected information from the {analysis_focus} perspective. Identify key patterns, trends, and insights and provide meaningful conclusions.",
+                "context_integration": "Use previous research result",
                 "confidence": 0.85
             },
             {
                 "task_id": "generation_task",
                 "selected_agent": generation_agent,
                 "agent_type": "CONTENT_FORMATTING",
-                "selection_reasoning": f"{output_type} 생성을 위한 콘텐츠 포맷터 에이전트 선택",
-                "individual_query": f"분석 결과를 바탕으로 {output_type}을 생성해주세요. 사용자가 이해하기 쉽고 실용적인 형태로 정리해주세요.",
-                "context_integration": "이전 모든 결과 활용",
+                "selection_reasoning": f"Selecting content formatter agent for generating {output_type}",
+                "individual_query": f"Please generate {output_type} based on the analysis results. Organize it in a user-friendly and practical format.",
+                "context_integration": "Use all previous results",
                 "confidence": 0.80
             }
         ]
@@ -1652,26 +1651,26 @@ class UnifiedQueryProcessor:
         return task_breakdown, agent_mappings
 
     def _create_general_sequential_tasks(self, parts: List[str], available_agents: List[str], language: str) -> Tuple[List[Dict], List[Dict]]:
-        """다국어 지원 일반적인 순차 작업 생성"""
+        """Multilingual general sequential task creation"""
         task_breakdown = []
         agent_mappings = []
         
-        for i, part in enumerate(parts[:3]):  # 최대 3개 작업
+        for i, part in enumerate(parts[:3]):  # Max 3 tasks
             part = part.strip()
             if not part:
                 continue
                 
             task_id = f"sequential_task_{i+1}"
             
-            # 작업 내용에 따른 에이전트 선택
+            # Select agent based on task content
             best_agent = self._select_agent_by_content(part, available_agents, language)
             
             task_breakdown.append({
                 "task_id": task_id,
-                "task_description": f"{part}를 처리합니다.",
-                "individual_query": f"{part}에 대해 처리해주세요.",
+                "task_description": f"Process {part}.",
+                "individual_query": f"Please process the following: {part}.",
                 "extracted_keywords": part.split()[:3],
-                "domain": "일반",
+                "domain": "general",
                 "complexity": "simple",
                 "depends_on": [f"sequential_task_{i}"] if i > 0 else [],
                 "expected_output_type": "text"
@@ -1681,29 +1680,29 @@ class UnifiedQueryProcessor:
                 "task_id": task_id,
                 "selected_agent": best_agent,
                 "agent_type": "GENERAL",
-                "selection_reasoning": f"내용 기반 에이전트 선택: {part}",
-                "individual_query": f"{part}에 대해 처리해주세요.",
-                "context_integration": "이전 결과 활용" if i > 0 else "없음",
+                "selection_reasoning": f"Agent selected based on content: {part}",
+                "individual_query": f"Please process the following: {part}.",
+                "context_integration": "Use previous results" if i > 0 else "None",
                 "confidence": 0.7
             })
         
         return task_breakdown, agent_mappings
 
     def _create_default_single_task(self, query: str, available_agents: List[str], keywords: List[str], language: str) -> Tuple[List[Dict], List[Dict]]:
-        """다국어 지원 기본 단일 작업 생성 - 최적화된 메시지 포함"""
+        """Multilingual default single task creation - includes optimized message"""
         
-        # 더 나은 에이전트 선택
+        # Select a better agent
         best_agent = self._select_agent_by_content(query, available_agents, language)
         
-        # 에이전트별 최적화된 메시지 생성
+        # Generate agent-specific optimized message
         optimized_message = self._generate_optimized_message_for_agent(query, best_agent, language)
         
         task_breakdown = [{
             "task_id": "emergency_task_1",
-            "task_description": f"'{query}' 처리",
+            "task_description": f"'{query}' processing",
             "individual_query": optimized_message,
             "extracted_keywords": keywords,
-            "domain": "일반",
+            "domain": "general",
             "complexity": "simple",
             "depends_on": [],
             "expected_output_type": "text"
@@ -1713,33 +1712,33 @@ class UnifiedQueryProcessor:
             "task_id": "emergency_task_1",
             "selected_agent": best_agent,
             "agent_type": self._infer_agent_type_from_query(query, language),
-            "selection_reasoning": f"쿼리 내용 기반 에이전트 선택: {best_agent}",
+            "selection_reasoning": f"Agent selected based on query content: {best_agent}",
             "individual_query": optimized_message,
-            "context_integration": "없음",
+            "context_integration": "None",
             "confidence": 0.7
         }]
         
         return task_breakdown, agent_mappings
 
     def _generate_optimized_message_for_agent(self, query: str, agent_id: str, language: str = None) -> str:
-        """다국어 지원 에이전트별 최적화된 메시지 생성"""
+        """Multilingual agent-specific optimized message generation"""
         if language is None:
             language = self.language_config.detect_language(query)
         
         query_lower = query.lower()
         intent_keywords = self.language_config.get_intent_keywords(language)
         
-        # 언어별 메시지 템플릿
+        # Language-specific message templates
         if language == 'ko':
             templates = {
-                'search': f"{query} - 최신 정보를 검색하여 상세히 알려주세요.",
-                'analysis': f"{query} - 데이터를 분석하여 인사이트와 패턴을 도출해주세요.",
-                'visualization': f"{query} - 시각적 자료와 차트를 포함하여 보고서를 작성해주세요.",
-                'content': f"{query} - 사용자 친화적인 형태로 정리하여 제공해주세요.",
-                'document': f"{query} - 문서 형태로 종합적인 결과를 작성해주세요.",
-                'crawler': f"{query} - 웹에서 관련 정보를 수집하여 정리해주세요.",
-                'llm': f"{query} - 전문적인 지식을 바탕으로 상세한 답변을 제공해주세요.",
-                'default': f"{query} - 이 요청을 전문적으로 처리해주세요."
+                'search': f"{query} - Please search for the latest information and provide detailed findings.",
+                'analysis': f"{query} - Please analyze the data and derive insights and patterns.",
+                'visualization': f"{query} - Please write a report including visual materials and charts.",
+                'content': f"{query} - Please organize and provide in a user-friendly format.",
+                'document': f"{query} - Please write a comprehensive result in document format.",
+                'crawler': f"{query} - Please collect and organize relevant information from the web.",
+                'llm': f"{query} - Please provide a detailed answer based on professional knowledge.",
+                'default': f"{query} - Please handle this request professionally."
             }
         else:  # English
             templates = {
@@ -1753,7 +1752,7 @@ class UnifiedQueryProcessor:
                 'default': f"{query} - Please handle this request professionally."
             }
         
-        # 에이전트 타입별 최적화
+        # Optimization by agent type
         if 'internet' in agent_id.lower() or 'search' in agent_id.lower():
             return templates['search']
         elif 'analysis' in agent_id.lower():
@@ -1769,7 +1768,7 @@ class UnifiedQueryProcessor:
         elif 'llm' in agent_id.lower():
             return templates['llm']
         else:
-            # 의도 기반 최적화
+            # Intent-based optimization
             if any(keyword in query_lower for keyword in intent_keywords.get('search', [])):
                 return templates['search']
             elif any(keyword in query_lower for keyword in intent_keywords.get('analyze', [])):
@@ -1782,7 +1781,7 @@ class UnifiedQueryProcessor:
                 return templates['default']
 
     def _infer_agent_type_from_query(self, query: str, language: str = None) -> str:
-        """다국어 지원 쿼리 내용에서 에이전트 타입 추론"""
+        """Multilingual inference of agent type from query content"""
         if language is None:
             language = self.language_config.detect_language(query)
         
@@ -1805,55 +1804,55 @@ class UnifiedQueryProcessor:
             return "GENERAL"
 
     def _find_best_agent_for_task(self, preferred_agents: List[str], available_agents: List[str]) -> str:
-        """작업에 가장 적합한 에이전트 찾기"""
+        """Find the most suitable agent for the task"""
         for preferred in preferred_agents:
             if preferred in available_agents:
                 return preferred
         
-        # 폴백: 첫 번째 사용 가능한 에이전트
+        # Fallback: first available agent
         return available_agents[0] if available_agents else 'unknown'
 
     def _is_samsung_domain_query(self, query: str) -> bool:
-        """삼성 관련 업무 쿼리 자동 감지 (오타 보정 포함)
+        """Auto-detect Samsung-related business queries (including typo correction)
 
-        주의: 주식/금융 관련 쿼리는 삼성 도메인에서 제외됩니다.
-        - "삼성전자 주가" → 주식 에이전트
-        - "삼성전자 Particle 이슈" → 삼성 반도체 에이전트
+        Note: Stock/finance-related queries are excluded from the Samsung domain.
+        - "Samsung Electronics stock price" → stock agent
+        - "Samsung Electronics Particle issue" → Samsung semiconductor agent
         """
 
-        # 오타 보정
+        # Typo correction
         normalized_query = self._normalize_samsung_typos(query)
         query_lower = normalized_query.lower()
 
-        # 🚫 주식/금융 관련 쿼리 제외 (우선 체크)
+        # 🚫 Exclude stock/finance queries (check first)
         stock_finance_keywords = [
-            # 주식 가격
+            # Stock price
             "종가", "시가", "고가", "저가", "주가", "주식", "stock", "price",
             "closing", "opening", "시세",
-            # 거래
+            # Trading
             "거래", "trading", "매수", "매도", "buy", "sell", "거래량", "volume",
-            # 차트/그래프
+            # Charts/graphs
             "그래프", "차트", "chart", "graph", "캔들", "candle",
-            # 투자
+            # Investment
             "투자", "invest", "포트폴리오", "portfolio", "배당", "dividend",
-            # 시장
+            # Market
             "코스피", "코스닥", "nasdaq", "kospi", "kosdaq",
-            # 증권
+            # Securities
             "증권", "주권", "상장", "시총", "시가총액"
         ]
 
         has_stock_finance = any(keyword in query_lower for keyword in stock_finance_keywords)
         if has_stock_finance:
-            logger.info(f"📈 주식/금융 쿼리 감지 - 삼성 도메인 제외: {query[:50]}...")
+            logger.info(f"📈 Stock/finance query detected - excluded from Samsung domain: {query[:50]}...")
             return False
 
-        # 회사/브랜드 키워드
+        # Company/brand keywords
         company_keywords = [
             "삼성", "samsung", "삼성반도체", "samsung semiconductor",
             "삼성전자", "삼성디스플레이", "삼성SDI"
         ]
 
-        # 제품/기술 키워드
+        # Product/technology keywords
         product_keywords = [
             "ddr4", "ddr5", "gddr6", "lpddr5", "hbm3",
             "메모리", "memory", "반도체", "semiconductor",
@@ -1864,7 +1863,7 @@ class UnifiedQueryProcessor:
             "etching", "에칭", "deposition", "증착"
         ]
 
-        # 업무 키워드
+        # Business keywords
         business_keywords = [
             "수율", "yield", "불량", "defect", "품질", "quality",
             "공정", "process", "fab", "공급망", "supply chain",
@@ -1872,42 +1871,42 @@ class UnifiedQueryProcessor:
             "생산", "production", "제조", "manufacturing"
         ]
 
-        # 분석 키워드 (업무 깊이 판단)
+        # Analysis keywords (assess business depth)
         analysis_keywords = [
             "분석", "analysis", "추이", "trend", "개선방안", "improvement",
             "최적화", "optimization", "보고서", "report", "예측", "forecast",
             "대시보드", "dashboard", "평가", "assessment"
         ]
 
-        # 삼성 + (제품 OR 업무) 패턴
+        # Samsung + (product OR business) pattern
         has_company = any(keyword in query_lower for keyword in company_keywords)
         has_product = any(keyword in query_lower for keyword in product_keywords)
         has_business = any(keyword in query_lower for keyword in business_keywords)
         has_analysis = any(keyword in query_lower for keyword in analysis_keywords)
 
-        # 패턴 매칭 로직
+        # Pattern matching logic
         if has_company and (has_product or has_business):
-            logger.info(f"🏢 삼성 도메인 감지됨: 회사 키워드 + 제품/업무")
+            logger.info(f"🏢 Samsung domain detected: company keyword + product/business")
             return True
 
-        # 삼성 없어도 반도체 + 분석이면 삼성으로 간주 (도메인 특화)
+        # Consider Samsung domain even without Samsung keyword if semiconductor + analysis (domain-specific)
         if has_product and has_business and has_analysis:
-            logger.info(f"🏢 삼성 도메인 감지됨: 반도체 업무 분석 패턴")
+            logger.info(f"🏢 Samsung domain detected: semiconductor business analysis pattern")
             return True
 
-        # 반도체 전문 용어만 있어도 삼성으로 라우팅 (기본 도메인)
+        # Route to Samsung even with just semiconductor-specific terms (base domain)
         semiconductor_specific = [
             "particle", "파티클", "yield", "수율", "defect", "불량",
             "fab", "팹", "cleanroom", "클린룸"
         ]
         if any(term in query_lower for term in semiconductor_specific):
-            logger.info(f"🏢 삼성 도메인 감지됨: 반도체 전문 용어")
+            logger.info(f"🏢 Samsung domain detected: semiconductor-specific terminology")
             return True
 
         return False
     
     def _normalize_samsung_typos(self, query: str) -> str:
-        """삼성 관련 오타 정규화"""
+        """Normalize Samsung-related typos"""
         typo_corrections = {
             '삼상': '삼성',
             '삼숭': '삼성',
@@ -1917,7 +1916,7 @@ class UnifiedQueryProcessor:
             '반도채': '반도체',
             '번도체': '반도체',
             '반도처': '반도체',
-            '수율': '수율',  # 표준화
+            '수율': '수율',  # Normalization
             '슈율': '수율',
             '수류': '수율',
             'partical': 'particle',
@@ -1936,24 +1935,24 @@ class UnifiedQueryProcessor:
 
     async def _select_agent_by_llm(self, content: str, available_agents: List[str], language: str = None) -> str:
         """
-        🧠 하이브리드 에이전트 선택 (Knowledge Graph + LLM)
+        🧠 Hybrid agent selection (Knowledge Graph + LLM)
 
-        Phase 1: 지식그래프 분석 (엔티티 추출, 관련 개념, 과거 패턴)
-        Phase 2: LLM 최종 결정 (그래프 인사이트 활용)
-        Phase 3: 피드백 저장 (성공적인 매핑 학습)
+        Phase 1: Knowledge graph analysis (entity extraction, related concepts, past patterns)
+        Phase 2: LLM final decision (using graph insights)
+        Phase 3: Store feedback (learn successful mappings)
         """
         if language is None:
             language = self.language_config.detect_language(content)
 
-        # 에이전트 정보 구성
+        # Build agent information
         agents_info = self._build_agents_info_for_llm(available_agents)
 
         if not agents_info:
-            logger.warning("⚠️ 사용 가능한 에이전트 정보 없음, 기본 에이전트 반환")
+            logger.warning("⚠️ No available agent info, returning default agent")
             return available_agents[0] if available_agents else 'unknown'
 
         try:
-            # 🧠 하이브리드 선택기 사용
+            # 🧠 Use hybrid selector
             hybrid_selector = get_hybrid_selector()
             selected_agent, metadata = await hybrid_selector.select_agent(
                 query=content,
@@ -1962,32 +1961,32 @@ class UnifiedQueryProcessor:
                 context={"language": language}
             )
 
-            # 선택 결과 로깅
+            # Log selection result
             selection_method = metadata.get('selection_method', 'unknown')
             graph_confidence = metadata.get('graph_insights', {}).get('confidence', 0)
 
             logger.info(
-                f"🧠 하이브리드 에이전트 선택 완료: {selected_agent} "
-                f"(방식: {selection_method}, 그래프 신뢰도: {graph_confidence:.1%}, "
-                f"쿼리: {content[:50]}...)"
+                f"🧠 Hybrid agent selection complete: {selected_agent} "
+                f"(method: {selection_method}, graph confidence: {graph_confidence:.1%}, "
+                f"query: {content[:50]}...)"
             )
 
-            # 선택된 에이전트가 유효한지 확인
+            # Verify the selected agent is valid
             if selected_agent in available_agents:
                 return selected_agent
             else:
-                # 부분 매칭 시도
+                # Attempt partial matching
                 for agent in available_agents:
                     if selected_agent.lower() in agent.lower() or agent.lower() in selected_agent.lower():
-                        logger.info(f"🧠 에이전트 부분 매칭: {agent} (원본: {selected_agent})")
+                        logger.info(f"🧠 Agent partial match: {agent} (original: {selected_agent})")
                         return agent
 
-            logger.warning(f"⚠️ 선택된 에이전트가 목록에 없음: {selected_agent}")
+            logger.warning(f"⚠️ Selected agent not in list: {selected_agent}")
 
         except Exception as e:
-            logger.error(f"❌ 하이브리드 에이전트 선택 실패: {e}")
+            logger.error(f"❌ Hybrid agent selection failed: {e}")
 
-        # 폴백: 첫 번째 에이전트 반환
+        # Fallback: return first agent
         return available_agents[0] if available_agents else 'unknown'
 
     async def store_agent_selection_feedback(
@@ -1998,10 +1997,10 @@ class UnifiedQueryProcessor:
         execution_result: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
-        📝 에이전트 선택 피드백 저장 (학습 루프)
+        📝 Store agent selection feedback (learning loop)
 
-        성공적인 쿼리-에이전트 매핑을 지식그래프에 저장하여
-        향후 유사한 쿼리에 더 나은 추천을 제공합니다.
+        Saves successful query-agent mappings to the knowledge graph
+        to provide better recommendations for similar future queries.
         """
         try:
             hybrid_selector = get_hybrid_selector()
@@ -2012,26 +2011,26 @@ class UnifiedQueryProcessor:
                 execution_result=execution_result
             )
         except Exception as e:
-            logger.warning(f"⚠️ 피드백 저장 실패: {e}")
+            logger.warning(f"⚠️ Feedback storage failed: {e}")
             return False
 
     def _select_agent_by_content(self, content: str, available_agents: List[str], language: str = None) -> str:
         """
-        🔄 동기 래퍼: LLM 기반 에이전트 선택을 동기 컨텍스트에서 호출
+        🔄 Sync wrapper: Call LLM-based agent selection from a synchronous context
 
-        비동기 _select_agent_by_llm()을 동기 방식으로 호출합니다.
+        Calls the async _select_agent_by_llm() in a synchronous way.
         """
         if language is None:
             language = self.language_config.detect_language(content)
 
-        # 오타 정규화 적용
+        # Apply typo normalization
         normalized_content = self._normalize_samsung_typos(content)
 
-        # 🏢 삼성 도메인 우선 체크 (비즈니스 로직 - 삼성 도메인은 특수 처리 필요)
+        # 🏢 Samsung domain priority check (business logic - Samsung domain requires special handling)
         if self._is_samsung_domain_query(normalized_content):
             samsung_agents = [agent for agent in available_agents if "samsung_gateway" in agent.lower()]
             if samsung_agents:
-                logger.info(f"🚀 Samsung Gateway Agent 선택: {samsung_agents[0]}")
+                logger.info(f"🚀 Samsung Gateway Agent selected: {samsung_agents[0]}")
                 return samsung_agents[0]
 
             samsung_sub_agents = [
@@ -2042,17 +2041,17 @@ class UnifiedQueryProcessor:
                 ])
             ]
             if samsung_sub_agents:
-                logger.info(f"🚀 Samsung Sub-agent 선택: {samsung_sub_agents[0]}")
+                logger.info(f"🚀 Samsung Sub-agent selected: {samsung_sub_agents[0]}")
                 return samsung_sub_agents[0]
 
-        # 🧠 LLM 기반 에이전트 선택 (비동기 호출)
+        # 🧠 LLM-based agent selection (async call)
         try:
             import asyncio
 
-            # 이벤트 루프 확인 및 실행
+            # Check and run event loop
             try:
                 loop = asyncio.get_running_loop()
-                # 이미 루프가 실행 중이면 새 태스크로 실행
+                # If loop already running, execute as new task
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(
@@ -2062,27 +2061,27 @@ class UnifiedQueryProcessor:
                     selected_agent = future.result(timeout=30)
                     return selected_agent
             except RuntimeError:
-                # 루프가 없으면 직접 실행
+                # If no loop, run directly
                 selected_agent = asyncio.run(
                     self._select_agent_by_llm(normalized_content, available_agents, language)
                 )
                 return selected_agent
 
         except Exception as e:
-            logger.error(f"❌ LLM 기반 에이전트 선택 실패: {e}")
-            # 폴백: 첫 번째 사용 가능한 에이전트
+            logger.error(f"❌ LLM-based agent selection failed: {e}")
+            # Fallback: first available agent
             if available_agents:
-                logger.info(f"🔍 폴백 에이전트 선택: {available_agents[0]}")
+                logger.info(f"🔍 Fallback agent selected: {available_agents[0]}")
                 return available_agents[0]
             return 'unknown'
 
     def _convert_fallback_to_full_result(self, fallback_result: Dict[str, Any], query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
-        """폴백 결과를 전체 구조로 변환"""
+        """Convert fallback result to full structure"""
         tasks = fallback_result.get('tasks', [])
         strategy = fallback_result.get('strategy', 'parallel')
         has_dependencies = fallback_result.get('has_dependencies', False)
         
-        # 작업 분해
+        # Task decomposition
         task_breakdown = []
         agent_mappings = []
         
@@ -2090,10 +2089,10 @@ class UnifiedQueryProcessor:
             task_id = task.get('task_id', f'task_{i+1}')
             task_breakdown.append({
                 "task_id": task_id,
-                "task_description": task.get('description', f'작업 {i+1}'),
+                "task_description": task.get('description', f'Task {i+1}'),
                 "individual_query": task.get('query', query),
                 "extracted_keywords": [],
-                "domain": "일반",
+                "domain": "general",
                 "complexity": "simple",
                 "depends_on": [],
                 "expected_output_type": "text"
@@ -2103,13 +2102,13 @@ class UnifiedQueryProcessor:
                 "task_id": task_id,
                 "selected_agent": task.get('agent', available_agents[0] if available_agents else 'unknown'),
                 "agent_type": "GENERAL",
-                "selection_reasoning": "LLM 기반 폴백 선택",
+                "selection_reasoning": "LLM-based fallback selection",
                 "individual_query": task.get('query', query),
-                "context_integration": "없음",
+                "context_integration": "None",
                 "confidence": 0.7
             })
         
-        # 실행 계획
+        # Execution plan
         task_ids = [task['task_id'] for task in task_breakdown]
         if strategy == 'sequential':
             parallel_groups = [[task_id] for task_id in task_ids]
@@ -2124,10 +2123,10 @@ class UnifiedQueryProcessor:
                 "complexity": "moderate",
                 "multi_task": len(tasks) > 1,
                 "task_count": len(tasks),
-                "primary_intent": "정보검색",
-                "domains": ["일반"],
+                "primary_intent": "information_search",
+                "domains": ["general"],
                 "dependency_detected": has_dependencies,
-                "reasoning": "LLM 기반 폴백 분석"
+                "reasoning": "LLM-based fallback analysis"
             },
             "task_breakdown": task_breakdown,
             "agent_mappings": agent_mappings,
@@ -2136,7 +2135,7 @@ class UnifiedQueryProcessor:
                 "dependency_type": strategy,
                 "parallel_groups": parallel_groups,
                 "execution_order": execution_order,
-                "reasoning": "LLM 기반 폴백 의존성 분석"
+                "reasoning": "LLM-based fallback dependency analysis"
             },
             "execution_plan": {
                 "strategy": strategy,
@@ -2144,7 +2143,7 @@ class UnifiedQueryProcessor:
                 "parallel_groups": parallel_groups,
                 "execution_order": execution_order,
                 "data_passing_required": has_dependencies,
-                "reasoning": f"LLM 기반 폴백: {strategy} 전략 선택 - 작업 복잡도와 에이전트 능력을 고려한 최적 전략"
+                "reasoning": f"LLM-based fallback: {strategy} strategy selected - optimal strategy considering task complexity and agent capabilities"
             },
             "quality_assessment": {
                 "completeness": 0.7,
@@ -2157,15 +2156,15 @@ class UnifiedQueryProcessor:
 
     async def create_context_aware_query(self, task_id: str, original_query: str, 
                                         dependency_map: Dict[str, List[str]]) -> str:
-        """컨텍스트 인식 쿼리 생성 - 이전 결과를 활용한 쿼리"""
+        """Generate context-aware query - query using previous results"""
         
-        # 이전 결과 컨텍스트 생성
+        # Generate previous result context
         context = self.result_context.format_context_for_agent(task_id, dependency_map)
         
         if not context:
             return original_query
         
-        # LLM을 사용하여 컨텍스트가 포함된 쿼리 생성
+        # Generate context-enriched query using LLM
         try:
             context_prompt = f"""이전 작업 결과를 활용하여 현재 작업에 최적화된 쿼리를 생성하세요.
 
@@ -2184,26 +2183,26 @@ class UnifiedQueryProcessor:
             
             if hasattr(response, 'content'):
                 optimized_query = response.content.strip()
-                logger.info(f"🎯 컨텍스트 인식 쿼리 생성: {task_id} -> {optimized_query[:50]}...")
+                logger.info(f"🎯 Context-aware query created: {task_id} -> {optimized_query[:50]}...")
                 return optimized_query
             
         except Exception as e:
-            logger.error(f"컨텍스트 인식 쿼리 생성 실패: {e}")
+            logger.error(f"Failed to create context-aware query: {e}")
         
-        # 폴백: 컨텍스트를 직접 추가
+        # Fallback: directly prepend context
         return f"{context}\n\n{original_query}"
 
     def add_agent_result(self, task_id: str, result: Any):
-        """에이전트 실행 결과 추가"""
+        """Add agent execution result"""
         self.result_context.add_result(task_id, result)
-        logger.info(f"📊 에이전트 결과 저장: {task_id}")
+        logger.info(f"📊 Agent result stored: {task_id}")
 
     def get_execution_context(self) -> AgentResultContext:
-        """실행 컨텍스트 반환"""
+        """Return execution context"""
         return self.result_context
 
     def _build_agents_info_for_llm(self, available_agents: List[str]) -> Dict[str, Any]:
-        """LLM용 에이전트 정보 구성 (input_spec/output_spec 포함)"""
+        """Build agent information for LLM (including input_spec/output_spec)"""
         agents_info = {}
 
         for agent_id in available_agents:
@@ -2211,12 +2210,12 @@ class UnifiedQueryProcessor:
             if agent_info:
                 agents_info[agent_id] = agent_info
             else:
-                # 기본 정보 생성 (데이터 타입 스펙 포함)
+                # Generate basic info (including data type spec)
                 agent_type = self._infer_type_from_id(agent_id)
                 input_spec, output_spec = self._get_default_data_specs(agent_type)
                 agents_info[agent_id] = {
                     'agent_type': agent_type,
-                    'description': f'{agent_id} 에이전트',
+                    'description': f'{agent_id} agent',
                     'capabilities': [],
                     'tags': [agent_id.replace('_agent', '')],
                     'input_spec': input_spec,
@@ -2226,76 +2225,76 @@ class UnifiedQueryProcessor:
         return agents_info
 
     def _get_default_data_specs(self, agent_type: str) -> tuple:
-        """에이전트 타입에 따른 기본 데이터 스펙 반환"""
-        # 에이전트 타입별 기본 input_spec, output_spec
+        """Return default data spec based on agent type"""
+        # Default input_spec, output_spec by agent type
         specs_mapping = {
             'INTERNET_SEARCH': (
-                {'type': 'text', 'format': ['query', 'string'], 'description': '검색 키워드'},
-                {'type': 'raw_text', 'format': ['html', 'text'], 'description': '웹 검색 결과 (비정형)'}
+                {'type': 'text', 'format': ['query', 'string'], 'description': 'Search keywords'},
+                {'type': 'raw_text', 'format': ['html', 'text'], 'description': 'Web search result (unstructured)'}
             ),
             'CRAWLER': (
-                {'type': 'text', 'format': ['query', 'string'], 'description': '검색 키워드'},
-                {'type': 'raw_text', 'format': ['html', 'text'], 'description': '크롤링 결과 (비정형)'}
+                {'type': 'text', 'format': ['query', 'string'], 'description': 'Search keywords'},
+                {'type': 'raw_text', 'format': ['html', 'text'], 'description': 'Crawling result (unstructured)'}
             ),
             'ANALYSIS': (
-                {'type': 'any', 'format': ['raw_text', 'structured_data'], 'description': '분석할 데이터'},
-                {'type': 'structured_data', 'format': ['json', 'array'], 'description': '분석된 정형 데이터'}
+                {'type': 'any', 'format': ['raw_text', 'structured_data'], 'description': 'Data to analyze'},
+                {'type': 'structured_data', 'format': ['json', 'array'], 'description': 'Analyzed structured data'}
             ),
             'DATA_VISUALIZATION': (
-                {'type': 'structured_data', 'format': ['json', 'array'], 'description': '시각화할 정형 데이터'},
-                {'type': 'visual', 'format': ['html', 'svg', 'chart'], 'description': '차트/그래프'}
+                {'type': 'structured_data', 'format': ['json', 'array'], 'description': 'Structured data to visualize'},
+                {'type': 'visual', 'format': ['html', 'svg', 'chart'], 'description': 'Chart/graph'}
             ),
             'CALCULATOR': (
-                {'type': 'numeric', 'format': ['number', 'expression'], 'description': '계산할 값'},
-                {'type': 'numeric', 'format': ['number'], 'description': '계산 결과'}
+                {'type': 'numeric', 'format': ['number', 'expression'], 'description': 'Value to calculate'},
+                {'type': 'numeric', 'format': ['number'], 'description': 'Calculation result'}
             ),
             'CURRENCY': (
-                {'type': 'numeric', 'format': ['number', 'currency'], 'description': '환전할 금액'},
-                {'type': 'numeric', 'format': ['number'], 'description': '환전 결과'}
+                {'type': 'numeric', 'format': ['number', 'currency'], 'description': 'Amount to exchange'},
+                {'type': 'numeric', 'format': ['number'], 'description': 'Exchange result'}
             ),
             'WEATHER': (
-                {'type': 'text', 'format': ['location', 'query'], 'description': '위치 정보'},
-                {'type': 'structured_data', 'format': ['json'], 'description': '날씨 정보'}
+                {'type': 'text', 'format': ['location', 'query'], 'description': 'Location information'},
+                {'type': 'structured_data', 'format': ['json'], 'description': 'Weather information'}
             ),
             'LLM_SEARCH': (
-                {'type': 'text', 'format': ['query', 'question'], 'description': '질문'},
-                {'type': 'text', 'format': ['string', 'explanation'], 'description': '답변/설명'}
+                {'type': 'text', 'format': ['query', 'question'], 'description': 'Question'},
+                {'type': 'text', 'format': ['string', 'explanation'], 'description': 'Answer/explanation'}
             ),
             'RAG_SEARCH': (
-                {'type': 'text', 'format': ['query'], 'description': '문서 검색 쿼리'},
-                {'type': 'raw_text', 'format': ['text', 'document'], 'description': '검색된 문서'}
+                {'type': 'text', 'format': ['query'], 'description': 'Document search query'},
+                {'type': 'raw_text', 'format': ['text', 'document'], 'description': 'Retrieved document'}
             ),
             'SCHEDULER': (
-                {'type': 'text', 'format': ['command', 'date'], 'description': '일정 관련 요청'},
-                {'type': 'structured_data', 'format': ['json', 'calendar'], 'description': '일정 정보'}
+                {'type': 'text', 'format': ['command', 'date'], 'description': 'Schedule-related request'},
+                {'type': 'structured_data', 'format': ['json', 'calendar'], 'description': 'Schedule information'}
             ),
             'SHOPPING': (
-                {'type': 'text', 'format': ['query', 'product'], 'description': '상품 검색 쿼리'},
-                {'type': 'structured_data', 'format': ['json', 'product_list'], 'description': '상품 목록'}
+                {'type': 'text', 'format': ['query', 'product'], 'description': 'Product search query'},
+                {'type': 'structured_data', 'format': ['json', 'product_list'], 'description': 'Product list'}
             ),
             'WRITER': (
-                {'type': 'any', 'format': ['text', 'structured_data'], 'description': '작성할 내용'},
-                {'type': 'text', 'format': ['document', 'markdown'], 'description': '작성된 문서'}
+                {'type': 'any', 'format': ['text', 'structured_data'], 'description': 'Content to write'},
+                {'type': 'text', 'format': ['document', 'markdown'], 'description': 'Written document'}
             )
         }
 
-        # 기본값
+        # Default
         default_spec = (
-            {'type': 'text', 'format': ['query'], 'description': '입력'},
-            {'type': 'text', 'format': ['string'], 'description': '출력'}
+            {'type': 'text', 'format': ['query'], 'description': 'Input'},
+            {'type': 'text', 'format': ['string'], 'description': 'Output'}
         )
 
         return specs_mapping.get(agent_type, default_spec)
 
     def _find_agent_info(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """에이전트 정보 찾기 (input_spec/output_spec 포함)"""
+        """Find agent information (including input_spec/output_spec)"""
         for agent_info in self.installed_agents_info:
             if agent_info.get('agent_id') == agent_id:
                 agent_data = agent_info.get('agent_data', {})
                 metadata = agent_data.get('metadata', {})
                 agent_type = metadata.get('agent_type', 'GENERAL')
 
-                # 에이전트 데이터에서 input_spec/output_spec 확인, 없으면 기본값 사용
+                # Check input_spec/output_spec in agent data, use default if absent
                 input_spec = agent_data.get('input_spec') or metadata.get('input_spec')
                 output_spec = agent_data.get('output_spec') or metadata.get('output_spec')
 
@@ -2304,7 +2303,7 @@ class UnifiedQueryProcessor:
 
                 return {
                     'agent_type': agent_type,
-                    'description': agent_data.get('description', f'{agent_id} 에이전트'),
+                    'description': agent_data.get('description', f'{agent_id} agent'),
                     'capabilities': agent_data.get('capabilities', []),
                     'tags': metadata.get('tags', []),
                     'input_spec': input_spec,
@@ -2313,7 +2312,7 @@ class UnifiedQueryProcessor:
         return None
 
     def _infer_type_from_id(self, agent_id: str) -> str:
-        """에이전트 ID에서 타입 추론"""
+        """Infer type from agent ID"""
         type_mapping = {
             'weather': 'WEATHER',
             'currency': 'CURRENCY',
@@ -2341,20 +2340,20 @@ class UnifiedQueryProcessor:
         return 'GENERAL'
 
     def _clean_json_string(self, json_str: str) -> str:
-        """JSON 문자열 정리"""
-        # 주석 제거
+        """Clean JSON string"""
+        # Remove comments
         lines = json_str.split('\n')
         cleaned_lines = []
         for line in lines:
-            # // 주석 제거
+            # Remove // comments
             if '//' in line:
                 line = line[:line.index('//')]
             cleaned_lines.append(line)
         
-        # 다시 합치기
+        # Rejoin
         cleaned_json = '\n'.join(cleaned_lines)
         
-        # 불완전한 JSON 수정 시도
+        # Attempt to fix incomplete JSON
         cleaned_json = cleaned_json.strip()
         if cleaned_json.endswith(','):
             cleaned_json = cleaned_json[:-1]
@@ -2364,88 +2363,88 @@ class UnifiedQueryProcessor:
     def _find_similar_agent(self, target_agent: str, available_agents: List[str],
                              selection_reasoning: str = None, query: str = None) -> Optional[str]:
         """
-        🚀 개선된 유사 에이전트 찾기 - LLM의 의도를 최대한 존중
+        🚀 Improved similar agent search - maximize respect for LLM intent
 
         Args:
-            target_agent: LLM이 선택한 에이전트 ID (존재하지 않을 수 있음)
-            available_agents: 실제 사용 가능한 에이전트 목록
-            selection_reasoning: LLM의 선택 이유 (의도 파악에 활용)
-            query: 원본 쿼리 (도메인 힌트 추출에 활용)
+            target_agent: Agent ID selected by LLM (may not exist)
+            available_agents: Actually available agent list
+            selection_reasoning: LLM's selection reason (used for intent analysis)
+            query: Original query (used for domain hint extraction)
 
         Returns:
-            가장 적합한 에이전트 ID 또는 None
+            Most suitable agent ID or None
         """
         if not target_agent:
             return None
 
         target_lower = target_agent.lower().strip()
 
-        # === 1단계: 정확한 매칭 (대소문자 무시) ===
+        # === Step 1: Exact match (case-insensitive) ===
         for agent in available_agents:
             if agent.lower() == target_lower:
-                logger.info(f"✅ 정확한 매칭 성공: {target_agent} → {agent}")
+                logger.info(f"✅ Exact match succeeded: {target_agent} → {agent}")
                 return agent
 
-        # === 2단계: 부분 매칭 (포함 관계) ===
+        # === Step 2: Partial match (containment) ===
         for agent in available_agents:
             if target_lower in agent.lower() or agent.lower() in target_lower:
-                logger.info(f"✅ 부분 매칭 성공: {target_agent} → {agent}")
+                logger.info(f"✅ Partial match succeeded: {target_agent} → {agent}")
                 return agent
 
-        # === 3단계: 키워드 기반 매칭 (언더스코어 분리) ===
+        # === Step 3: Keyword-based matching (underscore split) ===
         keywords = [kw for kw in target_lower.replace('_', ' ').replace('-', ' ').split() if len(kw) > 2]
         for agent in available_agents:
             agent_lower = agent.lower()
-            # 키워드 중 하나라도 에이전트 ID에 포함되면 매칭
+            # Match if any keyword is contained in agent ID
             if any(keyword in agent_lower for keyword in keywords):
-                logger.info(f"✅ 키워드 매칭 성공: {target_agent} → {agent} (키워드: {keywords})")
+                logger.info(f"✅ Keyword match succeeded: {target_agent} → {agent} (keywords: {keywords})")
                 return agent
 
-        # === 4단계: 도메인 유사성 매칭 (LLM 의도 기반) ===
-        # LLM이 선택한 에이전트 이름에서 도메인 힌트 추출
+        # === Step 4: Domain similarity matching (LLM intent-based) ===
+        # Extract domain hints from agent name selected by LLM
         domain_mappings = {
-            # 여행/관광 도메인
+            # Travel/tourism domain
             'travel': ['internet_agent', 'llm_search_agent', 'search_agent', 'tour_agent'],
             'tour': ['internet_agent', 'llm_search_agent', 'search_agent', 'travel_agent'],
             'trip': ['internet_agent', 'llm_search_agent', 'search_agent'],
-            # 음식/맛집 도메인
+            # Food/restaurant domain
             'food': ['restaurant_agent', 'matzip_agent', 'shopping_agent', 'internet_agent', 'llm_search_agent'],
             'restaurant': ['matzip_agent', 'food_agent', 'shopping_agent', 'internet_agent', 'llm_search_agent'],
             'matzip': ['restaurant_agent', 'food_agent', 'shopping_agent', 'internet_agent'],
-            # 검색/정보 도메인
+            # Search/information domain
             'search': ['internet_agent', 'llm_search_agent', 'search_agent'],
             'info': ['internet_agent', 'llm_search_agent', 'search_agent'],
             'internet': ['llm_search_agent', 'search_agent', 'web_agent'],
             'web': ['internet_agent', 'llm_search_agent', 'search_agent'],
-            # 추천 도메인
+            # Recommendation domain
             'recommend': ['internet_agent', 'llm_search_agent', 'recommendation_agent'],
             'recommendation': ['internet_agent', 'llm_search_agent', 'recommend_agent'],
-            # 분석 도메인
+            # Analysis domain
             'analysis': ['analysis_agent', 'data_agent', 'analytics_agent'],
             'data': ['analysis_agent', 'data_analysis_agent', 'analytics_agent'],
-            # 날씨 도메인
+            # Weather domain
             'weather': ['weather_agent', 'internet_agent', 'llm_search_agent'],
-            # 쇼핑 도메인
+            # Shopping domain
             'shopping': ['shopping_agent', 'matzip_agent', 'internet_agent'],
-            # 주식/금융 도메인
+            # Stock/finance domain
             'stock': ['stock_agent', 'finance_agent', 'internet_agent'],
             'finance': ['stock_agent', 'finance_agent', 'analysis_agent'],
         }
 
-        # LLM이 선택한 에이전트에서 도메인 힌트 추출
+        # Extract domain hints from agent selected by LLM
         for domain_key, preferred_agents in domain_mappings.items():
             if domain_key in target_lower:
-                # 선호 에이전트 중 사용 가능한 것 찾기
+                # Find available agent among preferred ones
                 for preferred in preferred_agents:
                     for agent in available_agents:
                         if preferred in agent.lower() or agent.lower() in preferred:
-                            logger.info(f"✅ 도메인 유사성 매칭: {target_agent} → {agent} (도메인: {domain_key})")
+                            logger.info(f"✅ Domain similarity match: {target_agent} → {agent} (domain: {domain_key})")
                             return agent
 
-        # === 5단계: selection_reasoning에서 힌트 추출 (LLM의 의도 분석) ===
+        # === Step 5: Extract hints from selection_reasoning (LLM intent analysis) ===
         if selection_reasoning:
             reasoning_lower = selection_reasoning.lower()
-            # reasoning에서 도메인 키워드 찾기
+            # Find domain keywords in reasoning
             reasoning_domains = {
                 '여행': ['internet_agent', 'llm_search_agent', 'search_agent'],
                 '관광': ['internet_agent', 'llm_search_agent', 'search_agent'],
@@ -2469,10 +2468,10 @@ class UnifiedQueryProcessor:
                     for preferred in preferred_agents:
                         for agent in available_agents:
                             if preferred in agent.lower():
-                                logger.info(f"✅ 추론 기반 매칭: {target_agent} → {agent} (추론 키워드: {domain_word})")
+                                logger.info(f"✅ Reasoning-based match: {target_agent} → {agent} (reasoning keyword: {domain_word})")
                                 return agent
 
-        # === 6단계: 원본 쿼리에서 힌트 추출 ===
+        # === Step 6: Extract hints from original query ===
         if query:
             query_lower = query.lower()
             query_domains = {
@@ -2490,41 +2489,41 @@ class UnifiedQueryProcessor:
                     for preferred in preferred_agents:
                         for agent in available_agents:
                             if preferred in agent.lower():
-                                logger.info(f"✅ 쿼리 기반 매칭: {target_agent} → {agent} (쿼리 키워드: {domain_word})")
+                                logger.info(f"✅ Query-based match: {target_agent} → {agent} (query keyword: {domain_word})")
                                 return agent
 
-        # === 7단계: 범용 에이전트로 폴백 (최후의 수단) ===
-        # 범용 에이전트 우선순위
+        # === Step 7: Fallback to general agent (last resort) ===
+        # General agent priority
         general_fallbacks = ['internet_agent', 'llm_search_agent', 'search_agent', 'general_agent']
         for fallback in general_fallbacks:
             for agent in available_agents:
                 if fallback in agent.lower():
-                    logger.warning(f"⚠️ 범용 에이전트 폴백: {target_agent} → {agent}")
+                    logger.warning(f"⚠️ General agent fallback: {target_agent} → {agent}")
                     return agent
 
-        logger.warning(f"❌ 유사 에이전트를 찾지 못함: {target_agent}")
+        logger.warning(f"❌ No similar agent found: {target_agent}")
         return None
 
     def _create_default_section(self, section_key: str, query: str, available_agents: List[str], language: str) -> Dict[str, Any]:
-        """기본 섹션 생성"""
+        """Create a default section"""
         if section_key == 'query_analysis':
             return {
                 "original_query": query,
                 "complexity": "simple",
                 "multi_task": False,
                 "task_count": 1,
-                "primary_intent": "정보검색",
-                "domains": ["일반"],
+                "primary_intent": "information_search",
+                "domains": ["general"],
                 "dependency_detected": False,
-                "reasoning": "기본 분석"
+                "reasoning": "Default analysis"
             }
         elif section_key == 'task_breakdown':
             return [{
                 "task_id": "default_task",
-                "task_description": f"'{query}' 처리",
+                "task_description": f"'{query}' processing",
                 "individual_query": query,
                 "extracted_keywords": [],
-                "domain": "일반",
+                "domain": "general",
                 "complexity": "simple",
                 "depends_on": [],
                 "expected_output_type": "text"
@@ -2534,9 +2533,9 @@ class UnifiedQueryProcessor:
                 "task_id": "default_task",
                 "selected_agent": available_agents[0] if available_agents else 'unknown',
                 "agent_type": "GENERAL",
-                "selection_reasoning": "기본 선택",
+                "selection_reasoning": "Default selection",
                 "individual_query": query,
-                "context_integration": "없음",
+                "context_integration": "None",
                 "confidence": 0.5
             }]
         elif section_key == 'execution_plan':
@@ -2546,7 +2545,7 @@ class UnifiedQueryProcessor:
                 "parallel_groups": [["default_task"]],
                 "execution_order": ["default_task"],
                 "data_passing_required": False,
-                "reasoning": "single_agent 기본 전략: 단일 에이전트로 처리 가능하여 가장 효율적인 방법"
+                "reasoning": "single_agent default strategy: most efficient as a single agent can handle this"
             }
         elif section_key == 'dependency_analysis':
             return {
@@ -2554,21 +2553,21 @@ class UnifiedQueryProcessor:
                 "dependency_type": "single_agent",
                 "parallel_groups": [["default_task"]],
                 "execution_order": ["default_task"],
-                "reasoning": "기본 의존성 분석"
+                "reasoning": "Default dependency analysis"
             }
         else:
             return {}
 
 
-# 전역 인스턴스
+# Global instance
 _unified_processor = None
 
 def get_unified_query_processor() -> UnifiedQueryProcessor:
-    """전역 통합 쿼리 프로세서 인스턴스 반환"""
+    """Return the global unified query processor instance"""
     global _unified_processor
     if _unified_processor is None:
         _unified_processor = UnifiedQueryProcessor()
     return _unified_processor
 
 
-logger.info("🚀 통합 쿼리 프로세서 로드 완료!") 
+logger.info("🚀 Unified query processor loaded successfully!") 

@@ -1,8 +1,7 @@
 """
 🧠 Semantic Query Manager
-의미론적 쿼리 중앙 관리자
 
-중복 호출 문제를 해결하고 효율적인 쿼리 분석을 제공합니다.
+Solves duplicate call problems and provides efficient query analysis.
 """
 
 import asyncio
@@ -18,7 +17,7 @@ from ..core.interfaces import QueryAnalyzer, CacheManager
 
 
 class InMemoryCacheManager(CacheManager):
-    """인메모리 캐시 관리자"""
+    """In-memory cache manager"""
     
     def __init__(self, max_size: int = 1000, default_ttl: int = 1800):
         self.cache: Dict[str, Any] = {}
@@ -29,33 +28,33 @@ class InMemoryCacheManager(CacheManager):
         self.stats = {"hits": 0, "misses": 0, "sets": 0, "evictions": 0}
     
     async def get(self, key: str) -> Optional[Any]:
-        """캐시에서 값 조회"""
+        """Look up a value in the cache"""
         if key not in self.cache:
             self.stats["misses"] += 1
             return None
-        
-        # TTL 확인
+
+        # Check TTL
         if key in self.ttls and datetime.now() > self.ttls[key]:
             await self._evict(key)
             self.stats["misses"] += 1
             return None
-        
-        # 접근 시간 업데이트
+
+        # Update access time
         self.access_times[key] = datetime.now()
         self.stats["hits"] += 1
         return self.cache[key]
     
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
-        """캐시에 값 저장"""
+        """Store a value in the cache"""
         try:
-            # 캐시 크기 확인 및 정리
+            # Check and clean cache size
             if len(self.cache) >= self.max_size:
                 await self._cleanup_lru()
-            
+
             self.cache[key] = value
             self.access_times[key] = datetime.now()
-            
-            # TTL 설정
+
+            # Set TTL
             if ttl is not None:
                 self.ttls[key] = datetime.now() + timedelta(seconds=ttl)
             elif self.default_ttl > 0:
@@ -65,20 +64,20 @@ class InMemoryCacheManager(CacheManager):
             return True
             
         except Exception as e:
-            logger.error(f"캐시 저장 실패: {e}")
+            logger.error(f"Cache store failed: {e}")
             return False
     
     async def invalidate(self, pattern: str = None) -> int:
-        """캐시 무효화"""
+        """Invalidate cache"""
         if pattern is None:
-            # 전체 캐시 클리어
+            # Clear entire cache
             count = len(self.cache)
             self.cache.clear()
             self.access_times.clear()
             self.ttls.clear()
             return count
         
-        # 패턴 매칭으로 삭제
+        # Delete by pattern matching
         keys_to_delete = [key for key in self.cache.keys() if pattern in key]
         for key in keys_to_delete:
             await self._evict(key)
@@ -86,14 +85,14 @@ class InMemoryCacheManager(CacheManager):
         return len(keys_to_delete)
     
     async def delete(self, key: str) -> bool:
-        """캐시에서 특정 키 삭제 (추상 메서드 구현)"""
+        """Delete a specific key from the cache (abstract method implementation)"""
         if key in self.cache:
             await self._evict(key)
             return True
         return False
     
     async def clear(self) -> bool:
-        """캐시 전체 삭제 (추상 메서드 구현)"""
+        """Delete entire cache (abstract method implementation)"""
         self.cache.clear()
         self.access_times.clear()
         self.ttls.clear()
@@ -101,7 +100,7 @@ class InMemoryCacheManager(CacheManager):
         return True
     
     def get_stats(self) -> Dict[str, Any]:
-        """캐시 통계 조회"""
+        """Get cache statistics"""
         total_requests = self.stats["hits"] + self.stats["misses"]
         hit_rate = self.stats["hits"] / total_requests if total_requests > 0 else 0.0
         
@@ -114,84 +113,84 @@ class InMemoryCacheManager(CacheManager):
         }
     
     async def _evict(self, key: str):
-        """키 제거"""
+        """Evict a key"""
         self.cache.pop(key, None)
         self.access_times.pop(key, None)
         self.ttls.pop(key, None)
         self.stats["evictions"] += 1
     
     async def _cleanup_lru(self):
-        """LRU 기반 정리"""
+        """LRU-based cleanup"""
         if not self.access_times:
             return
-        
-        # 가장 오래된 항목 찾기
+
+        # Find oldest entry
         oldest_key = min(self.access_times.keys(), key=lambda k: self.access_times[k])
         await self._evict(oldest_key)
 
 
 class LLMSemanticQueryAnalyzer(QueryAnalyzer):
-    """LLM 기반 의미론적 쿼리 분석기"""
+    """LLM-based semantic query analyzer"""
     
     def __init__(self, llm_client=None):
         self.llm_client = llm_client
         self.fallback_patterns = self._initialize_fallback_patterns()
     
     async def analyze_query(self, query_text: str, context: Dict[str, Any] = None) -> SemanticQuery:
-        """쿼리 분석 및 SemanticQuery 객체 생성 (추상 메서드 구현)"""
+        """Analyze query and create SemanticQuery object (abstract method implementation)"""
         return await self.analyze_semantic_query(query_text)
     
     def estimate_complexity(self, query: SemanticQuery) -> float:
-        """쿼리 복잡도 추정 (추상 메서드 구현)"""
+        """Estimate query complexity (abstract method implementation)"""
         complexity_analysis = self.analyze_complexity(query)
-        return complexity_analysis.complexity_score / 10.0  # 0.0 ~ 1.0 범위로 정규화
+        return complexity_analysis.complexity_score / 10.0  # Normalize to range 0.0 ~ 1.0
     
     def suggest_agents(self, query: SemanticQuery) -> List[AgentType]:
-        """쿼리에 적합한 에이전트 추천 (추상 메서드 구현)"""
+        """Recommend suitable agents for the query (abstract method implementation)"""
         from ..core.models import AgentType
-        
-        # 쿼리 텍스트 기반 에이전트 추천
+
+        # Recommend agents based on query text
         text_lower = query.natural_language.lower()
         suggested_agents = []
-        
-        # 도메인별 에이전트 매핑
+
+        # Domain-based agent mapping
         if any(word in text_lower for word in ["분석", "데이터", "통계", "평가"]):
             suggested_agents.append(AgentType.ANALYSIS)
-        
+
         if any(word in text_lower for word in ["연구", "조사", "정보", "검색"]):
             suggested_agents.append(AgentType.RESEARCH)
-        
+
         if any(word in text_lower for word in ["기술", "개발", "프로그래밍", "코딩"]):
             suggested_agents.append(AgentType.TECHNICAL)
-        
+
         if any(word in text_lower for word in ["창작", "디자인", "아이디어", "브레인스토밍"]):
             suggested_agents.append(AgentType.CREATIVE)
-        
-        # 기본값으로 GENERAL 에이전트 추가
+
+        # Add GENERAL agent as default
         if not suggested_agents:
             suggested_agents.append(AgentType.GENERAL)
         
         return suggested_agents
     
     async def analyze_semantic_query(self, text: str) -> SemanticQuery:
-        """텍스트를 의미론적 쿼리로 분석"""
+        """Analyze text as a semantic query"""
         try:
             if self.llm_client:
                 return await self._analyze_with_llm(text)
             else:
                 return self._analyze_with_patterns(text)
-                
+
         except Exception as e:
-            logger.error(f"의미론적 쿼리 분석 실패: {e}")
+            logger.error(f"Semantic query analysis failed: {e}")
             return self._create_fallback_query(text)
     
     def analyze_complexity(self, semantic_query: SemanticQuery) -> 'ComplexityAnalysis':
-        """쿼리 복잡도 분석"""
+        """Analyze query complexity"""
         from ..core.models import ComplexityAnalysis, ExecutionStrategy
-        
+
         query_text = semantic_query.natural_language.lower()
-        
-        # 복잡도 지표들
+
+        # Complexity indicators
         indicators = {
             "agent_count": len(semantic_query.structured_query.get("required_agents", [])),
             "concept_count": len(semantic_query.concepts),
@@ -203,7 +202,7 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
             "requires_data_processing": any(word in query_text for word in ["계산", "차트", "그래프", "표"])
         }
         
-        # 복잡도 점수 계산
+        # Calculate complexity score
         complexity_score = 0
         complexity_score += indicators["agent_count"] * 2
         complexity_score += indicators["concept_count"] * 0.5
@@ -214,7 +213,7 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         complexity_score += 3 if indicators["has_time_dependency"] else 0
         complexity_score += 2 if indicators["requires_data_processing"] else 0
         
-        # 실행 전략 결정
+        # Determine execution strategy
         if complexity_score <= 2:
             strategy = ExecutionStrategy.SINGLE_AGENT
         elif complexity_score <= 5:
@@ -226,7 +225,7 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         else:
             strategy = ExecutionStrategy.HYBRID
         
-        # 병렬 처리 가능성 분석
+        # Analyze parallel processing potential
         parallel_potential = self._analyze_parallel_potential(semantic_query)
         
         return ComplexityAnalysis(
@@ -240,12 +239,12 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         )
     
     async def _analyze_with_llm(self, text: str) -> SemanticQuery:
-        """LLM을 사용한 분석"""
-        # LLM 분석 로직 (실제 구현 시 LLM 클라이언트 사용)
+        """Analysis using LLM"""
+        # LLM analysis logic (use LLM client in actual implementation)
         prompt = f"""
         다음 텍스트를 분석하여 의미론적 쿼리로 변환해주세요:
         "{text}"
-        
+
         다음 형식으로 응답해주세요:
         {{
             "intent": "의도",
@@ -255,15 +254,15 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
             "required_agents": ["에이전트1", "에이전트2"]
         }}
         """
-        
-        # 실제 LLM 호출 (여기서는 패턴 기반 분석으로 대체)
+
+        # Actual LLM call (replaced with pattern-based analysis here)
         return self._analyze_with_patterns(text)
     
     def _analyze_with_patterns(self, text: str) -> SemanticQuery:
-        """패턴 기반 분석"""
+        """Pattern-based analysis"""
         text_lower = text.lower()
-        
-        # 의도 분석
+
+        # Intent analysis
         intent = "information_retrieval"
         if any(word in text_lower for word in ["분석", "평가", "검토"]):
             intent = "analysis"
@@ -271,20 +270,20 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
             intent = "comparison"
         elif any(word in text_lower for word in ["계산", "산출"]):
             intent = "calculation"
-        
-        # 엔티티 추출
+
+        # Entity extraction
         entities = []
         for pattern, entity_list in self.fallback_patterns["entities"].items():
             if any(word in text_lower for word in pattern.split("|")):
                 entities.extend(entity_list)
-        
-        # 개념 추출
+
+        # Concept extraction
         concepts = []
         for pattern, concept_list in self.fallback_patterns["concepts"].items():
             if any(word in text_lower for word in pattern.split("|")):
                 concepts.extend(concept_list)
-        
-        # 필요한 에이전트 추정
+
+        # Estimate required agents
         required_agents = self._estimate_required_agents(text_lower)
         
         return SemanticQuery.create_from_text(
@@ -301,7 +300,7 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         )
     
     def _create_fallback_query(self, text: str) -> SemanticQuery:
-        """폴백 쿼리 생성"""
+        """Create fallback query"""
         return SemanticQuery.create_from_text(
             text,
             intent="information_retrieval",
@@ -317,7 +316,7 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         )
     
     def _initialize_fallback_patterns(self) -> Dict[str, Dict[str, List[str]]]:
-        """폴백 패턴 초기화"""
+        """Initialize fallback patterns"""
         return {
             "entities": {
                 "finance|환율|주가|금융": ["currency", "stock", "finance"],
@@ -334,36 +333,36 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         }
     
     def _estimate_required_agents(self, text: str) -> List[str]:
-        """필요한 에이전트 추정"""
+        """Estimate required agents"""
         agents = []
-        
-        # 도메인별 에이전트 매핑
+
+        # Domain-based agent mapping
         if any(word in text for word in ["환율", "주가", "금융", "투자"]):
             agents.append("finance_agent")
-        
+
         if any(word in text for word in ["날씨", "기상", "온도"]):
             agents.append("weather_agent")
-        
+
         if any(word in text for word in ["계산", "수학", "산출"]):
             agents.append("calculate_agent")
-        
+
         if any(word in text for word in ["차트", "그래프", "시각화"]):
             agents.append("chart_agent")
-        
+
         if any(word in text for word in ["메모", "저장", "기록"]):
             agents.append("memo_agent")
-        
+
         if any(word in text for word in ["검색", "찾기", "정보", "최신"]):
             agents.append("internet_agent")
-        
-        # 기본 에이전트
+
+        # Default agent
         if not agents:
             agents.append("internet_agent")
         
         return agents
     
     def _detect_domain(self, text: str) -> str:
-        """도메인 감지"""
+        """Detect domain"""
         if any(word in text for word in ["환율", "주가", "금융"]):
             return "finance"
         elif any(word in text for word in ["날씨", "기상"]):
@@ -376,10 +375,10 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
             return "general"
     
     def _analyze_parallel_potential(self, semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """병렬 처리 가능성 분석"""
+        """Analyze parallel processing potential"""
         required_agents = semantic_query.structured_query.get("required_agents", [])
-        
-        # 에이전트 간 의존성 분석
+
+        # Analyze inter-agent dependencies
         agent_dependencies = {
             "internet_agent": [],
             "finance_agent": [],
@@ -390,11 +389,11 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
             "analysis_agent": ["internet_agent"]
         }
         
-        # 독립 에이전트 식별
-        independent_agents = [agent for agent in required_agents 
+        # Identify independent agents
+        independent_agents = [agent for agent in required_agents
                             if not agent_dependencies.get(agent, [])]
-        
-        # 의존성 체인 구성
+
+        # Build dependency chains
         dependent_chains = []
         for agent in required_agents:
             if agent not in independent_agents:
@@ -415,135 +414,135 @@ class LLMSemanticQueryAnalyzer(QueryAnalyzer):
         }
     
     def _generate_reasoning(self, strategy: 'ExecutionStrategy', indicators: Dict[str, Any]) -> str:
-        """전략 선택 이유 생성"""
+        """Generate reasoning for strategy selection"""
         if strategy.value == "single_agent":
-            return f"단순한 쿼리로 단일 에이전트로 충분합니다."
+            return "Simple query - a single agent is sufficient."
         elif strategy.value == "sequential":
             reasons = []
             if indicators["has_time_dependency"]:
-                reasons.append("시간적 의존성")
+                reasons.append("temporal dependency")
             if indicators["requires_data_processing"]:
-                reasons.append("데이터 처리 필요")
-            return f"순차 처리 필요: {', '.join(reasons)}"
+                reasons.append("data processing required")
+            return f"Sequential processing needed: {', '.join(reasons)}"
         elif strategy.value == "parallel":
-            return "독립적인 작업들이 있어 병렬 처리 가능"
+            return "Independent tasks allow parallel processing"
         else:
-            return "복잡한 워크플로우로 하이브리드 전략 필요"
+            return "Complex workflow requires hybrid strategy"
 
 
 class SemanticQueryManager:
-    """🧠 SemanticQuery 중앙 관리자"""
-    
+    """🧠 SemanticQuery Central Manager"""
+
     def __init__(self, query_analyzer: QueryAnalyzer = None, cache_manager: CacheManager = None):
         self.query_analyzer = query_analyzer or LLMSemanticQueryAnalyzer()
         self.cache_manager = cache_manager or InMemoryCacheManager()
-        
-        # 세션별 캐시
+
+        # Per-session cache
         self._session_cache: Dict[str, SemanticQuery] = {}
-        
-        # 동시성 제어
+
+        # Concurrency control
         self._analysis_lock = asyncio.Lock()
         self._cache_lock = asyncio.Lock()
-        
-        # 메트릭스
+
+        # Metrics
         self.metrics = SystemMetrics()
-        
-        # 설정
+
+        # Settings
         self.cache_ttl_minutes = 30
         self.max_cache_size = 100
         self.cleanup_interval_minutes = 10
-        
-        logger.info("🧠 SemanticQuery 중앙 관리자 초기화 완료")
+
+        logger.info("🧠 SemanticQuery central manager initialized")
     
-    async def get_semantic_query(self, 
-                               query_text: str, 
+    async def get_semantic_query(self,
+                               query_text: str,
                                session_id: str = None,
                                force_refresh: bool = False) -> SemanticQuery:
         """
-        의미론적 쿼리 조회 (캐시 우선)
-        
+        Look up semantic query (cache-first)
+
         Args:
-            query_text: 쿼리 텍스트
-            session_id: 세션 ID (선택적)
-            force_refresh: 강제 새로고침 여부
-        
+            query_text: Query text
+            session_id: Session ID (optional)
+            force_refresh: Whether to force refresh
+
         Returns:
-            SemanticQuery 객체
+            SemanticQuery object
         """
         start_time = time.time()
-        
+
         try:
-            # 강제 새로고침이 아닌 경우 캐시 확인
+            # Check cache if not force refresh
             if not force_refresh:
-                # 1. 세션별 캐시 확인
+                # 1. Check per-session cache
                 if session_id:
                     cached_query = await self._get_session_cached_query(session_id, query_text)
                     if cached_query:
-                        logger.debug(f"세션 캐시 히트: {session_id}")
+                        logger.debug(f"Session cache hit: {session_id}")
                         self.metrics.cache_hits += 1
                         return cached_query
-                
-                # 2. 글로벌 캐시 확인
+
+                # 2. Check global cache
                 cached_query = await self._get_cached_query(query_text)
                 if cached_query:
-                    logger.debug(f"글로벌 캐시 히트: {query_text[:50]}...")
+                    logger.debug(f"Global cache hit: {query_text[:50]}...")
                     self.metrics.cache_hits += 1
                     return cached_query
-            
-            # 3. 캐시 미스 - 새로운 분석 수행
-            logger.debug(f"캐시 미스 - 새로운 분석 수행: {query_text[:50]}...")
+
+            # 3. Cache miss - perform new analysis
+            logger.debug(f"Cache miss - performing new analysis: {query_text[:50]}...")
             self.metrics.cache_misses += 1
-            
+
             semantic_query = await self._perform_analysis(query_text)
-            
-            # 4. 캐시에 저장
+
+            # 4. Store in cache
             await self._store_cached_query(query_text, semantic_query)
             if session_id:
                 await self._store_session_cache(session_id, query_text, semantic_query)
-            
-            # 5. 메트릭스 업데이트
+
+            # 5. Update metrics
             analysis_time = time.time() - start_time
             self._update_analysis_metrics(analysis_time)
-            
-            logger.debug(f"의미론적 쿼리 분석 완료: {analysis_time:.3f}초")
+
+            logger.debug(f"Semantic query analysis completed: {analysis_time:.3f}s")
             return semantic_query
-            
+
         except Exception as e:
-            logger.error(f"의미론적 쿼리 조회 실패: {e}")
-            # 폴백 쿼리 반환
+            logger.error(f"Semantic query lookup failed: {e}")
+            # Return fallback query
             return self._create_fallback_semantic_query(query_text)
     
     async def create_semantic_query(self, query_text: str, execution_context=None) -> SemanticQuery:
         """
-        새로운 의미론적 쿼리 생성
-        
+        Create a new semantic query
+
         Args:
-            query_text: 쿼리 텍스트
-            execution_context: 실행 컨텍스트 (선택적)
-        
+            query_text: Query text
+            execution_context: Execution context (optional)
+
         Returns:
-            SemanticQuery 객체
+            SemanticQuery object
         """
         try:
-            # 실행 컨텍스트에서 세션 ID 추출
+            # Extract session ID from execution context
             session_id = None
             if execution_context and hasattr(execution_context, 'session_id'):
                 session_id = execution_context.session_id
-            
-            # 기존 get_semantic_query 메서드 활용
+
+            # Use existing get_semantic_query method
             return await self.get_semantic_query(query_text, session_id)
-            
+
         except Exception as e:
-            logger.error(f"의미론적 쿼리 생성 실패: {e}")
+            logger.error(f"Semantic query creation failed: {e}")
             return self._create_fallback_semantic_query(query_text)
     
     async def _get_session_cached_query(self, session_id: str, query_text: str) -> Optional[SemanticQuery]:
-        """세션 캐시에서 쿼리 조회"""
+        """Retrieve query from session cache"""
         cache_key = f"session_{session_id}_{self._generate_query_hash(query_text)}"
         return self._session_cache.get(cache_key)
-    
+
     async def _get_cached_query(self, query_text: str) -> Optional[SemanticQuery]:
-        """글로벌 캐시에서 쿼리 조회"""
+        """Retrieve query from global cache"""
         cache_key = f"query_{self._generate_query_hash(query_text)}"
         cached_data = await self.cache_manager.get(cache_key)
         
@@ -555,32 +554,32 @@ class SemanticQueryManager:
         return None
     
     async def _perform_analysis(self, query_text: str) -> SemanticQuery:
-        """실제 SemanticQuery 분석 수행"""
+        """Perform actual SemanticQuery analysis"""
         async with self._analysis_lock:
             start_time = time.time()
             self.metrics.analysis_calls += 1
-            
+
             try:
-                logger.info(f"🔍 새로운 SemanticQuery 분석 시작: {query_text[:50]}...")
-                
+                logger.info(f"🔍 Starting new SemanticQuery analysis: {query_text[:50]}...")
+
                 if self.query_analyzer:
                     semantic_query = await self.query_analyzer.analyze_semantic_query(query_text)
                 else:
                     semantic_query = self._create_fallback_semantic_query(query_text)
-                
+
                 analysis_time = time.time() - start_time
                 self._update_analysis_metrics(analysis_time)
-                
-                logger.info(f"✅ SemanticQuery 분석 완료 ({analysis_time:.3f}초): {semantic_query.intent}")
+
+                logger.info(f"✅ SemanticQuery analysis completed ({analysis_time:.3f}s): {semantic_query.intent}")
                 return semantic_query
-                
+
             except Exception as e:
                 analysis_time = time.time() - start_time
-                logger.error(f"❌ SemanticQuery 분석 실패 ({analysis_time:.3f}초): {e}")
+                logger.error(f"❌ SemanticQuery analysis failed ({analysis_time:.3f}s): {e}")
                 return self._create_fallback_semantic_query(query_text)
     
     async def _store_cached_query(self, query_text: str, semantic_query: SemanticQuery):
-        """글로벌 캐시에 쿼리 저장"""
+        """Store query in global cache"""
         cache_key = f"query_{self._generate_query_hash(query_text)}"
         cached_query = CachedSemanticQuery(
             query=semantic_query,
@@ -593,22 +592,22 @@ class SemanticQueryManager:
         await self.cache_manager.set(cache_key, cached_query, ttl=self.cache_ttl_minutes * 60)
     
     async def _store_session_cache(self, session_id: str, query_text: str, semantic_query: SemanticQuery):
-        """세션 캐시에 쿼리 저장"""
+        """Store query in session cache"""
         cache_key = f"session_{session_id}_{self._generate_query_hash(query_text)}"
         self._session_cache[cache_key] = semantic_query
-        
-        # 세션 캐시 크기 제한
+
+        # Limit session cache size
         if len(self._session_cache) > 50:
-            # 가장 오래된 항목 제거
+            # Remove the oldest entry
             oldest_key = min(self._session_cache.keys())
             del self._session_cache[oldest_key]
     
     def _generate_query_hash(self, query_text: str) -> str:
-        """쿼리 해시 생성"""
+        """Generate query hash"""
         return hashlib.md5(query_text.encode('utf-8')).hexdigest()
-    
+
     def _update_analysis_metrics(self, analysis_time: float):
-        """분석 메트릭스 업데이트"""
+        """Update analysis metrics"""
         if self.metrics.analysis_calls == 1:
             self.metrics.average_execution_time = analysis_time
         else:
@@ -619,7 +618,7 @@ class SemanticQueryManager:
             )
     
     def _create_fallback_semantic_query(self, query_text: str) -> SemanticQuery:
-        """폴백 SemanticQuery 생성"""
+        """Create fallback SemanticQuery"""
         return SemanticQuery.create_from_text(
             query_text,
             intent="information_retrieval",
@@ -635,12 +634,12 @@ class SemanticQueryManager:
         )
     
     async def invalidate_cache(self, pattern: str = None) -> int:
-        """캐시 무효화"""
+        """Invalidate cache"""
         async with self._cache_lock:
-            # 글로벌 캐시 무효화
+            # Invalidate global cache
             global_count = await self.cache_manager.invalidate(pattern)
-            
-            # 세션 캐시 무효화
+
+            # Invalidate session cache
             if pattern is None:
                 session_count = len(self._session_cache)
                 self._session_cache.clear()
@@ -649,12 +648,12 @@ class SemanticQueryManager:
                 for key in keys_to_delete:
                     del self._session_cache[key]
                 session_count = len(keys_to_delete)
-            
-            logger.info(f"캐시 무효화 완료: 글로벌 {global_count}개, 세션 {session_count}개")
+
+            logger.info(f"Cache invalidation complete: global {global_count}, session {session_count}")
             return global_count + session_count
     
     def get_cache_stats(self) -> Dict[str, Any]:
-        """캐시 통계 조회"""
+        """Retrieve cache statistics"""
         cache_stats = self.cache_manager.get_stats()
         
         return {
@@ -666,7 +665,7 @@ class SemanticQueryManager:
         }
     
     def get_metrics(self) -> Dict[str, Any]:
-        """메트릭스 조회"""
+        """Retrieve metrics"""
         cache_stats = self.cache_manager.get_stats()
         
         return {
@@ -676,7 +675,7 @@ class SemanticQueryManager:
         }
     
     def get_complexity_analysis(self, query_text: str) -> 'ComplexityAnalysis':
-        """복잡도 분석 (동기 버전)"""
-        # 간단한 SemanticQuery 생성 후 분석
+        """Complexity analysis (synchronous version)"""
+        # Create a simple SemanticQuery and analyze it
         simple_query = SemanticQuery.create_from_text(query_text)
-        return self.query_analyzer.analyze_complexity(simple_query) 
+        return self.query_analyzer.analyze_complexity(simple_query)

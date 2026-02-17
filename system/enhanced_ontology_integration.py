@@ -41,7 +41,7 @@ class EnhancedOntologySystem(IOntologySystem):
         self.installed_agents: List[Dict[str, Any]] = []
         self.agent_executor = None
         
-        logger.info("🚀 Enhanced Ontology System 초기화 완료")
+        logger.info("🚀 Enhanced Ontology System initialized")
     
     def initialize(self, installed_agents: List[Dict[str, Any]], agent_executor: Any = None):
         """
@@ -56,7 +56,7 @@ class EnhancedOntologySystem(IOntologySystem):
         # Initialize execution engine with executor
         self.execution_engine = EnhancedOntologyExecutionEngine(agent_executor)
         
-        logger.info(f"✅ Ontology System 초기화: {len(installed_agents)}개 에이전트")
+        logger.info(f"✅ Ontology System initialized: {len(installed_agents)} agents")
     
     async def process_query(
         self,
@@ -68,18 +68,18 @@ class EnhancedOntologySystem(IOntologySystem):
         Process query through the enhanced ontology system
         """
         try:
-            logger.info(f"🎯 쿼리 처리 시작: {query}")
+            logger.info(f"🎯 Starting query processing: {query}")
             
             # 1. Create semantic query
             semantic_query = await self.semantic_manager.analyze_query(query)
-            logger.info(f"의미 분석 완료: 의도={semantic_query.intent}, 개념={len(semantic_query.concepts)}개")
+            logger.info(f"Semantic analysis complete: intent={semantic_query.intent}, concepts={len(semantic_query.concepts)}")
             
             # 2. Get available agents for user
             available_agents = self._get_user_agents(context)
             if not available_agents:
                 yield {
                     "type": "error",
-                    "message": "사용 가능한 에이전트가 없습니다"
+                    "message": "No available agents"
                 }
                 return
             
@@ -89,12 +89,12 @@ class EnhancedOntologySystem(IOntologySystem):
             )
             
             # Log workflow details
-            logger.info(f"워크플로우 설계 완료:")
-            logger.info(f"  - 단계: {len(workflow_plan.steps)}개")
-            logger.info(f"  - 전략: {workflow_plan.optimization_strategy}")
+            logger.info(f"Workflow design complete:")
+            logger.info(f"  - Steps: {len(workflow_plan.steps)}")
+            logger.info(f"  - Strategy: {workflow_plan.optimization_strategy}")
             if hasattr(workflow_plan, 'metadata'):
-                logger.info(f"  - 실행 전략: {workflow_plan.metadata.get('execution_strategy')}")
-                logger.info(f"  - 병렬 그룹: {len(workflow_plan.metadata.get('parallel_groups', []))}개")
+                logger.info(f"  - Execution strategy: {workflow_plan.metadata.get('execution_strategy')}")
+                logger.info(f"  - Parallel groups: {len(workflow_plan.metadata.get('parallel_groups', []))}")
             
             # 4. Yield workflow plan
             if streaming:
@@ -155,11 +155,11 @@ class EnhancedOntologySystem(IOntologySystem):
                 }
             
         except Exception as e:
-            logger.error(f"쿼리 처리 오류: {str(e)}")
+            logger.error(f"Query processing error: {str(e)}")
             yield {
                 "type": "error",
                 "error": str(e),
-                "message": "쿼리 처리 중 오류가 발생했습니다"
+                "message": "An error occurred during query processing"
             }
     
     def _get_user_agents(self, context: ExecutionContext) -> List[str]:
@@ -180,7 +180,7 @@ class EnhancedOntologySystem(IOntologySystem):
         
         # Add appropriate content based on status
         if result.status == "running":
-            formatted["message"] = result.result.get("message", "실행 중...")
+            formatted["message"] = result.result.get("message", "Running...")
         elif result.status == "completed":
             formatted["result"] = result.result
             if result.metadata:

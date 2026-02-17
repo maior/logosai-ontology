@@ -1,14 +1,13 @@
 """
-🧠 Ontology LLM 중앙 관리자
-Ontology LLM Central Manager
+🧠 Ontology LLM Central Manager
 
-온톨로지 시스템에 최적화된 LLM 설정 및 관리
-- 의미론적 분석 전용 LLM
-- 워크플로우 설계 전용 LLM  
-- 지식 그래프 추론 전용 LLM
-- 결과 통합 전용 LLM
+LLM configuration and management optimized for the ontology system
+- Dedicated LLM for semantic analysis
+- Dedicated LLM for workflow design
+- Dedicated LLM for knowledge graph reasoning
+- Dedicated LLM for result integration
 
-지원 LLM 제공업체:
+Supported LLM providers:
 - OpenAI (GPT-4, GPT-4o, GPT-3.5)
 - Anthropic Claude (Claude-3.5-Sonnet, Claude-3-Haiku)
 - Google Gemini (Gemini-1.5-Pro, Gemini-1.5-Flash)
@@ -44,12 +43,12 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models.base import BaseLanguageModel
 
-# 모델 imports
+# Model imports
 from .models import LLMProvider, OntologyLLMType, OntologyLLMConfig
 
 
 class GeminiLLMWrapper:
-    """Google Gemini API 래퍼 클래스 (LangChain 호환)"""
+    """Google Gemini API wrapper class (LangChain compatible)"""
     
     def __init__(self, model: str, temperature: float = 0.7, max_tokens: int = 2000, api_key: str = None):
         self.model = model
@@ -58,16 +57,16 @@ class GeminiLLMWrapper:
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
         
         if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다.")
+            raise ValueError("GOOGLE_API_KEY environment variable is not set.")
         
         self.client = genai.Client(api_key=self.api_key)
     
     async def ainvoke(self, messages):
-        """비동기 호출 (LangChain 호환)"""
+        """Async invocation (LangChain compatible)"""
         try:
-            # 메시지 처리
+            # Message processing
             if isinstance(messages, list):
-                # SystemMessage와 HumanMessage 분리
+                # Separate SystemMessage and HumanMessage
                 system_instruction = ""
                 content = ""
                 
@@ -81,9 +80,9 @@ class GeminiLLMWrapper:
                         content += str(msg) + "\n"
             else:
                 content = str(messages)
-                system_instruction = "당신은 도움이 되는 AI 어시스턴트입니다."
+                system_instruction = "You are a helpful AI assistant."
             
-            # Gemini API 호출
+            # Gemini API call
             config = types.GenerateContentConfig(
                 temperature=self.temperature,
                 system_instruction=system_instruction if system_instruction else None
@@ -95,107 +94,107 @@ class GeminiLLMWrapper:
                 contents=content
             )
             
-            # LangChain 호환 응답 객체 생성
+            # Create LangChain compatible response object
             return GeminiResponse(response.text)
             
         except Exception as e:
-            raise Exception(f"Gemini API 호출 실패: {e}")
+            raise Exception(f"Gemini API call failed: {e}")
     
     def invoke(self, messages):
-        """동기 호출 (LangChain 호환)"""
+        """Synchronous invocation (LangChain compatible)"""
         import asyncio
         return asyncio.run(self.ainvoke(messages))
 
 
 class GeminiResponse:
-    """Gemini 응답 래퍼 (LangChain 호환)"""
+    """Gemini response wrapper (LangChain compatible)"""
     
     def __init__(self, content: str):
         self.content = content
 
 
 class OntologyLLMManager:
-    """온톨로지 LLM 중앙 관리자"""
+    """Ontology LLM Central Manager"""
     
     def __init__(self, config_profile: str = None, config_path: str = None):
-        """초기화"""
+        """Initialize"""
         self.configs: Dict[OntologyLLMType, OntologyLLMConfig] = {}
         self.instances: Dict[OntologyLLMType, BaseLanguageModel] = {}
         self.prompt_templates: Dict[OntologyLLMType, ChatPromptTemplate] = {}
         self.call_counts: Dict[OntologyLLMType, int] = {}
         self.performance_metrics: Dict[str, Any] = {}
         
-        # 설정 로더 초기화
+        # Initialize config loader
         from .llm_config_loader import LLMConfigLoader
         self.config_loader = LLMConfigLoader(config_path)
         
-        # 설정 로드
+        # Load configuration
         profile_to_use = config_profile or self.config_loader.get_default_profile()
         self._load_configs_from_file(profile_to_use)
         
-        # 프롬프트 템플릿 초기화
+        # Initialize prompt templates
         self._initialize_prompt_templates()
         
-        logger.info(f"🧠 온톨로지 LLM 관리자 초기화 완료 (프로파일: {profile_to_use})")
+        logger.info(f"🧠 Ontology LLM manager initialized (profile: {profile_to_use})")
     
     def _load_configs_from_file(self, profile_name: str):
-        """설정 파일에서 LLM 설정 로드"""
+        """Load LLM configuration from config file"""
         try:
-            logger.info(f"📁 설정 프로파일 로드: {profile_name}")
+            logger.info(f"📁 Loading config profile: {profile_name}")
             
-            # 프로파일 설정 로드
+            # Load profile configuration
             configs = self.config_loader.load_profile_configs(profile_name)
             
             if not configs:
-                logger.warning(f"프로파일 '{profile_name}'이 비어있거나 없습니다. 기본 설정을 사용합니다.")
+                logger.warning(f"Profile '{profile_name}' is empty or not found. Using default configuration.")
                 self._load_fallback_configs()
                 return
             
             self.configs.update(configs)
             self.current_profile = profile_name
             
-            # 로드된 설정 요약
-            logger.info(f"✅ {len(configs)}개 LLM 설정 로드 완료:")
+            # Summary of loaded configurations
+            logger.info(f"✅ {len(configs)} LLM configurations loaded:")
             for llm_type, config in configs.items():
                 logger.info(f"   🤖 {llm_type.value}: {config.provider.value}/{config.model}")
                 
         except Exception as e:
-            logger.error(f"❌ 설정 파일 로드 실패: {e}")
+            logger.error(f"❌ Config file load failed: {e}")
             self._load_fallback_configs()
     
     def _load_fallback_configs(self):
-        """폴백 설정 로드 - 설정 파일의 기본 프로파일 사용"""
-        logger.info("📋 폴백 설정 사용 - 기본 프로파일에서 로드")
+        """Load fallback configuration using the default profile from config file"""
+        logger.info("📋 Using fallback configuration - loading from default profile")
         
         try:
-            # 기본 프로파일을 사용해서 폴백 설정 로드
+            # Load fallback config using the default profile
             fallback_profile = self.config_loader.get_default_profile()
-            logger.info(f"📁 폴백으로 '{fallback_profile}' 프로파일 사용")
+            logger.info(f"📁 Using '{fallback_profile}' profile as fallback")
             
             configs = self.config_loader.load_profile_configs(fallback_profile)
             
             if configs:
                 self.configs.update(configs)
                 self.current_profile = f"{fallback_profile}_fallback"
-                logger.info(f"✅ 폴백 설정 로드 완료: {len(configs)}개 LLM 설정")
+                logger.info(f"✅ Fallback configuration loaded: {len(configs)} LLM settings")
             else:
-                # 프로파일 로드 실패 시 최소한의 하드코딩 폴백
+                # If profile load fails, use minimal hardcoded fallback
                 self._load_minimal_fallback_configs()
                 
         except Exception as e:
-            logger.error(f"❌ 폴백 설정 로드 실패: {e}")
-            # 최종 폴백: 최소한의 하드코딩 설정
+            logger.error(f"❌ Fallback configuration load failed: {e}")
+            # Final fallback: minimal hardcoded configuration
             self._load_minimal_fallback_configs()
 
     def _load_minimal_fallback_configs(self):
-        """최소한의 하드코딩 폴백 설정 (설정 파일도 실패한 경우)"""
-        logger.warning("⚠️ 최소한의 하드코딩 폴백 설정 사용")
+        """Minimal hardcoded fallback configuration (used when config file also fails)"""
+        logger.warning("⚠️ Using minimal hardcoded fallback configuration")
         
-        # 기본 제공업체 우선순위: Google > OpenAI > Anthropic
+        # Default provider priority: Google > OpenAI > Anthropic
         fallback_provider = LLMProvider.GOOGLE
         fallback_model = "gemini-2.0-flash-lite"
         
-        # Google API 키가 없으면 OpenAI 사용
+        # Use OpenAI if Google API key is unavailable
         if not os.getenv("GOOGLE_API_KEY"):
             if os.getenv("OPENAI_API_KEY"):
                 fallback_provider = LLMProvider.OPENAI
@@ -204,14 +203,14 @@ class OntologyLLMManager:
                 fallback_provider = LLMProvider.ANTHROPIC
                 fallback_model = "claude-3.5-sonnet"
         
-        logger.info(f"🔧 최종 폴백: {fallback_provider.value}/{fallback_model}")
+        logger.info(f"🔧 Final fallback: {fallback_provider.value}/{fallback_model}")
         
-        # 모든 LLM 타입에 동일한 폴백 설정 적용
+        # Apply the same fallback configuration to all LLM types
         fallback_config = OntologyLLMConfig(
             provider=fallback_provider,
             model=fallback_model,
             temperature=0.7,
-            description=f"최소 폴백 설정 ({fallback_provider.value})"
+            description=f"Minimal fallback configuration ({fallback_provider.value})"
         )
         
         fallback_configs = {llm_type: fallback_config for llm_type in OntologyLLMType}
@@ -220,47 +219,47 @@ class OntologyLLMManager:
         self.current_profile = "minimal_fallback"
     
     def load_profile(self, profile_name: str):
-        """새로운 프로파일 로드"""
+        """Load a new profile"""
         try:
-            logger.info(f"🔄 프로파일 변경: {profile_name}")
+            logger.info(f"🔄 Switching profile: {profile_name}")
             
-            # 기존 인스턴스들 정리
+            # Clean up existing instances
             self.instances.clear()
             
-            # 새 설정 로드
+            # Load new configuration
             self._load_configs_from_file(profile_name)
             
-            logger.info(f"✅ 프로파일 '{profile_name}' 로드 완료")
+            logger.info(f"✅ Profile '{profile_name}' loaded successfully")
             
         except Exception as e:
-            logger.error(f"❌ 프로파일 로드 실패: {e}")
+            logger.error(f"❌ Profile load failed: {e}")
             raise e
     
     def get_current_profile(self) -> str:
-        """현재 프로파일 이름"""
+        """Get current profile name"""
         return getattr(self, 'current_profile', 'unknown')
     
     def get_available_profiles(self) -> List[str]:
-        """사용 가능한 프로파일 목록"""
+        """List of available profiles"""
         return self.config_loader.get_available_profiles()
     
     def get_profile_info(self) -> Dict[str, str]:
-        """모든 프로파일 정보"""
+        """Information for all profiles"""
         return self.config_loader.list_profiles_info()
     
     def create_custom_profile(self, profile_name: str, description: str, 
                             llm_settings: Dict[str, Dict[str, str]]):
-        """사용자 정의 프로파일 생성"""
+        """Create a custom profile"""
         try:
             self.config_loader.add_custom_profile(profile_name, description, llm_settings)
-            logger.info(f"✅ 사용자 정의 프로파일 생성: {profile_name}")
+            logger.info(f"✅ Custom profile created: {profile_name}")
             
         except Exception as e:
-            logger.error(f"❌ 프로파일 생성 실패: {e}")
+            logger.error(f"❌ Profile creation failed: {e}")
             raise e
     
     def _create_llm_instance(self, config: OntologyLLMConfig) -> BaseLanguageModel:
-        """LLM 인스턴스 생성"""
+        """Create LLM instance"""
         try:
             if config.provider == LLMProvider.OPENAI:
                 return ChatOpenAI(
@@ -293,7 +292,7 @@ class OntologyLLMManager:
             elif config.provider == LLMProvider.GOOGLE:
                 if not GOOGLE_AVAILABLE:
                     raise ImportError("Google provider is not available. Install google-genai package.")
-                # Google Gemini는 커스텀 래퍼 사용
+                # Google Gemini uses a custom wrapper
                 return GeminiLLMWrapper(
                     model=config.model,
                     temperature=config.temperature,
@@ -302,25 +301,25 @@ class OntologyLLMManager:
                 )
             
             else:
-                raise ValueError(f"지원하지 않는 LLM 제공업체: {config.provider}")
+                raise ValueError(f"Unsupported LLM provider: {config.provider}")
                 
         except Exception as e:
-            logger.error(f"LLM 인스턴스 생성 실패 ({config.provider.value}/{config.model}): {e}")
-            # 스마트 폴백: 사용 가능한 제공업체 순서대로 시도
+            logger.error(f"LLM instance creation failed ({config.provider.value}/{config.model}): {e}")
+            # Smart fallback: try available providers in order
             return self._create_fallback_llm_instance(config)
     
     def _create_fallback_llm_instance(self, original_config: OntologyLLMConfig) -> BaseLanguageModel:
-        """스마트 폴백 LLM 인스턴스 생성"""
+        """Create smart fallback LLM instance"""
         
-        # 폴백 우선순위: 기본 프로파일의 제공업체들을 먼저 시도
+        # Fallback priority: try providers from default profile first
         try:
             fallback_profile = self.config_loader.get_default_profile()
             profile_configs = self.config_loader.load_profile_configs(fallback_profile)
             
             if profile_configs:
-                # 기본 프로파일의 첫 번째 설정으로 시도
+                # Try with the first configuration from the default profile
                 first_config = next(iter(profile_configs.values()))
-                logger.warning(f"폴백 시도: {first_config.provider.value}/{first_config.model}")
+                logger.warning(f"Fallback attempt: {first_config.provider.value}/{first_config.model}")
                 
                 if first_config.provider == LLMProvider.GOOGLE:
                     return GeminiLLMWrapper(
@@ -344,9 +343,9 @@ class OntologyLLMManager:
                         api_key=os.getenv("ANTHROPIC_API_KEY")
                     )
         except Exception as e:
-            logger.error(f"프로파일 기반 폴백 실패: {e}")
+            logger.error(f"Profile-based fallback failed: {e}")
         
-        # 하드코딩 폴백: API 키가 있는 제공업체 순서대로 시도
+        # Hardcoded fallback: try providers with available API keys in order
         fallback_attempts = [
             (LLMProvider.GOOGLE, "gemini-2.0-flash-lite", "GOOGLE_API_KEY"),
             (LLMProvider.OPENAI, "gpt-4.1-mini", "OPENAI_API_KEY"),
@@ -356,7 +355,7 @@ class OntologyLLMManager:
         for provider, model, api_key_name in fallback_attempts:
             if os.getenv(api_key_name):
                 try:
-                    logger.warning(f"하드코딩 폴백 시도: {provider.value}/{model}")
+                    logger.warning(f"Hardcoded fallback attempt: {provider.value}/{model}")
                     
                     if provider == LLMProvider.GOOGLE:
                         return GeminiLLMWrapper(
@@ -381,17 +380,17 @@ class OntologyLLMManager:
                         )
                         
                 except Exception as e:
-                    logger.error(f"폴백 시도 실패 ({provider.value}): {e}")
+                    logger.error(f"Fallback attempt failed ({provider.value}): {e}")
                     continue
         
-        # 모든 폴백이 실패한 경우 예외 발생
-        raise RuntimeError("모든 LLM 제공업체 폴백이 실패했습니다. API 키를 확인해주세요.")
+        # Raise exception when all fallbacks fail
+        raise RuntimeError("All LLM provider fallbacks failed. Please check your API keys.")
     
     def update_llm_config(self, llm_type: OntologyLLMType, 
                          provider: LLMProvider = None,
                          model: str = None,
                          **kwargs):
-        """LLM 설정 업데이트"""
+        """Update LLM configuration"""
         try:
             config = self.configs[llm_type]
             
@@ -400,24 +399,24 @@ class OntologyLLMManager:
             if model:
                 config.model = model
             
-            # 기타 설정 업데이트
+            # Update other settings
             for key, value in kwargs.items():
                 if hasattr(config, key):
                     setattr(config, key, value)
             
-            # 기존 인스턴스 제거 (새로 생성되도록)
+            # Remove existing instance so it gets recreated
             if llm_type in self.instances:
                 del self.instances[llm_type]
             
-            logger.info(f"LLM 설정 업데이트: {llm_type.value} -> {config.provider.value}/{config.model}")
+            logger.info(f"LLM config updated: {llm_type.value} -> {config.provider.value}/{config.model}")
             
         except Exception as e:
-            logger.error(f"LLM 설정 업데이트 실패: {e}")
+            logger.error(f"LLM config update failed: {e}")
     
     def set_all_provider(self, provider: LLMProvider, model_mapping: Dict[str, str] = None):
-        """모든 LLM을 특정 제공업체로 설정"""
+        """Set all LLMs to a specific provider"""
         try:
-            # 제공업체별 기본 모델 매핑
+            # Default model mapping per provider
             default_models = {
                 LLMProvider.OPENAI: {
                     "high_performance": "gpt-4.1",
@@ -441,7 +440,7 @@ class OntologyLLMManager:
             for llm_type in OntologyLLMType:
                 config = self.configs[llm_type]
                 
-                # 성능 요구사항에 따른 모델 선택
+                # Select model based on performance requirements
                 if llm_type in [OntologyLLMType.QUERY_PROCESSOR, OntologyLLMType.PERFORMANCE_OPTIMIZER]:
                     model = models.get("fast", list(models.values())[0] if models else config.model)
                 elif llm_type == OntologyLLMType.CREATIVE_REASONER:
@@ -451,13 +450,13 @@ class OntologyLLMManager:
                 
                 self.update_llm_config(llm_type, provider=provider, model=model)
             
-            logger.info(f"모든 LLM을 {provider.value}로 설정 완료")
+            logger.info(f"All LLMs set to {provider.value}")
             
         except Exception as e:
-            logger.error(f"LLM 제공업체 일괄 설정 실패: {e}")
+            logger.error(f"Bulk LLM provider configuration failed: {e}")
     
     def get_available_models(self, provider: LLMProvider) -> List[str]:
-        """제공업체별 사용 가능한 모델 목록"""
+        """List of available models per provider"""
         models = {
             LLMProvider.OPENAI: [
                 "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4.1-mini"
@@ -474,12 +473,12 @@ class OntologyLLMManager:
         return models.get(provider, [])
     
     def get_provider_status(self) -> Dict[str, Any]:
-        """제공업체별 상태 확인"""
+        """Check status per provider"""
         status = {}
         
         for provider in LLMProvider:
             try:
-                # API 키 확인
+                # Check API key
                 if provider == LLMProvider.OPENAI:
                     api_key = os.getenv("OPENAI_API_KEY")
                     package_available = True
@@ -510,9 +509,9 @@ class OntologyLLMManager:
         return status
     
     def _initialize_prompt_templates(self):
-        """프롬프트 템플릿 초기화"""
+        """Initialize prompt templates"""
         
-        # 의미론적 분석 프롬프트 - 복합 쿼리 전문
+        # Semantic analysis prompt - specialized for complex queries
         self.prompt_templates[OntologyLLMType.SEMANTIC_ANALYZER] = ChatPromptTemplate.from_messages([
             ("system", """당신은 온톨로지 시스템의 복합 쿼리 분석 전문가입니다.
 사용자의 쿼리를 분석하여 개별 작업들을 정확히 식별하고 분리해주세요.
@@ -584,7 +583,7 @@ class OntologyLLMManager:
 }}""")
         ])
         
-        # 워크플로우 설계 프롬프트
+        # Workflow design prompt
         self.prompt_templates[OntologyLLMType.WORKFLOW_DESIGNER] = ChatPromptTemplate.from_messages([
             ("system", """당신은 복합 쿼리 전용 워크플로우 설계 전문가입니다.
 의미론적 분석 결과를 바탕으로 각 개별 작업에 최적의 에이전트를 매칭하고 효율적인 실행 워크플로우를 설계해주세요.
@@ -657,7 +656,7 @@ class OntologyLLMManager:
 JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         ])
         
-        # 지식 추론 프롬프트
+        # Knowledge reasoning prompt
         self.prompt_templates[OntologyLLMType.KNOWLEDGE_REASONER] = ChatPromptTemplate.from_messages([
             ("system", """당신은 온톨로지 시스템의 지식 추론 전문가입니다.
 주어진 정보를 바탕으로 깊이 있는 추론을 수행해주세요.
@@ -672,7 +671,7 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
             ("human", "{reasoning_context}")
         ])
         
-        # 결과 통합 프롬프트
+        # Result integration prompt
         self.prompt_templates[OntologyLLMType.RESULT_INTEGRATOR] = ChatPromptTemplate.from_messages([
             ("system", """당신은 온톨로지 시스템의 결과 통합 전문가입니다.
 여러 에이전트의 실행 결과를 일관성 있고 사용자 친화적으로 통합해주세요.
@@ -688,28 +687,28 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
             ("human", "원본 쿼리: {original_query}\n\n에이전트 실행 결과들:\n{execution_results}")
         ])
         
-        logger.info("📝 온톨로지 프롬프트 템플릿 초기화 완료")
+        logger.info("📝 Ontology prompt templates initialized")
     
     def get_llm(self, llm_type: OntologyLLMType, force_new: bool = False) -> BaseLanguageModel:
-        """LLM 인스턴스 조회 (싱글톤 패턴)"""
+        """Get LLM instance (singleton pattern)"""
         try:
             if force_new or llm_type not in self.instances:
                 config = self.configs[llm_type]
                 
-                # LLM 인스턴스 생성
+                # Create LLM instance
                 llm_instance = self._create_llm_instance(config)
                 
                 self.instances[llm_type] = llm_instance
                 self.call_counts[llm_type] = 0
-                logger.debug(f"🔨 {llm_type.value} LLM 인스턴스 생성: {config.provider.value}/{config.model}")
+                logger.debug(f"🔨 {llm_type.value} LLM instance created: {config.provider.value}/{config.model}")
             
             return self.instances[llm_type]
                  
         except Exception as e:
-            logger.error(f"LLM 인스턴스 조회 실패 ({llm_type.value}): {str(e)}")
-            # 스마트 폴백: 기본 설정 사용
+            logger.error(f"LLM instance lookup failed ({llm_type.value}): {str(e)}")
+            # Smart fallback: use default configuration
             fallback_config = OntologyLLMConfig(
-                provider=LLMProvider.GOOGLE,  # 기본값
+                provider=LLMProvider.GOOGLE,  # Default value
                 model="gemini-2.0-flash-lite",
                 temperature=0.7
             )
@@ -718,22 +717,22 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
     async def invoke_llm(self, llm_type: OntologyLLMType, 
                         messages: Union[str, List, Dict], 
                         **kwargs) -> str:
-        """LLM 호출 with 성능 추적"""
+        """Invoke LLM with performance tracking"""
         start_time = datetime.now()
         
         try:
             llm = self.get_llm(llm_type)
             
-            # 메시지 형태 정규화
+            # Normalize message format
             if isinstance(messages, str):
-                # 프롬프트 템플릿 사용
+                # Use prompt template
                 if llm_type in self.prompt_templates:
                     prompt = self.prompt_templates[llm_type]
                     formatted_messages = prompt.format_messages(query=messages, **kwargs)
                 else:
                     formatted_messages = [HumanMessage(content=messages)]
             elif isinstance(messages, dict):
-                # 프롬프트 템플릿과 파라미터 사용
+                # Use prompt template with parameters
                 if llm_type in self.prompt_templates:
                     prompt = self.prompt_templates[llm_type]
                     formatted_messages = prompt.format_messages(**messages)
@@ -742,10 +741,10 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
             else:
                 formatted_messages = messages
             
-            # LLM 호출
+            # Invoke LLM
             response = await llm.ainvoke(formatted_messages)
             
-            # 성능 메트릭 업데이트
+            # Update performance metrics
             execution_time = (datetime.now() - start_time).total_seconds()
             self._update_performance_metrics(llm_type, execution_time, True)
             
@@ -754,12 +753,12 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
             self._update_performance_metrics(llm_type, execution_time, False)
-            logger.error(f"LLM 호출 실패 ({llm_type.value}): {str(e)}")
+            logger.error(f"LLM invocation failed ({llm_type.value}): {str(e)}")
             raise e
     
     def _update_performance_metrics(self, llm_type: OntologyLLMType, 
                                    execution_time: float, success: bool):
-        """성능 메트릭 업데이트"""
+        """Update performance metrics"""
         type_name = llm_type.value
         
         if type_name not in self.performance_metrics:
@@ -783,15 +782,15 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         else:
             metrics["failed_calls"] += 1
         
-        # 호출 횟수 업데이트
+        # Update call count
         self.call_counts[llm_type] = self.call_counts.get(llm_type, 0) + 1
     
     def get_config(self, llm_type: OntologyLLMType) -> OntologyLLMConfig:
-        """LLM 설정 조회"""
+        """Get LLM configuration"""
         return self.configs.get(llm_type, self.configs[OntologyLLMType.SEMANTIC_ANALYZER])
     
     def get_performance_report(self) -> Dict[str, Any]:
-        """성능 보고서 조회"""
+        """Get performance report"""
         return {
             "performance_metrics": self.performance_metrics,
             "call_counts": {k.value: v for k, v in self.call_counts.items()},
@@ -802,7 +801,7 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         }
     
     def get_current_configuration_summary(self) -> Dict[str, Any]:
-        """현재 설정 요약"""
+        """Current configuration summary"""
         summary = {}
         for llm_type, config in self.configs.items():
             summary[llm_type.value] = {
@@ -815,62 +814,62 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         return summary
 
 
-# 🌍 전역 온톨로지 LLM 관리자 인스턴스
+# Global ontology LLM manager instance
 _global_ontology_llm_manager: Optional[OntologyLLMManager] = None
 
 
 def get_ontology_llm_manager() -> OntologyLLMManager:
-    """전역 온톨로지 LLM 관리자 인스턴스 조회 (싱글톤)"""
+    """Get global ontology LLM manager instance (singleton)"""
     global _global_ontology_llm_manager
     if _global_ontology_llm_manager is None:
         _global_ontology_llm_manager = OntologyLLMManager()
     return _global_ontology_llm_manager
 
 
-# 🚀 편의 함수들 - 개별 LLM 호출
+# Convenience functions - individual LLM calls
 
 def get_semantic_analyzer() -> BaseLanguageModel:
-    """의미론적 분석 전용 LLM 조회"""
+    """Get dedicated semantic analysis LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.SEMANTIC_ANALYZER)
 
 def get_workflow_designer() -> BaseLanguageModel:
-    """워크플로우 설계 전용 LLM 조회"""
+    """Get dedicated workflow design LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.WORKFLOW_DESIGNER)
 
 def get_knowledge_reasoner() -> BaseLanguageModel:
-    """지식 추론 전용 LLM 조회"""
+    """Get dedicated knowledge reasoning LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.KNOWLEDGE_REASONER)
 
 def get_result_integrator() -> BaseLanguageModel:
-    """결과 통합 전용 LLM 조회"""
+    """Get dedicated result integration LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.RESULT_INTEGRATOR)
 
 def get_query_processor() -> BaseLanguageModel:
-    """쿼리 처리 전용 LLM 조회"""
+    """Get dedicated query processing LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.QUERY_PROCESSOR)
 
 def get_graph_builder() -> BaseLanguageModel:
-    """그래프 구축 전용 LLM 조회"""
+    """Get dedicated graph building LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.GRAPH_BUILDER)
 
 def get_performance_optimizer() -> BaseLanguageModel:
-    """성능 최적화 전용 LLM 조회"""
+    """Get dedicated performance optimization LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.PERFORMANCE_OPTIMIZER)
 
 def get_creative_reasoner() -> BaseLanguageModel:
-    """창의적 추론 전용 LLM 조회"""
+    """Get dedicated creative reasoning LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.CREATIVE_REASONER)
 
 
-# 🎯 상황별 LLM 선택 함수들
+# Context-specific LLM selection functions
 
 async def analyze_semantic_query(query: str, **kwargs) -> str:
-    """의미론적 쿼리 분석"""
+    """Semantic query analysis"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(OntologyLLMType.SEMANTIC_ANALYZER, query, **kwargs)
 
 async def design_workflow(query_info: str, available_agents: List[str], **kwargs) -> str:
-    """워크플로우 설계"""
+    """Workflow design"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(
         OntologyLLMType.WORKFLOW_DESIGNER, 
@@ -878,7 +877,7 @@ async def design_workflow(query_info: str, available_agents: List[str], **kwargs
     )
 
 async def reason_knowledge(reasoning_context: str, **kwargs) -> str:
-    """지식 추론"""
+    """Knowledge reasoning"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(
         OntologyLLMType.KNOWLEDGE_REASONER, 
@@ -886,7 +885,7 @@ async def reason_knowledge(reasoning_context: str, **kwargs) -> str:
     )
 
 async def integrate_results(original_query: str, execution_results: List[Dict], **kwargs) -> str:
-    """결과 통합"""
+    """Result integration"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(
         OntologyLLMType.RESULT_INTEGRATOR, 
@@ -894,80 +893,80 @@ async def integrate_results(original_query: str, execution_results: List[Dict], 
     )
 
 async def process_query_fast(query: str, **kwargs) -> str:
-    """빠른 쿼리 처리"""
+    """Fast query processing"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(OntologyLLMType.QUERY_PROCESSOR, query, **kwargs)
 
 async def build_graph_structure(graph_context: str, **kwargs) -> str:
-    """그래프 구조 구축"""
+    """Build graph structure"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(OntologyLLMType.GRAPH_BUILDER, graph_context, **kwargs)
 
 async def optimize_performance(performance_context: str, **kwargs) -> str:
-    """성능 최적화"""
+    """Performance optimization"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(OntologyLLMType.PERFORMANCE_OPTIMIZER, performance_context, **kwargs)
 
 async def creative_reasoning(creative_context: str, **kwargs) -> str:
-    """창의적 추론"""
+    """Creative reasoning"""
     manager = get_ontology_llm_manager()
     return await manager.invoke_llm(OntologyLLMType.CREATIVE_REASONER, creative_context, **kwargs)
 
 
-# 🎛️ 설정 관리 편의 함수들
+# Configuration management convenience functions
 
 def configure_all_openai():
-    """모든 LLM을 OpenAI로 설정"""
+    """Set all LLMs to OpenAI"""
     manager = get_ontology_llm_manager()
     try:
         manager.load_profile("all_openai")
-        logger.info("✅ 모든 LLM이 OpenAI로 설정되었습니다")
+        logger.info("✅ All LLMs have been set to OpenAI")
     except Exception as e:
-        logger.error(f"❌ OpenAI 설정 실패: {e}")
+        logger.error(f"❌ OpenAI configuration failed: {e}")
         raise
 
 def configure_all_claude():
-    """모든 LLM을 Claude로 설정"""
+    """Set all LLMs to Claude"""
     manager = get_ontology_llm_manager()
     try:
         manager.load_profile("all_claude")
-        logger.info("✅ 모든 LLM이 Claude로 설정되었습니다")
+        logger.info("✅ All LLMs have been set to Claude")
     except Exception as e:
-        logger.error(f"❌ Claude 설정 실패: {e}")
+        logger.error(f"❌ Claude configuration failed: {e}")
         raise
 
 def configure_all_gemini():
-    """모든 LLM을 Gemini로 설정"""
+    """Set all LLMs to Gemini"""
     manager = get_ontology_llm_manager()
     try:
         manager.load_profile("all_gemini")
-        logger.info("✅ 모든 LLM이 Gemini로 설정되었습니다")
+        logger.info("✅ All LLMs have been set to Gemini")
     except Exception as e:
-        logger.error(f"❌ Gemini 설정 실패: {e}")
+        logger.error(f"❌ Gemini configuration failed: {e}")
         raise
 
 def configure_mixed_optimal():
-    """최적 성능을 위한 혼합 설정"""
+    """Mixed configuration for optimal performance"""
     manager = get_ontology_llm_manager() 
     try:
         manager.load_profile("mixed_optimal")
-        logger.info("✅ 혼합 최적화 설정이 적용되었습니다")
+        logger.info("✅ Mixed optimization configuration applied")
     except Exception as e:
-        logger.error(f"❌ 혼합 최적화 설정 실패: {e}")
+        logger.error(f"❌ Mixed optimization configuration failed: {e}")
         raise
 
 def configure_budget_friendly():
-    """비용 효율적인 설정"""
+    """Cost-efficient configuration"""
     manager = get_ontology_llm_manager()
     try:
         manager.load_profile("budget_friendly")
-        logger.info("✅ 비용 효율적인 설정이 적용되었습니다")
+        logger.info("✅ Cost-efficient configuration applied")
     except Exception as e:
-        logger.error(f"❌ 비용 효율적인 설정 실패: {e}")
+        logger.error(f"❌ Cost-efficient configuration failed: {e}")
         raise
 
 def quick_configure(provider: str):
-    """빠른 설정 변경 (provider: 'openai', 'claude', 'gemini', 'mixed', 'budget')"""
+    """Quick configuration change (provider: 'openai', 'claude', 'gemini', 'mixed', 'budget')"""
     provider_map = {
         'openai': configure_all_openai,
         'claude': configure_all_claude,
@@ -978,16 +977,16 @@ def quick_configure(provider: str):
     
     if provider.lower() in provider_map:
         provider_map[provider.lower()]()
-        logger.info(f"🚀 '{provider}' 설정으로 빠르게 변경 완료!")
+        logger.info(f"🚀 Quickly switched to '{provider}' configuration!")
     else:
         available = list(provider_map.keys())
-        raise ValueError(f"지원하지 않는 제공업체: {provider}. 사용 가능: {available}")
+        raise ValueError(f"Unsupported provider: {provider}. Available: {available}")
 
 def auto_configure():
-    """사용 가능한 API 키를 기반으로 자동 설정"""
+    """Auto-configure based on available API keys"""
     manager = get_ontology_llm_manager()
     
-    # API 키 상태 확인
+    # Check API key status
     api_keys = {
         'google': bool(os.getenv("GOOGLE_API_KEY")),
         'openai': bool(os.getenv("OPENAI_API_KEY")),
@@ -995,39 +994,39 @@ def auto_configure():
     }
     
     available_providers = [k for k, v in api_keys.items() if v]
-    logger.info(f"🔍 사용 가능한 API 키: {available_providers}")
+    logger.info(f"🔍 Available API keys: {available_providers}")
     
     if not available_providers:
-        raise RuntimeError("사용 가능한 API 키가 없습니다. 환경변수를 설정해주세요.")
+        raise RuntimeError("No available API keys. Please set the environment variables.")
     
-    # 우선순위: Google > OpenAI > Anthropic
+    # Priority: Google > OpenAI > Anthropic
     if 'google' in available_providers:
         configure_all_gemini()
-        logger.info("🎯 Google API 키가 있어서 Gemini로 자동 설정했습니다")
+        logger.info("🎯 Google API key found - auto-configured to Gemini")
     elif 'openai' in available_providers:
         configure_all_openai()
-        logger.info("🎯 OpenAI API 키가 있어서 OpenAI로 자동 설정했습니다")
+        logger.info("🎯 OpenAI API key found - auto-configured to OpenAI")
     elif 'anthropic' in available_providers:
         configure_all_claude()
-        logger.info("🎯 Anthropic API 키가 있어서 Claude로 자동 설정했습니다")
+        logger.info("🎯 Anthropic API key found - auto-configured to Claude")
 
 
-# 🔧 유틸리티 함수들
+# Utility functions
 
 def get_llm_performance_report() -> Dict[str, Any]:
-    """LLM 성능 보고서 조회"""
+    """Get LLM performance report"""
     return get_ontology_llm_manager().get_performance_report()
 
 def get_provider_status() -> Dict[str, Any]:
-    """제공업체 상태 조회"""
+    """Get provider status"""
     return get_ontology_llm_manager().get_provider_status()
 
 def get_current_configuration() -> Dict[str, Any]:
-    """현재 설정 조회"""
+    """Get current configuration"""
     return get_ontology_llm_manager().get_current_configuration_summary()
 
 def get_available_models(provider: str) -> List[str]:
-    """제공업체별 사용 가능한 모델 목록"""
+    """List of available models per provider"""
     try:
         provider_enum = LLMProvider(provider.lower())
         return get_ontology_llm_manager().get_available_models(provider_enum)
@@ -1035,13 +1034,13 @@ def get_available_models(provider: str) -> List[str]:
         return []
 
 def cleanup_llm_instances():
-    """사용하지 않는 LLM 인스턴스 정리"""
+    """Clean up unused LLM instances"""
     manager = get_ontology_llm_manager()
     manager.instances.clear()
-    logger.info("🧹 LLM 인스턴스 정리 완료")
+    logger.info("🧹 LLM instances cleaned up")
 
 def get_all_llm_configs() -> Dict[str, Dict[str, Any]]:
-    """모든 LLM 설정 조회"""
+    """Get all LLM configurations"""
     manager = get_ontology_llm_manager()
     result = {}
     for llm_type, config in manager.configs.items():
@@ -1060,45 +1059,45 @@ def get_all_llm_configs() -> Dict[str, Dict[str, Any]]:
     return result
 
 
-# 🎯 설정 파일 관리 함수들
+# Config file management functions
 
 def get_available_profiles() -> List[str]:
-    """사용 가능한 프로파일 목록"""
+    """List of available profiles"""
     return get_ontology_llm_manager().get_available_profiles()
 
 def get_profile_info() -> Dict[str, str]:
-    """모든 프로파일 정보"""
+    """Information for all profiles"""
     return get_ontology_llm_manager().get_profile_info()
 
 def get_current_profile() -> str:
-    """현재 프로파일 이름"""
+    """Get current profile name"""
     return get_ontology_llm_manager().get_current_profile()
 
 def load_profile(profile_name: str):
-    """프로파일 로드"""
+    """Load profile"""
     get_ontology_llm_manager().load_profile(profile_name)
 
 def create_custom_profile(profile_name: str, description: str, 
                         llm_settings: Dict[str, Dict[str, str]]):
-    """사용자 정의 프로파일 생성
+    """Create a custom profile
     
     Args:
-        profile_name: 프로파일 이름
-        description: 프로파일 설명
-        llm_settings: LLM 설정 (예: {"semantic_analyzer": {"provider": "anthropic", "model_tier": "high_performance"}})
+        profile_name: Profile name
+        description: Profile description
+        llm_settings: LLM settings (e.g. {"semantic_analyzer": {"provider": "anthropic", "model_tier": "high_performance"}})
     """
     get_ontology_llm_manager().create_custom_profile(profile_name, description, llm_settings)
 
 def get_config_summary() -> Dict[str, Any]:
-    """설정 파일 요약 정보"""
+    """Configuration file summary info"""
     manager = get_ontology_llm_manager()
     return manager.config_loader.get_config_summary()
 
 def reload_config():
-    """설정 파일 다시 로드"""
+    """Reload configuration file"""
     from .llm_config_loader import reload_llm_config
     reload_llm_config()
-    logger.info("🔄 설정 파일 다시 로드 완료")
+    logger.info("🔄 Config file reloaded successfully")
 
 
-logger.info("🧠 온톨로지 LLM 중앙 관리자 로드 완료!") 
+logger.info("🧠 Ontology LLM Central Manager loaded!") 

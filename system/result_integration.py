@@ -1,8 +1,8 @@
 """
 🔗 Result Integration Module
-결과 통합 모듈
+Result Integration Module
 
-다중 에이전트 실행 결과를 의미론적으로 통합하고 분석
+Semanticaly integrates and analyzes multi-agent execution results
 """
 
 import asyncio
@@ -22,26 +22,26 @@ from ..services.visualization_response_formatter import get_visualization_respon
 
 
 class ResultIntegrator:
-    """🔗 결과 통합기 - 다중 에이전트 결과의 지능적 통합"""
+    """🔗 Result Integrator - intelligent integration of multi-agent results"""
     
     def __init__(self):
         self.llm_manager = get_ontology_llm_manager()
         self.metrics = get_system_metrics()
         
-        logger.info("🔗 결과 통합기 초기화 완료")
+        logger.info("🔗 Result integrator initialized")
     
     async def integrate_results(self, 
                               execution_results: List[AgentExecutionResult],
                               workflow_plan: WorkflowPlan,
                               semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """메인 결과 통합 함수"""
+        """Main result integration function"""
         try:
-            logger.info(f"🔄 결과 통합 시작 - {len(execution_results)}개 결과")
+            logger.info(f"🔄 Starting result integration - {len(execution_results)} results")
             
-            # 1. 결과 분류 및 전처리
+            # 1. Classify and pre-process results
             classified_results = self._classify_results(execution_results)
             
-            # 2. 결과 유형별 통합
+            # 2. Integrate results by type
             integration_result = {}
             
             if classified_results.get('information'):
@@ -64,16 +64,16 @@ class ResultIntegrator:
                     classified_results['visualization']
                 )
             
-            # 3. 최종 통합 결과 생성
+            # 3. Generate final integrated result
             final_result = await self._create_final_integration(
                 integration_result, semantic_query, workflow_plan
             )
             
-            logger.info(f"✅ 결과 통합 완료: {final_result.get('success', False)}")
+            logger.info(f"✅ Result integration complete: {final_result.get('success', False)}")
             return final_result
             
         except Exception as e:
-            logger.error(f"결과 통합 실패: {e}")
+            logger.error(f"Result integration failed: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -84,55 +84,55 @@ class ResultIntegrator:
                                                        original_query: str,
                                                        agent_results: List[Dict[str, Any]],
                                                        execution_context: ExecutionContext) -> Dict[str, Any]:
-        """에이전트 결과 통합 - 시각화 처리 포함"""
+        """Integrate agent results - including visualization processing"""
         try:
-            logger.info(f"🔄 에이전트 결과 통합 시작 (시각화 포함) - {len(agent_results)}개 결과")
+            logger.info(f"🔄 Starting agent result integration (with visualization) - {len(agent_results)} results")
             
-            # 1. 시각화 필요성 검토
+            # 1. Check if visualization is needed
             needs_visualization = self._needs_visualization(original_query, agent_results)
             
             if needs_visualization:
-                logger.info("📊 시각화 필요 감지 - 시각화 에이전트 확인")
+                logger.info("📊 Visualization need detected - checking visualization agents")
                 
-                # 2. 시각화 capability를 가진 에이전트 확인
+                # 2. Check for agents with visualization capability
                 detector = get_agent_detector(execution_context)
                 
                 if detector.has_visualization_capability():
-                    # 3-A. 시각화 기능을 가진 에이전트 호출
+                    # 3-A. Call agent with visualization capability
                     best_agent = detector.get_best_visualization_agent()
-                    logger.info(f"✅ 시각화 기능 에이전트 사용: {best_agent}")
+                    logger.info(f"✅ Using visualization-capable agent: {best_agent}")
                     
-                    # 시각화 에이전트 결과가 이미 있는지 확인
+                    # Check if visualization agent result already exists
                     viz_result = next((r for r in agent_results if r.get('agent_id') == best_agent), None)
                     if not viz_result:
-                        logger.warning(f"⚠️ {best_agent} 결과가 없음 - 폴백 시스템 사용")
+                        logger.warning(f"⚠️ No result from {best_agent} - using fallback system")
                         viz_result = await self._create_visualization_fallback(original_query, agent_results)
                         agent_results.append(viz_result)
                 else:
-                    # 3-B. Mermaid 폴백 시스템 사용
-                    logger.info("🔄 시각화 기능 에이전트 없음 - Mermaid 폴백 사용")
+                    # 3-B. Use Mermaid fallback system
+                    logger.info("🔄 No visualization-capable agent - using Mermaid fallback")
                     viz_result = await self._create_visualization_fallback(original_query, agent_results)
                     agent_results.append(viz_result)
             
-            # 4. 기존 통합 로직 실행
+            # 4. Execute existing integration logic
             return await self.integrate_agent_results(original_query, agent_results)
             
         except Exception as e:
-            logger.error(f"시각화 포함 결과 통합 실패: {e}")
-            # 폴백: 기존 통합 로직만 실행
+            logger.error(f"Result integration with visualization failed: {e}")
+            # Fallback: run existing integration logic only
             return await self.integrate_agent_results(original_query, agent_results)
 
     async def integrate_agent_results(self, 
                                     original_query: str,
                                     agent_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """에이전트 결과 통합 - 테스트용 인터페이스"""
+        """Integrate agent results - interface for testing"""
         try:
-            logger.info(f"🔄 에이전트 결과 통합 시작 - {len(agent_results)}개 결과")
+            logger.info(f"🔄 Starting agent result integration - {len(agent_results)} results")
             
-            # 에이전트 결과를 AgentExecutionResult 형식으로 변환
+            # Convert agent results to AgentExecutionResult format
             execution_results = []
             for result in agent_results:
-                # 필요한 속성들을 가진 객체 생성
+                # Create object with required attributes
                 class AgentResult:
                     def __init__(self, agent_id, data, success, execution_time, confidence, metadata=None):
                         self.agent_id = agent_id
@@ -141,7 +141,7 @@ class ResultIntegrator:
                         self.execution_time = execution_time
                         self.confidence = confidence
                         self.metadata = metadata or {}
-                        self.error_message = None if success else "실행 실패"
+                        self.error_message = None if success else "Execution failed"
                 
                 exec_result = AgentResult(
                     agent_id=result.get('agent_id', 'unknown'),
@@ -153,33 +153,33 @@ class ResultIntegrator:
                 )
                 execution_results.append(exec_result)
             
-            # 결과 분류
+            # Classify results
             classified_results = self._classify_results(execution_results)
-            logger.info(f"📊 분류된 결과: {list(classified_results.keys())}")
+            logger.info(f"📊 Classified results: {list(classified_results.keys())}")
             
-            # 정보 검색 결과 통합 (모든 결과를 정보로 처리)
+            # Integrate information retrieval results (process all results as information)
             all_contents = []
             for category, results in classified_results.items():
-                if results:  # 빈 리스트가 아닌 경우만
+                if results:  # only if not an empty list
                     for result in results:
                         content = self._extract_content_from_data(result['data'], result['agent_id'])
                         if content and content.strip():
                             all_contents.append(content)
-                            logger.info(f"✅ {result['agent_id']}에서 내용 추출: {len(content)}자")
+                            logger.info(f"✅ Extracted content from {result['agent_id']}: {len(content)} chars")
             
             if not all_contents:
-                logger.warning("⚠️ 추출된 내용이 없습니다.")
+                logger.warning("⚠️ No content extracted.")
                 return {
                     "success": False,
-                    "message": "에이전트 결과에서 유효한 내용을 찾을 수 없습니다.",
+                    "message": "No valid content found in agent results.",
                     "agent_results_count": len(agent_results)
                 }
             
-            # LLM을 사용한 통합
-            logger.info(f"🧠 LLM 통합 시작 - {len(all_contents)}개 내용")
+            # Integrate using LLM
+            logger.info(f"🧠 Starting LLM integration - {len(all_contents)} contents")
             integrated_content = await self._llm_integrate_information(all_contents)
             
-            # 최종 결과 구성
+            # Build final result
             final_result = {
                 "success": True,
                 "integrated_content": integrated_content,
@@ -194,11 +194,11 @@ class ResultIntegrator:
                 }
             }
             
-            logger.info(f"✅ 에이전트 결과 통합 완료")
+            logger.info(f"✅ Agent result integration complete")
             return final_result
             
         except Exception as e:
-            logger.error(f"에이전트 결과 통합 실패: {e}")
+            logger.error(f"Agent result integration failed: {e}")
             return {
                 "success": False,
                 "error": str(e),
@@ -207,7 +207,7 @@ class ResultIntegrator:
             }
     
     def _classify_results(self, execution_results: List[AgentExecutionResult]) -> Dict[str, List[Dict[str, Any]]]:
-        """결과를 유형별로 분류"""
+        """Classify results by type"""
         classified = {
             'information': [],
             'analysis': [],
@@ -217,7 +217,7 @@ class ResultIntegrator:
         }
         
         for result in execution_results:
-            # 결과 데이터 형식 통일
+            # Normalize result data format
             result_data = {
                 "agent_id": result.agent_id,
                 "data": result.data if hasattr(result, 'data') else result.result_data,
@@ -227,7 +227,7 @@ class ResultIntegrator:
                 "metadata": result.metadata
             }
             
-            # 에이전트 ID 기반 분류
+            # Classify based on agent ID
             agent_id = result.agent_id.lower()
             
             if any(keyword in agent_id for keyword in ['internet', 'search', 'web', 'news']):
@@ -244,8 +244,8 @@ class ResultIntegrator:
         return classified
     
     async def _integrate_information_results(self, results: List[Dict[str, Any]]) -> str:
-        """정보 검색 결과 통합"""
-        logger.info(f"🔍 정보 검색 결과 통합 시작 - {len(results)}개 결과")
+        """Integrate information retrieval results"""
+        logger.info(f"🔍 Starting information result integration - {len(results)} results")
         
         contents = []
         for result in results:
@@ -255,23 +255,23 @@ class ResultIntegrator:
             content = self._extract_content_from_data(data, agent_id)
             if content and str(content).strip():
                 contents.append(content)
-                logger.info(f"  ✅ 내용 추가: {len(str(content))}자")
+                logger.info(f"  ✅ Content added: {len(str(content))} chars")
         
-        # LLM을 사용한 고급 통합
+        # Advanced integration using LLM
         if len(contents) > 1:
             integrated_content = await self._llm_integrate_information(contents)
             if integrated_content:
                 return integrated_content
         
-        # 폴백: 단순 결합
-        final_content = "\n\n".join(contents) if contents else "검색 결과를 찾을 수 없습니다."
-        logger.info(f"🔍 정보 검색 결과 통합 완료 - 최종 길이: {len(final_content)}자")
+        # Fallback: simple concatenation
+        final_content = "\n\n".join(contents) if contents else "No search results found."
+        logger.info(f"🔍 Information result integration complete - final length: {len(final_content)} chars")
         
         return final_content
     
     async def _integrate_analysis_results(self, results: List[Dict[str, Any]]) -> str:
-        """분석 결과 통합"""
-        logger.info(f"📊 분석 결과 통합 시작 - {len(results)}개 결과")
+        """Integrate analysis results"""
+        logger.info(f"📊 Starting analysis result integration - {len(results)} results")
         
         analysis_contents = []
         
@@ -288,17 +288,17 @@ class ResultIntegrator:
                 })
         
         if not analysis_contents:
-            return "분석 결과를 생성할 수 없습니다."
+            return "Unable to generate analysis results."
         
-        # LLM을 사용한 분석 통합
+        # Integrate analysis using LLM
         integrated_analysis = await self._llm_integrate_analysis(analysis_contents)
         
-        logger.info(f"📊 분석 결과 통합 완료")
+        logger.info(f"📊 Analysis result integration complete")
         return integrated_analysis
     
     async def _integrate_calculation_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """계산 결과 통합"""
-        logger.info(f"🔢 계산 결과 통합 시작 - {len(results)}개 결과")
+        """Integrate calculation results"""
+        logger.info(f"🔢 Starting calculation result integration - {len(results)} results")
         
         calculations = []
         
@@ -315,7 +315,7 @@ class ResultIntegrator:
                 })
         
         if not calculations:
-            return {"error": "계산 결과를 찾을 수 없습니다."}
+            return {"error": "No calculation results found."}
         
         integrated_calc = {
             'calculations': calculations,
@@ -323,12 +323,12 @@ class ResultIntegrator:
             'total_results': len(calculations)
         }
         
-        logger.info(f"🔢 계산 결과 통합 완료")
+        logger.info(f"🔢 Calculation result integration complete")
         return integrated_calc
     
     async def _integrate_visualization_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """시각화 결과 통합 - 향상된 버전"""
-        logger.info(f"📈 시각화 결과 통합 시작 - {len(results)}개 결과")
+        """Integrate visualization results - enhanced version"""
+        logger.info(f"📈 Starting visualization result integration - {len(results)} results")
         
         visualizations = []
         formatter = get_visualization_response_formatter()
@@ -337,14 +337,14 @@ class ResultIntegrator:
             agent_id = result["agent_id"]
             data = result["data"]
             
-            # 시각화 기능 에이전트 결과 처리
+            # Process visualization-capable agent results
             if self._is_visualization_agent_result(agent_id, data):
                 viz_result = formatter.format_data_visualization_agent_result(
                     result, result.get('original_query', '')
                 )
                 visualizations.append(viz_result)
             else:
-                # 기존 시각화 데이터 처리
+                # Process existing visualization data
                 viz_data = self._extract_visualization_data(data, agent_id)
                 if viz_data:
                     visualizations.append({
@@ -355,50 +355,50 @@ class ResultIntegrator:
                     })
         
         if not visualizations:
-            return {"error": "시각화 결과를 찾을 수 없습니다."}
+            return {"error": "No visualization results found."}
         
         integrated_viz = {
             'visualizations': visualizations,
-            'summary': f"{len(visualizations)}개의 시각화 생성됨",
+            'summary': f"{len(visualizations)} visualizations generated",
             'types': [viz.get('type', 'unknown') for viz in visualizations],
-            'formatted': True  # 새로운 포맷팅 시스템 사용
+            'formatted': True  # using new formatting system
         }
         
-        logger.info(f"📈 시각화 결과 통합 완료")
+        logger.info(f"📈 Visualization result integration complete")
         return integrated_viz
     
     def _needs_visualization(self, query: str, agent_results: List[Dict[str, Any]]) -> bool:
-        """시각화 필요성 판단"""
+        """Determine if visualization is needed"""
         query_lower = query.lower()
         
-        # 1. 쿼리에 시각화 키워드가 있는지 확인
+        # 1. Check if query contains visualization keywords
         viz_keywords = [
             '시각화', '차트', '그래프', '플로우차트', '순서도', '다이어그램',
             'visualization', 'chart', 'graph', 'flowchart', 'diagram', 'mermaid'
         ]
         
         if any(keyword in query_lower for keyword in viz_keywords):
-            logger.info(f"📊 쿼리에서 시각화 키워드 발견: {query}")
+            logger.info(f"📊 Visualization keyword found in query: {query}")
             return True
         
-        # 2. 에이전트 결과에 시각화 가능한 구조화된 데이터가 있는지 확인
+        # 2. Check if agent results contain visualizable structured data
         for result in agent_results:
             data = result.get('data', {})
             if self._has_visualizable_data(data):
-                logger.info(f"📊 {result.get('agent_id')} 결과에서 시각화 가능한 데이터 발견")
+                logger.info(f"📊 Visualizable data found in {result.get('agent_id')} result")
                 return True
         
-        # 3. 다중 에이전트 실행 시 프로세스 시각화 고려
+        # 3. Consider process visualization for multi-agent execution
         if len(agent_results) > 2:
-            logger.info(f"📊 다중 에이전트 실행 감지 ({len(agent_results)}개) - 프로세스 시각화 고려")
+            logger.info(f"📊 Multi-agent execution detected ({len(agent_results)}) - considering process visualization")
             return True
         
         return False
     
     def _has_visualizable_data(self, data: Any) -> bool:
-        """데이터가 시각화 가능한지 확인"""
+        """Check if data is visualizable"""
         if isinstance(data, dict):
-            # 숫자 데이터 확인
+            # Check numeric data
             numeric_keys = []
             for key, value in data.items():
                 if isinstance(value, (int, float)):
@@ -407,7 +407,7 @@ class ResultIntegrator:
             if len(numeric_keys) >= 2:
                 return True
             
-            # 리스트 데이터 확인
+            # Check list data
             list_keys = []
             for key, value in data.items():
                 if isinstance(value, list) and len(value) > 1:
@@ -421,17 +421,17 @@ class ResultIntegrator:
     async def _create_visualization_fallback(self, 
                                            original_query: str,
                                            agent_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """시각화 폴백 생성"""
+        """Generate visualization fallback"""
         try:
-            logger.info("🔄 시각화 폴백 생성 시작")
+            logger.info("🔄 Starting visualization fallback generation")
             
-            # Mermaid 폴백 서비스 사용
+            # Use Mermaid fallback service
             fallback_service = get_mermaid_fallback_service()
             mermaid_result = await fallback_service.generate_mermaid_from_agent_results(
                 original_query, agent_results
             )
             
-            # 에이전트 결과 형식으로 변환
+            # Convert to agent result format
             return {
                 'agent_id': 'mermaid_fallback_service',
                 'data': mermaid_result,
@@ -445,13 +445,13 @@ class ResultIntegrator:
             }
             
         except Exception as e:
-            logger.error(f"시각화 폴백 생성 실패: {e}")
+            logger.error(f"Visualization fallback generation failed: {e}")
             return {
                 'agent_id': 'visualization_error',
                 'data': {
                     'type': 'error',
-                    'content': f'시각화 생성 실패: {str(e)}',
-                    'title': '시각화 오류',
+                    'content': f'Visualization generation failed: {str(e)}',
+                    'title': 'Visualization Error',
                     'fallback': True
                 },
                 'success': False,
@@ -461,30 +461,30 @@ class ResultIntegrator:
             }
     
     def _is_visualization_agent_result(self, agent_id: str, data: Any) -> bool:
-        """에이전트 결과가 시각화 에이전트의 결과인지 확인"""
+        """Check if agent result is from a visualization agent"""
         try:
-            # 1. 에이전트 ID로 시각화 기능 확인
+            # 1. Check visualization capability via agent ID
             if any(keyword in agent_id.lower() for keyword in [
                 'visual', 'chart', 'graph', 'plot', 'diagram', 'mermaid'
             ]):
                 return True
             
-            # 2. 결과 데이터 구조로 확인
+            # 2. Check via result data structure
             if isinstance(data, dict):
-                # HTML 컨텐츠 확인
+                # Check HTML content
                 content = data.get('content', '')
                 if isinstance(content, str):
                     if any(tag in content for tag in ['<svg', '<mermaid', 'mermaid', 'graph TD', 'graph LR']):
                         return True
                 
-                # 메타데이터 확인
+                # Check metadata
                 metadata = data.get('metadata', {})
                 if isinstance(metadata, dict):
                     viz_type = metadata.get('visualization_type', '')
                     if viz_type or metadata.get('contains_mermaid', False) or metadata.get('contains_svg', False):
                         return True
                 
-                # 시각화 관련 키 확인
+                # Check visualization-related keys
                 viz_keys = ['chart_data', 'mermaid_code', 'svg_content', 'visualization_type']
                 if any(key in data for key in viz_keys):
                     return True
@@ -492,22 +492,22 @@ class ResultIntegrator:
             return False
             
         except Exception as e:
-            logger.warning(f"시각화 에이전트 결과 확인 실패 {agent_id}: {e}")
+            logger.warning(f"Visualization agent result check failed {agent_id}: {e}")
             return False
     
     def _extract_content_from_data(self, data: Any, agent_id: str) -> Optional[str]:
-        """데이터에서 텍스트 콘텐츠 추출 - 개선된 버전"""
+        """Extract text content from data - improved version"""
         if isinstance(data, dict):
-            logger.debug(f"📊 {agent_id} 데이터 구조: {list(data.keys())}")
+            logger.debug(f"📊 {agent_id} data structure: {list(data.keys())}")
             
-            # 1차: 직접적인 답변 키들 확인
+            # 1st pass: Check direct answer keys
             for key in ['answer', 'content', 'text', 'result', 'response']:
                 if key in data:
                     potential_content = data[key]
                     
-                    # 중첩된 딕셔너리인 경우 재귀적으로 처리
+                    # Handle nested dictionaries recursively
                     if isinstance(potential_content, dict):
-                        # result가 딕셔너리이고 그 안에 answer나 content가 있는 경우
+                        # result is a dict with answer or content inside
                         if 'answer' in potential_content:
                             return str(potential_content['answer'])
                         elif 'content' in potential_content:
@@ -515,29 +515,29 @@ class ResultIntegrator:
                         elif 'result' in potential_content:
                             return str(potential_content['result'])
                         else:
-                            # 딕셔너리 전체를 문자열로 변환하되 깔끔하게
+                            # Convert entire dictionary to string cleanly
                             return self._dict_to_readable_text(potential_content)
                     elif isinstance(potential_content, str) and len(potential_content.strip()) > 0:
                         return potential_content.strip()
             
-            # 2차: 에이전트별 특화된 키 확인
+            # 2nd pass: Check agent-specific keys
             if 'weather' in agent_id.lower():
-                # 날씨 에이전트 특화 처리
+                # Weather agent specific handling
                 weather_info = self._extract_weather_info(data)
                 if weather_info:
                     return weather_info
             elif 'currency' in agent_id.lower() or 'exchange' in agent_id.lower():
-                # 환율 에이전트 특화 처리
+                # Currency exchange agent specific handling
                 currency_info = self._extract_currency_info(data)
                 if currency_info:
                     return currency_info
             elif 'crawler' in agent_id.lower() or 'stock' in agent_id.lower():
-                # 주가/크롤링 에이전트 특화 처리
+                # Stock/crawling agent specific handling
                 stock_info = self._extract_stock_info(data)
                 if stock_info:
                     return stock_info
             
-            # 3차: 기타 키들 확인
+            # 3rd pass: Check other keys
             for key in ['message', 'output', 'data', 'value', 'info']:
                 if key in data:
                     potential_content = data[key]
@@ -546,71 +546,71 @@ class ResultIntegrator:
                     elif isinstance(potential_content, dict):
                         return self._dict_to_readable_text(potential_content)
             
-            # 4차: 전체 딕셔너리를 읽기 쉬운 텍스트로 변환
+            # 4th pass: Convert entire dictionary to readable text
             return self._dict_to_readable_text(data)
         else:
             return str(data).strip() if str(data).strip() else None
 
     def _extract_weather_info(self, data: Dict[str, Any]) -> Optional[str]:
-        """날씨 정보 추출"""
+        """Extract weather information"""
         try:
             info_parts = []
             
-            # 기본 날씨 정보
+            # Basic weather info
             if 'temperature' in data:
-                info_parts.append(f"기온: {data['temperature']}")
+                info_parts.append(f"Temperature: {data['temperature']}")
             if 'humidity' in data:
-                info_parts.append(f"습도: {data['humidity']}")
+                info_parts.append(f"Humidity: {data['humidity']}")
             if 'condition' in data:
-                info_parts.append(f"날씨: {data['condition']}")
+                info_parts.append(f"Weather: {data['condition']}")
             if 'wind' in data:
-                info_parts.append(f"바람: {data['wind']}")
+                info_parts.append(f"Wind: {data['wind']}")
             
             return ", ".join(info_parts) if info_parts else None
         except:
             return None
 
     def _extract_currency_info(self, data: Dict[str, Any]) -> Optional[str]:
-        """환율 정보 추출"""
+        """Extract currency exchange information"""
         try:
             info_parts = []
             
             if 'rate' in data:
-                info_parts.append(f"환율: {data['rate']}")
+                info_parts.append(f"Exchange rate: {data['rate']}")
             if 'change' in data:
-                info_parts.append(f"변동: {data['change']}")
+                info_parts.append(f"Change: {data['change']}")
             if 'change_percent' in data:
-                info_parts.append(f"변동률: {data['change_percent']}")
+                info_parts.append(f"Change rate: {data['change_percent']}")
             
             return ", ".join(info_parts) if info_parts else None
         except:
             return None
 
     def _extract_stock_info(self, data: Dict[str, Any]) -> Optional[str]:
-        """주가 정보 추출"""
+        """Extract stock price information"""
         try:
-            # 에러가 있는 경우 처리
+            # Handle error case
             if 'error' in data:
-                error_msg = data.get('error', '알 수 없는 오류')
-                return f"주가 정보 조회 실패: {error_msg}"
+                error_msg = data.get('error', 'Unknown error')
+                return f"Stock price lookup failed: {error_msg}"
             
             info_parts = []
             
             if 'price' in data:
-                info_parts.append(f"현재가: {data['price']}")
+                info_parts.append(f"Current price: {data['price']}")
             if 'change' in data:
-                info_parts.append(f"전일대비: {data['change']}")
+                info_parts.append(f"Day change: {data['change']}")
             if 'change_percent' in data:
-                info_parts.append(f"등락률: {data['change_percent']}")
+                info_parts.append(f"Change rate: {data['change_percent']}")
             if 'volume' in data:
-                info_parts.append(f"거래량: {data['volume']}")
+                info_parts.append(f"Volume: {data['volume']}")
             
             return ", ".join(info_parts) if info_parts else None
         except:
             return None
 
     def _dict_to_readable_text(self, data: Dict[str, Any]) -> str:
-        """딕셔너리를 읽기 쉬운 텍스트로 변환"""
+        """Convert dictionary to readable text"""
         try:
             readable_parts = []
             
@@ -620,23 +620,23 @@ class ResultIntegrator:
                 elif isinstance(value, (int, float)):
                     readable_parts.append(f"{key}: {value}")
                 elif isinstance(value, dict) and value:
-                    # 중첩 딕셔너리는 간단히 표현
-                    readable_parts.append(f"{key}: [복합 데이터]")
+                    # Represent nested dict briefly
+                    readable_parts.append(f"{key}: [complex data]")
                 elif isinstance(value, list) and value:
-                    readable_parts.append(f"{key}: [목록 {len(value)}개 항목]")
+                    readable_parts.append(f"{key}: [list of {len(value)} items]")
             
             return "; ".join(readable_parts) if readable_parts else str(data)
         except:
             return str(data)
     
     def _extract_calculation_result(self, data: Any, agent_id: str) -> Optional[Any]:
-        """계산 결과 추출"""
+        """Extract calculation result"""
         if isinstance(data, dict):
             for key in ['result', 'calculation', 'value', 'answer', 'output']:
                 if key in data:
                     return data[key]
         
-        # 숫자인지 확인
+        # Check if numeric
         try:
             if isinstance(data, (int, float)):
                 return data
@@ -651,7 +651,7 @@ class ResultIntegrator:
         return data
     
     def _extract_visualization_data(self, data: Any, agent_id: str) -> Optional[Any]:
-        """시각화 데이터 추출"""
+        """Extract visualization data"""
         if isinstance(data, dict):
             for key in ['chart', 'graph', 'plot', 'visualization', 'image', 'figure']:
                 if key in data:
@@ -660,7 +660,7 @@ class ResultIntegrator:
         return data
     
     def _detect_visualization_type(self, viz_data: Any) -> str:
-        """시각화 타입 감지"""
+        """Detect visualization type"""
         if isinstance(viz_data, dict):
             if 'type' in viz_data:
                 return viz_data['type']
@@ -674,28 +674,28 @@ class ResultIntegrator:
                                             integration_result: Dict[str, Any],
                                             semantic_query: SemanticQuery,
                                             workflow_plan: WorkflowPlan) -> Optional[str]:
-        """사용자 쿼리에 맞춘 최종 응답 생성"""
+        """Generate final response tailored to user query"""
         try:
-            logger.info(f"🤖 사용자 맞춤 응답 생성 시작 - 쿼리: {user_query[:50]}...")
+            logger.info(f"🤖 Starting custom response generation - query: {user_query[:50]}...")
             
-            # 에이전트 결과 수집
+            # Collect agent results
             agent_results = []
             
-            # information 결과
+            # information results
             if integration_result.get('information'):
                 agent_results.append({
                     "type": "information",
                     "content": integration_result['information']
                 })
             
-            # analysis 결과  
+            # analysis results  
             if integration_result.get('analysis'):
                 agent_results.append({
                     "type": "analysis",
                     "content": integration_result['analysis']
                 })
                 
-            # calculation 결과
+            # calculation results
             if integration_result.get('calculation'):
                 calc_result = integration_result['calculation']
                 if isinstance(calc_result, dict) and 'summary' in calc_result:
@@ -707,7 +707,7 @@ class ResultIntegrator:
                     "content": content
                 })
             
-            # visualization 결과
+            # visualization results
             if integration_result.get('visualization'):
                 viz_result = integration_result['visualization']
                 agent_results.append({
@@ -715,12 +715,12 @@ class ResultIntegrator:
                     "content": str(viz_result)
                 })
             
-            # 에이전트 결과가 없으면 None 반환
+            # Return None if no agent results
             if not agent_results:
-                logger.warning("에이전트 결과가 없어 사용자 맞춤 응답 생성 건너뜀")
+                logger.warning("No agent results available, skipping custom response generation")
                 return None
             
-            # 프롬프트 생성
+            # Generate prompt
             agent_results_text = "\n\n".join([
                 f"[{r['type'].upper()}]\n{r['content']}" for r in agent_results
             ])
@@ -742,27 +742,27 @@ class ResultIntegrator:
 
 응답:"""
 
-            # LLM 호출
+            # Call LLM
             llm = self.llm_manager.get_llm(OntologyLLMType.RESULT_INTEGRATOR)
             response = await llm.ainvoke(prompt)
             
-            # 응답 추출
+            # Extract response
             if hasattr(response, 'content'):
                 result = response.content.strip()
             else:
                 result = str(response).strip()
             
-            logger.info(f"✅ 사용자 맞춤 응답 생성 완료 - 길이: {len(result)}자")
+            logger.info(f"✅ Custom response generation complete - length: {len(result)} chars")
             return result
             
         except Exception as e:
-            logger.error(f"사용자 맞춤 응답 생성 실패: {e}")
+            logger.error(f"Custom response generation failed: {e}")
             return None
     
     def _create_calculation_summary(self, calculations: List[Dict[str, Any]]) -> str:
-        """계산 결과 요약 생성"""
+        """Generate calculation result summary"""
         if not calculations:
-            return "계산 결과 없음"
+            return "No calculation result"
         
         summary_parts = []
         for calc in calculations:
@@ -773,9 +773,9 @@ class ResultIntegrator:
         return "; ".join(summary_parts)
     
     async def _llm_integrate_information(self, contents: List[str]) -> str:
-        """LLM을 사용한 정보 통합"""
+        """Integrate information using LLM"""
         try:
-            # 소스별 내용 구성
+            # Build content by source
             sources_text = ""
             for i, content in enumerate(contents):
                 sources_text += f"\n{'='*50}\n소스 {i+1}:\n{content}\n"
@@ -809,22 +809,22 @@ class ResultIntegrator:
                     integrated = str(response)
                 
                 if integrated and isinstance(integrated, str) and len(integrated.strip()) > 0:
-                    logger.info(f"✅ LLM 정보 통합 성공: {len(integrated)}자")
+                    logger.info(f"✅ LLM information integration successful: {len(integrated)} chars")
                     return integrated.strip()
             
         except Exception as e:
-            logger.warning(f"LLM 정보 통합 실패: {e}")
+            logger.warning(f"LLM information integration failed: {e}")
         
-        # 폴백: 단순 결합
-        logger.info("🔄 폴백 모드로 정보 통합")
+        # Fallback: simple concatenation
+        logger.info("🔄 Integrating information in fallback mode")
         return "\n\n".join(contents)
     
     async def _llm_integrate_analysis(self, analyses: List[Dict[str, Any]]) -> str:
-        """LLM을 사용한 분석 통합"""
+        """Integrate analysis using LLM"""
         try:
             analysis_texts = []
             for analysis in analyses:
-                analysis_texts.append(f"{analysis['agent']} (신뢰도: {analysis['confidence']:.2f}):\n{analysis['content']}")
+                analysis_texts.append(f"{analysis['agent']} (confidence: {analysis['confidence']:.2f}):\n{analysis['content']}")
             
             integration_prompt = f"""
             다음 여러 분석 결과를 종합하여 통합된 분석 결과를 제공해주세요:
@@ -841,7 +841,7 @@ class ResultIntegrator:
                 return integrated
             
         except Exception as e:
-            logger.warning(f"LLM 분석 통합 실패: {e}")
+            logger.warning(f"LLM analysis integration failed: {e}")
         
         return "\n\n".join([a['content'] for a in analyses])
     
@@ -849,17 +849,17 @@ class ResultIntegrator:
                                       integration_result: Dict[str, Any],
                                       semantic_query: SemanticQuery,
                                       workflow_plan: WorkflowPlan) -> Dict[str, Any]:
-        """최종 통합 결과 생성"""
+        """Generate final integrated result"""
         
-        # 사용자 쿼리 추출
+        # Extract user query
         user_query = getattr(semantic_query, 'query_text', '') or getattr(semantic_query, 'natural_language', '')
         
-        # LLM을 사용하여 사용자 쿼리에 맞춘 최종 답변 생성
+        # Generate final answer tailored to user query using LLM
         main_content = await self._generate_user_focused_response(
             user_query, integration_result, semantic_query, workflow_plan
         )
         
-        # 메인 답변이 생성되지 않은 경우 기본 처리
+        # Default handling when main answer is not generated
         if not main_content:
             if integration_result.get('information'):
                 main_content = integration_result['information']
@@ -872,12 +872,12 @@ class ResultIntegrator:
                 else:
                     main_content = str(calc_result)
             else:
-                main_content = "요청하신 작업이 완료되었습니다."
+                main_content = "The requested task has been completed."
         
-        # ontology_system.py에서 기대하는 형식으로 결과 구성
+        # Build result in format expected by ontology_system.py
         final_result = {
             'success': True,
-            'integrated_content': main_content,  # 메인 응답 콘텐츠
+            'integrated_content': main_content,  # Main response content
             'execution_summary': {
                 'query_id': semantic_query.query_id,
                 'workflow_id': workflow_plan.plan_id,
@@ -885,10 +885,10 @@ class ResultIntegrator:
                 'components_processed': list(integration_result.keys()),
                 'total_components': len(integration_result)
             },
-            'workflow_visualization': "",  # 빈 문자열로 초기화 (필요시 추가)
-            'confidence_score': 0.8,  # 기본 신뢰도 점수
-            'sources': [],  # 빈 배열로 초기화 (필요시 추가)
-            'components': integration_result,  # 원본 통합 결과 보존
+            'workflow_visualization': "",  # Initialize to empty string (add if needed)
+            'confidence_score': 0.8,  # Default confidence score
+            'sources': [],  # Initialize to empty array (add if needed)
+            'components': integration_result,  # Preserve original integration result
             'metadata': {
                 'query_id': semantic_query.query_id,
                 'workflow_id': workflow_plan.plan_id,
@@ -896,12 +896,12 @@ class ResultIntegrator:
             }
         }
         
-        # 시각화 데이터가 있으면 포함
+        # Include visualization data if available
         if integration_result.get('visualization'):
             final_result['has_visualization'] = True
             final_result['visualization_data'] = integration_result['visualization']
         
-        # 계산 데이터가 있으면 포함
+        # Include calculation data if available
         if integration_result.get('calculation'):
             final_result['has_calculation'] = True
             final_result['calculation_data'] = integration_result['calculation']

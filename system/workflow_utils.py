@@ -1,8 +1,8 @@
 """
 🔧 Workflow Utils
-워크플로우 유틸리티
+Workflow Utilities
 
-워크플로우 생성, 변환 및 분석 관련 유틸리티
+Utilities for workflow creation, conversion and analysis
 """
 
 import uuid
@@ -19,7 +19,7 @@ from ..engines.workflow_designer import SmartWorkflowDesigner
 
 
 class WorkflowUtils:
-    """🔧 워크플로우 유틸리티"""
+    """🔧 Workflow Utilities"""
     
     def __init__(self, installed_agents_info: List[Dict[str, Any]] = None):
         self.strategy_manager = StrategyManager()
@@ -28,30 +28,30 @@ class WorkflowUtils:
         self._initialize_workflow_designer()
     
     def _initialize_workflow_designer(self):
-        """워크플로우 설계자 초기화"""
+        """Initialize workflow designer"""
         try:
             self.workflow_designer = SmartWorkflowDesigner(self.installed_agents_info)
-            logger.info(f"🎯 워크플로우 설계자 초기화 완료 - 에이전트 정보: {len(self.installed_agents_info)}개")
+            logger.info(f"🎯 Workflow designer initialized - agent count: {len(self.installed_agents_info)}")
         except Exception as e:
-            logger.error(f"워크플로우 설계자 초기화 실패: {e}")
+            logger.error(f"Workflow designer initialization failed: {e}")
             self.workflow_designer = SmartWorkflowDesigner()
     
     def convert_unified_result_to_workflow(self, 
                                          unified_result: Dict[str, Any], 
                                          query_text: str, 
                                          execution_context: ExecutionContext) -> WorkflowPlan:
-        """통합 결과를 WorkflowPlan으로 변환"""
+        """Convert unified result to WorkflowPlan"""
         try:
-            # 통합 결과에서 워크플로우 정보 추출 - 새로운 구조
+            # Extract workflow information from unified result - new structure
             agent_mappings = unified_result.get('agent_mappings', [])
             task_breakdown = unified_result.get('task_breakdown', [])
             execution_plan = unified_result.get('execution_plan', {})
             
             if not agent_mappings:
-                logger.warning("통합 결과에 에이전트 매핑이 없음. 최소 워크플로우 생성")
+                logger.warning("No agent mappings in unified result. Creating minimal workflow")
                 return self.create_minimal_workflow(query_text, execution_context)
             
-            # SemanticQuery 생성 (통합 결과에서)
+            # Create SemanticQuery (from unified result)
             semantic_info = unified_result.get('semantic_analysis', {})
             semantic_query = SemanticQuery(
                 query_id=f'semantic_{uuid.uuid4().hex[:8]}',
@@ -66,10 +66,10 @@ class WorkflowUtils:
                 metadata=semantic_info.get('metadata', {})
             )
             
-            # 워크플로우 단계들 변환 - 새로운 구조에서
+            # Convert workflow steps - from new structure
             steps = []
             for mapping in agent_mappings:
-                # 해당 태스크 정보 찾기
+                # Find the relevant task information
                 task_info = next((t for t in task_breakdown if t.get('task_id') == mapping.get('task_id')), {})
                 
                 step = WorkflowStep(
@@ -89,9 +89,9 @@ class WorkflowUtils:
                 )
                 steps.append(step)
             
-            # 실행 전략 결정 - 새로운 구조에서
+            # Determine execution strategy - from new structure
             strategy_map = {
-                'single_agent': OptimizationStrategy.SPEED_FIRST,  # 단일 에이전트는 속도 우선
+                'single_agent': OptimizationStrategy.SPEED_FIRST,  # single agent prioritizes speed
                 'parallel': OptimizationStrategy.BALANCED,
                 'sequential': OptimizationStrategy.QUALITY_FIRST,
                 'hybrid': OptimizationStrategy.BALANCED
@@ -100,13 +100,13 @@ class WorkflowUtils:
             strategy_name = execution_plan.get('strategy', 'parallel')
             optimization_strategy = strategy_map.get(strategy_name, OptimizationStrategy.BALANCED)
             
-            # 실행 순서 및 의존성 처리
+            # Handle execution order and dependencies
             execution_order = execution_plan.get('execution_order', [])
             if not execution_order and steps:
-                # 기본 실행 순서 생성
+                # Generate default execution order
                 execution_order = [[step.step_id] for step in steps]
             
-            # WorkflowPlan 생성
+            # Create WorkflowPlan
             workflow_plan = WorkflowPlan(
                 plan_id=f'workflow_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
                 query=semantic_query,
@@ -121,19 +121,19 @@ class WorkflowUtils:
                 ]
             )
             
-            logger.info(f"✅ 통합 결과를 워크플로우로 변환 완료: {len(steps)}개 단계")
+            logger.info(f"✅ Unified result converted to workflow: {len(steps)} steps")
             return workflow_plan
             
         except Exception as e:
-            logger.error(f"❌ 워크플로우 변환 실패: {e}")
+            logger.error(f"❌ Workflow conversion failed: {e}")
             return self.create_minimal_workflow(query_text, execution_context)
 
     def create_minimal_workflow(self, query_text: str, execution_context: ExecutionContext) -> WorkflowPlan:
-        """최소한의 워크플로우 생성 (폴백) - 쿼리에 적합한 에이전트 선택"""
-        # 사용 가능한 에이전트 목록
+        """Create minimal workflow (fallback) - select suitable agent for query"""
+        # List of available agents
         available_agents = list(execution_context.available_agents.keys()) if execution_context.available_agents else ['memo_agent']
         
-        # 쿼리에 적합한 에이전트 선택
+        # Select agent suitable for the query
         selected_agent = self._select_best_fallback_agent(query_text, available_agents, execution_context)
         if not selected_agent:
             selected_agent = available_agents[0] if available_agents else 'memo_agent'
@@ -142,7 +142,7 @@ class WorkflowUtils:
             step_id="minimal_step",
             agent_id=selected_agent,
             semantic_purpose=query_text,
-            required_concepts=[],  # 필수 파라미터
+            required_concepts=[],  # required parameter
             depends_on=[],
             estimated_time=30.0,
             estimated_complexity=WorkflowComplexity.MODERATE,
@@ -164,20 +164,20 @@ class WorkflowUtils:
                 metadata={"fallback_mode": True}
             ),
             steps=[step],
-            optimization_strategy=OptimizationStrategy.SPEED_FIRST,  # 단일 에이전트는 속도 우선
+            optimization_strategy=OptimizationStrategy.SPEED_FIRST,  # single agent prioritizes speed
             estimated_time=30,
             estimated_quality=0.7,
             dependencies={},
-            reasoning_chain=["최소한의 폴백 워크플로우", "단일 에이전트 사용", "신속 처리 우선"]
+            reasoning_chain=["Minimal fallback workflow", "Using single agent", "Speed-first processing"]
         )
         
-        logger.warning("🔄 최소한의 폴백 워크플로우 생성")
+        logger.warning("🔄 Creating minimal fallback workflow")
         return workflow_plan
 
     def safe_analyze_complexity(self, semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """안전한 복잡도 분석"""
+        """Safe complexity analysis"""
         try:
-            # SemanticQuery가 딕셔너리인지 객체인지 안전하게 확인
+            # Safely check if SemanticQuery is a dict or object
             if isinstance(semantic_query, dict):
                 query_text = semantic_query.get('natural_language', '')
                 required_agents = semantic_query.get('required_agents', [])
@@ -189,16 +189,16 @@ class WorkflowUtils:
                     if isinstance(structured_query, dict) and 'required_agents' in structured_query:
                         required_agents = structured_query['required_agents']
             
-            # 기본 복잡도 분석 - 단순화
+            # Basic complexity analysis - simplified
             analysis = {
-                'complexity_score': 0.5,  # 기본값
+                'complexity_score': 0.5,  # default value
                 'query_type': 'GENERAL',
                 'required_agents_count': len(required_agents) if required_agents else 0,
-                'estimated_processing_time': 30.0,  # 기본 30초
+                'estimated_processing_time': 30.0,  # default 30 seconds
                 'recommended_strategy': ExecutionStrategy.AUTO
             }
             
-            # 텍스트 길이 기반 복잡도 추정
+            # Estimate complexity based on text length
             if query_text:
                 text_length = len(query_text)
                 if text_length > 100:
@@ -208,13 +208,13 @@ class WorkflowUtils:
                 else:
                     analysis['complexity_score'] = 0.4
                 
-                # 핵심 키워드 기반 복잡도 조정
-                complex_keywords = ['분석', '비교', '차트', '그래프', '계산']
+                # Adjust complexity based on key keywords
+                complex_keywords = ['분석', '비교', '차트', '그래프', '계산']  # analysis, comparison, chart, graph, calculation
                 keyword_count = sum(1 for keyword in complex_keywords if keyword in query_text)
                 if keyword_count > 0:
                     analysis['complexity_score'] = min(analysis['complexity_score'] + 0.1 * keyword_count, 1.0)
             
-            # 에이전트 수에 따른 전략 결정 - 단순화
+            # Determine strategy based on agent count - simplified
             agents_count = analysis['required_agents_count']
             if agents_count <= 1:
                 analysis['recommended_strategy'] = ExecutionStrategy.SINGLE_AGENT
@@ -226,18 +226,18 @@ class WorkflowUtils:
                 analysis['recommended_strategy'] = ExecutionStrategy.HYBRID
                 analysis['estimated_processing_time'] = agents_count * 15.0
             
-            # 복잡도 점수에 따른 추가 조정
+            # Additional adjustment based on complexity score
             if analysis['complexity_score'] >= 0.8:
                 analysis['recommended_strategy'] = ExecutionStrategy.HYBRID
             elif analysis['complexity_score'] >= 0.6 and agents_count > 1:
                 analysis['recommended_strategy'] = ExecutionStrategy.PARALLEL
             
-            logger.info(f"🔍 복잡도 분석 완료: 점수={analysis['complexity_score']:.2f}, 전략={analysis['recommended_strategy']}")
+            logger.info(f"🔍 Complexity analysis complete: score={analysis['complexity_score']:.2f}, strategy={analysis['recommended_strategy']}")
             return analysis
             
         except Exception as e:
-            logger.error(f"복잡도 분석 실패: {e}")
-            # 안전한 폴백 분석
+            logger.error(f"Complexity analysis failed: {e}")
+            # Safe fallback analysis
             return {
                 'complexity_score': 0.5,
                 'query_type': 'GENERAL',
@@ -249,48 +249,48 @@ class WorkflowUtils:
             }
     
     def generate_workflow_mermaid(self, workflow_plan: WorkflowPlan) -> str:
-        """워크플로우 계획을 Mermaid 다이어그램으로 생성"""
+        """Generate Mermaid diagram from workflow plan"""
         try:
             mermaid_lines = ["graph TD"]
             
-            # 시작 노드
-            mermaid_lines.append('    Start(["🚀 시작"]) --> Query["📝 쿼리 분석"]')
+            # Start node
+            mermaid_lines.append('    Start(["🚀 Start"]) --> Query["📝 Query Analysis"]')
             
-            # 각 단계를 노드로 추가
+            # Add each step as a node
             for i, step in enumerate(workflow_plan.steps):
                 step_id = f"Step{i+1}"
                 agent_name = step.agent_id.replace('_', ' ').title()
                 purpose = step.semantic_purpose[:30] + "..." if len(step.semantic_purpose) > 30 else step.semantic_purpose
                 
-                # 노드 정의 - 텍스트를 쌍따옴표로 감싸기
+                # Node definition - wrap text in double quotes
                 mermaid_lines.append(f'    {step_id}["🤖 {agent_name}<br/>{purpose}"]')
                 
-                # 연결 관계
+                # Connection relationships
                 if i == 0:
                     mermaid_lines.append(f'    Query --> {step_id}')
                 else:
                     prev_step_id = f"Step{i}"
                     mermaid_lines.append(f'    {prev_step_id} --> {step_id}')
                 
-                # 의존성이 있는 경우
+                # If there are dependencies
                 if hasattr(step, 'depends_on') and step.depends_on:
                     for dep in step.depends_on:
-                        # 의존성 단계 찾기
+                        # Find dependency steps
                         for j, dep_step in enumerate(workflow_plan.steps):
                             if dep_step.step_id == dep:
                                 dep_step_id = f"Step{j+1}"
                                 mermaid_lines.append(f'    {dep_step_id} -.-> {step_id}')
                                 break
             
-            # 마지막 단계에서 결과로 연결
+            # Connect from last step to result
             if workflow_plan.steps:
                 last_step_id = f"Step{len(workflow_plan.steps)}"
-                mermaid_lines.append(f'    {last_step_id} --> Result[["✅ 결과 통합"]]')
-                mermaid_lines.append('    Result --> End(["🎉 완료"])')
+                mermaid_lines.append(f'    {last_step_id} --> Result[["✅ Result Integration"]]')
+                mermaid_lines.append('    Result --> End(["🎉 Complete"])')
             else:
-                mermaid_lines.append('    Query --> End(["🎉 완료"])')
+                mermaid_lines.append('    Query --> End(["🎉 Complete"])')
             
-            # 스타일 추가
+            # Add styles
             mermaid_lines.extend([
                 "",
                 "    classDef startEnd fill:#e1f5fe,stroke:#01579b,stroke-width:2px",
@@ -302,29 +302,29 @@ class WorkflowUtils:
                 "    class Query,Result result"
             ])
             
-            # 에이전트 노드들에 스타일 적용
+            # Apply style to agent nodes
             for i in range(len(workflow_plan.steps)):
                 mermaid_lines.append(f"    class Step{i+1} agent")
             
             return "\n".join(mermaid_lines)
             
         except Exception as e:
-            logger.error(f"Mermaid 다이어그램 생성 실패: {e}")
-            return f'graph TD\n    Start(["시작"]) --> Error["다이어그램 생성 실패: {str(e)}"]\n    Error --> End(["종료"])'
+            logger.error(f"Mermaid diagram generation failed: {e}")
+            return f'graph TD\n    Start(["Start"]) --> Error["Diagram generation failed: {str(e)}"]\n    Error --> End(["End"])'
 
     def extract_available_agents(self, execution_context: ExecutionContext = None) -> List[str]:
-        """사용 가능한 에이전트 목록 추출"""
+        """Extract list of available agents"""
         try:
             if not execution_context or not execution_context.available_agents:
-                # ⚠️ ExecutionContext에 에이전트가 없음 - fallback 사용
-                logger.warning("⚠️ extract_available_agents: ExecutionContext.available_agents가 비어있음!")
-                logger.warning("⚠️ 하드코딩된 기본 에이전트로 fallback")
+                # ⚠️ No agents in ExecutionContext - using fallback
+                logger.warning("⚠️ extract_available_agents: ExecutionContext.available_agents is empty!")
+                logger.warning("⚠️ Falling back to hardcoded default agents")
                 return [
                     "internet_agent", "finance_agent", "weather_agent",
                     "calculate_agent", "chart_agent", "memo_agent", "analysis_agent"
                 ]
 
-            logger.info(f"✅ extract_available_agents: ExecutionContext에서 {len(execution_context.available_agents)}개 에이전트 발견")
+            logger.info(f"✅ extract_available_agents: Found {len(execution_context.available_agents)} agents from ExecutionContext")
             
             available_agents = []
             for agent_id, agent_info in execution_context.available_agents.items():
@@ -335,27 +335,27 @@ class WorkflowUtils:
                 else:
                     available_agents.append(agent_id)
             
-            logger.info(f"🤖 사용 가능한 에이전트 추출: {len(available_agents)}개")
+            logger.info(f"🤖 Available agents extracted: {len(available_agents)}")
             return available_agents
             
         except Exception as e:
-            logger.error(f"에이전트 목록 추출 실패: {e}")
-            return ["memo_agent"]  # 안전한 폴백
+            logger.error(f"Agent list extraction failed: {e}")
+            return ["memo_agent"]  # safe fallback
     
     def extract_installed_agents_info(self, execution_context: ExecutionContext = None) -> List[Dict[str, Any]]:
-        """설치된 에이전트 정보 추출 - 향상된 메타데이터 포함"""
+        """Extract installed agent info - with enhanced metadata"""
         try:
             if not execution_context or not execution_context.available_agents:
-                logger.warning("ExecutionContext 또는 available_agents가 없음")
+                logger.warning("ExecutionContext or available_agents is missing")
                 return []
             
-            # 에이전트 메타데이터 추출기 사용
+            # Use agent metadata extractor
             try:
                 from ..core.agent_metadata_extractor import get_agent_metadata_extractor
                 extractor = get_agent_metadata_extractor()
                 use_enhanced_extraction = True
             except ImportError:
-                logger.warning("AgentMetadataExtractor를 사용할 수 없음, 기본 추출 사용")
+                logger.warning("AgentMetadataExtractor unavailable, using basic extraction")
                 use_enhanced_extraction = False
             
             installed_agents_info = []
@@ -364,38 +364,38 @@ class WorkflowUtils:
                 try:
                     if isinstance(agent_info, dict):
                         if use_enhanced_extraction:
-                            # 향상된 메타데이터 추출
+                            # Enhanced metadata extraction
                             agent_data = extractor.extract_agent_metadata({
                                 'agent_id': agent_id,
                                 'agent_data': agent_info
                             })
                         else:
-                            # 기본 추출
+                            # Basic extraction
                             agent_data = {
                                 "agent_id": agent_id,
                                 "name": agent_info.get('name', agent_id),
-                                "description": agent_info.get('description', f'{agent_id} 에이전트'),
+                                "description": agent_info.get('description', f'{agent_id} agent'),
                                 "capabilities": agent_info.get('capabilities', []),
                                 "available": agent_info.get('available', True),
                                 "metadata": agent_info.get('metadata', {}),
                                 "tags": agent_info.get('tags', [])
                             }
                     elif hasattr(agent_info, '__dict__'):
-                        # 객체 형태의 에이전트 정보
+                        # Agent info in object form
                         agent_data = {
                             "agent_id": getattr(agent_info, 'agent_id', agent_id),
                             "name": getattr(agent_info, 'name', agent_id),
-                            "description": getattr(agent_info, 'description', f'{agent_id} 에이전트'),
+                            "description": getattr(agent_info, 'description', f'{agent_id} agent'),
                             "capabilities": getattr(agent_info, 'capabilities', []),
                             "available": getattr(agent_info, 'available', True),
                             "metadata": getattr(agent_info, 'metadata', {})
                         }
                     else:
-                        # 기본 정보만 있는 경우
+                        # Only basic info available
                         agent_data = {
                             "agent_id": agent_id,
                             "name": agent_id,
-                            "description": f'{agent_id} 에이전트',
+                            "description": f'{agent_id} agent',
                             "capabilities": [],
                             "available": True,
                             "metadata": {}
@@ -404,110 +404,110 @@ class WorkflowUtils:
                     installed_agents_info.append(agent_data)
                     
                 except Exception as e:
-                    logger.warning(f"에이전트 {agent_id} 정보 처리 실패: {e}")
-                    # 최소 정보라도 포함
+                    logger.warning(f"Failed to process agent {agent_id} info: {e}")
+                    # Include at least minimal info
                     installed_agents_info.append({
                         "agent_id": agent_id,
                         "name": agent_id,
-                        "description": f'{agent_id} 에이전트',
+                        "description": f'{agent_id} agent',
                         "capabilities": [],
                         "available": True,
                         "metadata": {}
                     })
             
-            logger.info(f"📊 설치된 에이전트 정보 추출 완료: {len(installed_agents_info)}개")
+            logger.info(f"📊 Installed agent info extraction complete: {len(installed_agents_info)}")
             return installed_agents_info
             
         except Exception as e:
-            logger.error(f"설치된 에이전트 정보 추출 실패: {e}")
+            logger.error(f"Installed agent info extraction failed: {e}")
             return []
     
     def _select_best_fallback_agent(self, query_text: str, available_agents: List[str], 
                                    execution_context: ExecutionContext) -> str:
-        """쿼리에 가장 적합한 폴백 에이전트 선택"""
+        """Select best fallback agent for the query"""
         try:
             query_lower = query_text.lower()
             
-            # 쿼리 키워드 기반 에이전트 매핑
+            # Query keyword-based agent mapping
             agent_patterns = {
-                # 시각화 관련
+                # Visualization-related
                 'chart_agent': ['플로우차트', '차트', '그래프', '표', '다이어그램', 'flowchart', 'chart', 'graph', 'diagram'],
-                # 여행 관련  
+                # Travel-related  
                 'travel_agent': ['여행', '일정', '계획', 'travel', 'trip', 'schedule', 'plan'],
-                # 날씨 관련
+                # Weather-related
                 'weather_agent': ['날씨', '기상', '온도', 'weather', 'temperature'],
-                # 금융 관련
+                # Finance-related
                 'finance_agent': ['주식', '환율', '금융', 'stock', 'finance', 'currency'],
-                # 계산 관련 (마지막 순위로)
+                # Calculation-related (lowest priority)
                 'calculator_agent': ['계산', '수식', '덧셈', '뺄셈', 'calculate', 'math', 'compute'],
-                # 검색 관련
+                # Search-related
                 'internet_agent': ['검색', '조회', '찾아', 'search', 'find', 'lookup'],
-                # 분석 관련
+                # Analysis-related
                 'analysis_agent': ['분석', '비교', '평가', 'analysis', 'analyze', 'compare']
             }
             
-            # 우선순위별 점수 계산
+            # Calculate score by priority
             agent_scores = {}
             
             for agent_id in available_agents:
                 score = 0
                 agent_base = agent_id.replace('_agent', '')
                 
-                # 정확한 에이전트 이름 매칭 확인
+                # Check exact agent name match
                 if agent_id in agent_patterns:
                     patterns = agent_patterns[agent_id]
                     for pattern in patterns:
                         if pattern in query_lower:
-                            score += 10  # 정확한 패턴 매칭 시 높은 점수
+                            score += 10  # High score for exact pattern match
                 
-                # 에이전트 베이스 이름으로도 확인
+                # Also check by agent base name
                 elif agent_base in query_lower:
                     score += 5
                 
-                # 도메인별 특별 처리
+                # Special handling by domain
                 if 'chart' in agent_id or 'visual' in agent_id:
                     if any(keyword in query_lower for keyword in ['플로우차트', '차트', '시각화', 'flowchart', 'visual']):
-                        score += 15  # 시각화 요청 시 우선
+                        score += 15  # Prioritize for visualization requests
                 
                 if 'travel' in agent_id or 'plan' in agent_id:
                     if any(keyword in query_lower for keyword in ['여행', '일정', '계획', 'travel', 'plan']):
                         score += 12
                 
-                # 계산 에이전트는 명확한 계산 요청이 아니면 점수 감점
+                # Deduct score for calculator agent if not clearly a calculation request
                 if 'calculator' in agent_id or 'calc' in agent_id:
                     if not any(keyword in query_lower for keyword in ['계산', '수식', 'calculate', 'math']):
                         if any(keyword in query_lower for keyword in ['플로우차트', '여행', '일정', 'flowchart', 'travel']):
-                            score -= 10  # 명확히 비계산 작업인 경우 감점
+                            score -= 10  # Deduct for clearly non-calculation tasks
                 
                 agent_scores[agent_id] = score
             
-            # 가장 높은 점수의 에이전트 선택
+            # Select agent with highest score
             if agent_scores:
                 best_agent = max(agent_scores.items(), key=lambda x: x[1])
-                if best_agent[1] > 0:  # 양수 점수가 있는 경우만
-                    logger.info(f"🎯 폴백 에이전트 선택: {best_agent[0]} (점수: {best_agent[1]})")
+                if best_agent[1] > 0:  # Only if positive score
+                    logger.info(f"🎯 Fallback agent selected: {best_agent[0]} (score: {best_agent[1]})")
                     return best_agent[0]
             
-            # 점수가 모두 0 이하인 경우, 계산 에이전트가 아닌 첫 번째 에이전트 선택
+            # If all scores are 0 or below, select first non-calculator agent
             non_calc_agents = [agent for agent in available_agents 
                              if 'calculator' not in agent and 'calc' not in agent]
             if non_calc_agents:
                 selected = non_calc_agents[0]
-                logger.info(f"🔄 기본 폴백 에이전트 선택: {selected}")
+                logger.info(f"🔄 Default fallback agent selected: {selected}")
                 return selected
             
-            # 그래도 없으면 첫 번째 에이전트
+            # If still none, select first agent
             return available_agents[0] if available_agents else 'memo_agent'
             
         except Exception as e:
-            logger.error(f"폴백 에이전트 선택 실패: {e}")
-            # 오류 시 계산 에이전트가 아닌 안전한 에이전트 반환
+            logger.error(f"Fallback agent selection failed: {e}")
+            # Return a safe non-calculator agent on error
             safe_agents = [agent for agent in available_agents 
                           if 'calculator' not in agent and 'calc' not in agent]
             return safe_agents[0] if safe_agents else (available_agents[0] if available_agents else 'memo_agent')
 
     def update_installed_agents_info(self, installed_agents_info: List[Dict[str, Any]]):
-        """설치된 에이전트 정보 업데이트"""
+        """Update installed agent information"""
         self.installed_agents_info = installed_agents_info
         self._initialize_workflow_designer()
-        logger.info(f"🔄 에이전트 정보 업데이트: {len(installed_agents_info)}개") 
+        logger.info(f"🔄 Agent info update: {len(installed_agents_info)}") 

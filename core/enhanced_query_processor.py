@@ -1,9 +1,8 @@
 """
-🧠 고도화된 쿼리 프로세서
-Enhanced Query Processor
+🧠 Enhanced Query Processor
 
-복잡한 쿼리를 의미 분석하고, 적절한 에이전트를 선택하며, 
-각 에이전트에 최적화된 쿼리를 생성하여 전달하는 통합 시스템
+An integrated system that semantically analyzes complex queries,
+selects appropriate agents, and generates optimized queries for each agent
 """
 
 import asyncio
@@ -19,7 +18,7 @@ from .llm_manager import get_ontology_llm_manager, OntologyLLMType
 
 
 class QueryDecomposition:
-    """쿼리 분해 결과"""
+    """Query decomposition result"""
     def __init__(self, 
                  query_parts: List[Dict[str, Any]], 
                  execution_strategy: ExecutionStrategy,
@@ -31,7 +30,7 @@ class QueryDecomposition:
 
 
 class AgentQueryMapping:
-    """에이전트-쿼리 매핑"""
+    """Agent-query mapping"""
     def __init__(self, 
                  agent_id: str, 
                  optimized_query: str, 
@@ -47,13 +46,13 @@ class AgentQueryMapping:
 
 
 class EnhancedQueryProcessor:
-    """🧠 고도화된 쿼리 프로세서 - LLM 분석 + 키워드 매칭 조합"""
+    """🧠 Enhanced Query Processor - LLM analysis + keyword matching combination"""
     
     def __init__(self):
         self.llm_manager = get_ontology_llm_manager()
         self.installed_agents_info = []
         
-        # 핵심 키워드 매핑 - 실제 에이전트 타입 기반으로 단순화
+        # Core keyword mapping - simplified based on actual agent types
         self.core_keyword_mappings = {
             "WEATHER": ["날씨", "기온", "예보", "weather", "temperature"],
             "CURRENCY": ["환율", "달러", "유로", "엔", "원", "currency", "exchange"],
@@ -66,7 +65,7 @@ class EnhancedQueryProcessor:
             "FORECASTING": ["운세", "점", "오늘의", "fortune"],
         }
         
-        # 에이전트별 특화된 쿼리 템플릿
+        # Specialized query templates per agent
         self.agent_query_templates = {
             "weather_agent": "오늘 {location}의 날씨 정보를 자세히 알려주세요. 온도, 습도, 강수확률을 포함해주세요.",
             "currency_exchange_agent": "현재 {currency} 환율 정보를 알려주세요. 매수/매도 가격과 전일 대비 변동률을 포함해주세요.",
@@ -79,53 +78,53 @@ class EnhancedQueryProcessor:
         }
 
     def set_installed_agents_info(self, installed_agents_info: List[Dict[str, Any]]):
-        """설치된 에이전트 정보 설정"""
+        """Set installed agent information"""
         self.installed_agents_info = installed_agents_info
-        logger.info(f"🎯 설치된 에이전트 정보 업데이트: {len(installed_agents_info)}개")
+        logger.info(f"Installed agent information updated: {len(installed_agents_info)} agents")
 
     async def process_complex_query(self, 
                                   query: str, 
                                   available_agents: List[str]) -> Tuple[QueryDecomposition, List[AgentQueryMapping]]:
         """
-        복잡한 쿼리를 처리하여 에이전트별 최적화된 쿼리 생성
-        LLM 분석 + 키워드 매칭 조합으로 향상된 정확도
+        Process complex query and generate optimized queries per agent
+        Enhanced accuracy through LLM analysis + keyword matching combination
         
         Args:
-            query: 원본 사용자 쿼리
-            available_agents: 사용 가능한 에이전트 목록
+            query: Original user query
+            available_agents: List of available agents
             
         Returns:
-            Tuple[QueryDecomposition, List[AgentQueryMapping]]: 쿼리 분해 결과와 에이전트 매핑
+            Tuple[QueryDecomposition, List[AgentQueryMapping]]: Query decomposition result and agent mappings
         """
         try:
-            logger.info(f"🧠 향상된 쿼리 처리 시작: {query}")
+            logger.info(f"🧠 Enhanced query processing started: {query}")
             
-            # 1. LLM을 활용한 쿼리 분석 및 분해
+            # 1. Query analysis and decomposition using LLM
             llm_analysis = await self._analyze_query_with_llm(query, available_agents)
             
-            # 2. 키워드 기반 백업 분석
+            # 2. Keyword-based backup analysis
             keyword_analysis = self._analyze_query_with_keywords(query, available_agents)
             
-            # 3. LLM과 키워드 분석 결과 통합
+            # 3. Merge LLM and keyword analysis results
             final_analysis = self._merge_analysis_results(llm_analysis, keyword_analysis, query)
             
-            # 4. 분해 및 매핑 생성
+            # 4. Create decomposition and mappings
             decomposition, mappings = self._create_enhanced_decomposition_and_mappings(
                 query, final_analysis, available_agents
             )
             
-            logger.info(f"🎯 향상된 처리 완료: {len(mappings)}개 매핑 생성")
+            logger.info(f"🎯 Enhanced processing complete: {len(mappings)} mappings created")
             return decomposition, mappings
             
         except Exception as e:
-            logger.error(f"향상된 쿼리 처리 실패: {e}")
-            # 폴백: 키워드 기반 처리
+            logger.error(f"Enhanced query processing failed: {e}")
+            # Fallback: keyword-based processing
             return self._create_fallback_result(query, available_agents)
 
     async def _analyze_query_with_llm(self, query: str, available_agents: List[str]) -> Dict[str, Any]:
-        """LLM을 활용한 쿼리 분석"""
+        """Query analysis using LLM"""
         try:
-            # 실제 에이전트 정보 구성
+            # Build actual agent information
             agents_info_str = self._build_agents_summary(available_agents)
             
             prompt = f"""
@@ -161,19 +160,19 @@ class EnhancedQueryProcessor:
 }}
 """
             
-            # LLM 호출
+            # LLM call
             llm = self.llm_manager.get_llm(OntologyLLMType.SEMANTIC_ANALYZER)
             response = await llm.ainvoke(prompt)
             
-            # 응답 처리
+            # Process response
             if hasattr(response, 'content'):
                 response_text = response.content
             else:
                 response_text = str(response)
             
-            # JSON 파싱
+            # Parse JSON
             try:
-                # JSON 블록 추출
+                # Extract JSON block
                 if '```json' in response_text:
                     start = response_text.find('```json') + 7
                     end = response_text.find('```', start)
@@ -182,23 +181,23 @@ class EnhancedQueryProcessor:
                     json_str = response_text.strip()
                 
                 result = json.loads(json_str)
-                logger.info(f"✅ LLM 분석 성공: {len(result.get('tasks', []))}개 작업 식별")
+                logger.info(f"✅ LLM analysis success: {len(result.get('tasks', []))} tasks identified")
                 return result
                 
             except json.JSONDecodeError as e:
-                logger.warning(f"LLM 응답 JSON 파싱 실패: {e}")
+                logger.warning(f"LLM response JSON parse failed: {e}")
                 return {}
             
         except Exception as e:
-            logger.error(f"LLM 쿼리 분석 실패: {e}")
+            logger.error(f"LLM query analysis failed: {e}")
             return {}
 
     def _analyze_query_with_keywords(self, query: str, available_agents: List[str]) -> Dict[str, Any]:
-        """키워드 기반 쿼리 분석 (백업 시스템)"""
+        """Keyword-based query analysis (backup system)"""
         query_lower = query.lower()
         detected_tasks = []
         
-        # 연결어로 쿼리 분리
+        # Split query by connectors
         segments = self._split_query_by_connectors(query)
         
         for i, segment in enumerate(segments):
@@ -206,7 +205,7 @@ class EnhancedQueryProcessor:
             best_match = None
             best_score = 0
             
-            # 각 에이전트별 매칭 점수 계산
+            # Calculate matching score per agent
             for agent_id in available_agents:
                 agent_type = self._get_agent_type_from_installed_info(agent_id)
                 score = self._calculate_keyword_score(segment_lower, agent_type, agent_id)
@@ -218,7 +217,7 @@ class EnhancedQueryProcessor:
                         "keywords": self._extract_keywords_from_segment(segment),
                         "best_agent": agent_id,
                         "optimized_message": self._generate_optimized_message(segment, agent_id),
-                        "confidence": min(score / 30.0, 0.9)  # 정규화
+                        "confidence": min(score / 30.0, 0.9)  # Normalize
                     }
             
             if best_match and best_match["confidence"] > 0.3:
@@ -227,31 +226,31 @@ class EnhancedQueryProcessor:
         return {
             "multi_task": len(detected_tasks) > 1,
             "tasks": detected_tasks,
-            "reasoning": "키워드 기반 분석"
+            "reasoning": "Keyword-based analysis"
         }
 
     def _split_query_by_connectors(self, query: str) -> List[str]:
-        """연결어로 쿼리 분리 - 복합 패턴 감지 강화"""
-        # 기본 연결어 패턴
+        """Split query by connectors - enhanced compound pattern detection"""
+        # Basic connector patterns
         connectors = ['그리고', '하고', '또', '그런데', '그다음에', '그리고나서', '또한', '과', '와', ',']
 
-        # 복합 패턴 추가 (예: "~해주고 ~도 해줘", "~알려주고 ~도")
+        # Add compound patterns (e.g. "~해주고 ~도 해줘", "~알려주고 ~도")
         compound_patterns = [
             r'(.+?)(?:해주고|알려주고|보여주고)\s*(.+?)(?:도\s*)?(?:해줘|알려줘|보여줘)',
             r'(.+?)(?:하고|그리고)\s*(.+)',
             r'(.+?)(?:랑|이랑)\s*(.+)',
         ]
 
-        # 복합 패턴 먼저 체크
+        # Check compound patterns first
         for pattern in compound_patterns:
             match = re.match(pattern, query)
             if match:
                 segments = [g.strip() for g in match.groups() if g and g.strip()]
                 if len(segments) > 1:
-                    logger.info(f"🔗 복합 패턴 감지: {len(segments)}개 세그먼트 분리")
+                    logger.info(f"🔗 Compound pattern detected: split into {len(segments)} segments")
                     return segments
 
-        # 기존 연결어 분리 방식
+        # Existing connector split method
         segments = [query]
         for connector in connectors:
             new_segments = []
@@ -259,32 +258,32 @@ class EnhancedQueryProcessor:
                 new_segments.extend([s.strip() for s in segment.split(connector)])
             segments = new_segments
 
-        # 빈 문자열 제거
+        # Remove empty strings
         result = [s for s in segments if s.strip()]
 
         if len(result) > 1:
-            logger.info(f"🔗 연결어 분리: {len(result)}개 세그먼트")
+            logger.info(f"🔗 Connector split: {len(result)} segments")
 
         return result
 
     def _calculate_keyword_score(self, segment: str, agent_type: str, agent_id: str) -> int:
-        """키워드 매칭 점수 계산"""
+        """Calculate keyword matching score"""
         score = 0
         
-        # 1. 에이전트 타입별 키워드 매칭
+        # 1. Keyword matching by agent type
         if agent_type and agent_type in self.core_keyword_mappings:
             keywords = self.core_keyword_mappings[agent_type]
             for keyword in keywords:
                 if keyword in segment:
                     score += 15
         
-        # 2. 에이전트 ID 직접 매칭
+        # 2. Direct agent ID matching
         agent_keywords = {
             'weather_agent': ['날씨', '기온', '온도'],
             'currency_exchange_agent': ['환율', '달러', '원'],
             'crawler_agent': ['주가', '주식', '삼성전자'],
             'internet_agent': ['검색', '정보', '알려줘'],
-            # 🗓️ 일정/캘린더 에이전트 키워드 추가
+            # 🗓️ Add schedule/calendar agent keywords
             'calendar_agent': ['일정', '스케줄', '약속', '캘린더', '추가', '등록', '알려줘'],
             'scheduler_agent': ['일정', '스케줄', '약속', '캘린더', '추가', '등록', '알려줘'],
             'schedule_agent': ['일정', '스케줄', '약속', '캘린더', '추가', '등록', '알려줘'],
@@ -295,22 +294,22 @@ class EnhancedQueryProcessor:
                 if keyword in segment:
                     score += 20
 
-        # 3. 특별 패턴 매칭
+        # 3. Special pattern matching
         if '날씨' in segment and 'weather' in agent_id:
             score += 25
         if '환율' in segment and 'currency' in agent_id:
             score += 25
         if any(word in segment for word in ['주가', '주식', '삼성전자']) and 'crawler' in agent_id:
             score += 25
-        # 🗓️ 일정/캘린더 패턴 매칭 추가
+        # 🗓️ Add schedule/calendar pattern matching
         if any(word in segment for word in ['일정', '스케줄', '약속', '캘린더']) and any(kw in agent_id for kw in ['calendar', 'scheduler', 'schedule']):
             score += 25
 
         return score
 
     def _extract_keywords_from_segment(self, segment: str) -> List[str]:
-        """세그먼트에서 키워드 추출"""
-        # 간단한 키워드 추출
+        """Extract keywords from segment"""
+        # Simple keyword extraction
         keywords = []
         common_words = ['오늘', '정보', '알려줘', '확인', '검색']
         
@@ -318,7 +317,7 @@ class EnhancedQueryProcessor:
             if word in segment:
                 keywords.append(word)
         
-        # 특정 도메인 키워드
+        # Specific domain keywords
         domain_keywords = ['날씨', '환율', '주가', '삼성전자', '달러', '원']
         for word in domain_keywords:
             if word in segment:
@@ -327,11 +326,11 @@ class EnhancedQueryProcessor:
         return keywords
 
     def _generate_optimized_message(self, segment: str, agent_id: str) -> str:
-        """에이전트별 최적화된 메시지 생성"""
+        """Generate optimized message per agent"""
         if agent_id in self.agent_query_templates:
             template = self.agent_query_templates[agent_id]
             
-            # 템플릿별 파라미터 추출 및 적용
+            # Extract and apply template parameters
             if 'weather_agent' in agent_id:
                 return template.format(location="서울")
             elif 'currency_exchange_agent' in agent_id:
@@ -342,32 +341,32 @@ class EnhancedQueryProcessor:
                 else:
                     return template.format(company="관련 종목")
             elif 'internet_agent' in agent_id:
-                # 핵심 키워드 추출
+                # Extract core keywords
                 topic = segment.replace('알려줘', '').replace('검색', '').strip()
                 return template.format(topic=topic)
         
-        # 기본 메시지
-        return f"{segment} - {agent_id}를 통해 처리해주세요"
+        # Default message
+        return f"{segment} - please process via {agent_id}"
 
     def _merge_analysis_results(self, llm_analysis: Dict[str, Any],
                               keyword_analysis: Dict[str, Any],
                               query: str) -> Dict[str, Any]:
-        """LLM과 키워드 분석 결과 통합 - 멀티태스크 감지 강화"""
+        """Merge LLM and keyword analysis results - enhanced multi-task detection"""
 
-        # LLM 분석이 성공한 경우 우선 사용
+        # Use LLM analysis results first if available
         if llm_analysis and llm_analysis.get('tasks'):
-            logger.info("🧠 LLM 분석 결과 사용")
+            logger.info("🧠 Using LLM analysis results")
             return llm_analysis
 
-        # LLM 분석 실패 시 키워드 분석 사용
+        # Use keyword analysis on LLM failure
         if keyword_analysis and keyword_analysis.get('tasks'):
-            logger.info("🔤 키워드 분석 결과 사용")
+            logger.info("🔤 Using keyword analysis results")
             return keyword_analysis
 
-        # 둘 다 실패한 경우 - 복합 쿼리 패턴 감지 시도
-        logger.warning("⚠️ 폴백 분석 - 복합 쿼리 패턴 감지 시도")
+        # If both fail - try compound query pattern detection
+            logger.warning("⚠️ Fallback analysis - trying compound query pattern detection")
 
-        # 복합 쿼리 패턴 감지
+        # Detect compound query pattern
         multi_task_detected = self._detect_multi_task_pattern(query)
 
         if multi_task_detected:
@@ -379,36 +378,36 @@ class EnhancedQueryProcessor:
                     "task_type": "general",
                     "keywords": self._extract_keywords_from_segment(segment),
                     "best_agent": self._select_default_agent(segment, []),
-                    "optimized_message": f"{segment.strip()} - 이 요청을 처리해주세요",
+f"optimized_message": f"{segment.strip()} - please handle this request",
                     "confidence": 0.6,
                     "execution_order": i + 1,
                     "can_parallel": True
                 })
 
             if len(tasks) > 1:
-                logger.info(f"✅ 폴백에서 {len(tasks)}개 복합 작업 감지!")
+                logger.info(f"✅ Detected {len(tasks)} compound tasks in fallback!")
                 return {
                     "multi_task": True,
                     "tasks": tasks,
-                    "reasoning": "폴백 복합 쿼리 패턴 분석"
+                    "reasoning": "Fallback compound query pattern analysis"
                 }
 
-        # 단일 작업으로 처리
+        # Process as single task
         return {
             "multi_task": False,
             "tasks": [{
                 "task_type": "general",
                 "keywords": [],
                 "best_agent": self._select_default_agent(query, []),
-                "optimized_message": f"{query} - 이 요청을 처리해주세요",
+f"optimized_message": f"{query} - please handle this request",
                 "confidence": 0.5
             }],
-            "reasoning": "폴백 분석"
+            "reasoning": "Fallback analysis"
         }
 
     def _detect_multi_task_pattern(self, query: str) -> bool:
-        """복합 쿼리 패턴 감지"""
-        # 복합 쿼리 지시어 패턴
+        """Detect compound query pattern"""
+        # Compound query indicator patterns
         multi_task_indicators = [
             r'(하고|그리고|또|랑|이랑|과|와)',  # 연결어
             r'(해주고|알려주고|보여주고).+(도|그리고|또)',  # ~해주고 ~도
@@ -418,10 +417,10 @@ class EnhancedQueryProcessor:
 
         for pattern in multi_task_indicators:
             if re.search(pattern, query):
-                logger.debug(f"🔍 복합 패턴 감지: {pattern}")
+                logger.debug(f"🔍 Compound pattern detected: {pattern}")
                 return True
 
-        # 다중 도메인 키워드 감지
+        # Detect multiple domain keywords
         domain_keywords = {
             'weather': ['날씨', '기온', '예보', '기상'],
             'currency': ['환율', '달러', '유로', '엔'],
@@ -440,9 +439,9 @@ class EnhancedQueryProcessor:
                     detected_domains.append(domain)
                     break
 
-        # 2개 이상 도메인 감지되면 복합 쿼리
+        # Compound query if 2 or more domains detected
         if len(set(detected_domains)) >= 2:
-            logger.info(f"🎯 다중 도메인 감지: {detected_domains}")
+            logger.info(f"🎯 Multiple domains detected: {detected_domains}")
             return True
 
         return False
@@ -451,12 +450,12 @@ class EnhancedQueryProcessor:
                                                   query: str,
                                                   analysis: Dict[str, Any],
                                                   available_agents: List[str]) -> Tuple[QueryDecomposition, List[AgentQueryMapping]]:
-        """향상된 분해 및 매핑 생성"""
+        """Create enhanced decomposition and mappings"""
         
         tasks = analysis.get('tasks', [])
         is_multi_task = analysis.get('multi_task', False)
         
-        # 실행 전략 결정
+        # Determine execution strategy
         if len(tasks) <= 1:
             strategy = ExecutionStrategy.SINGLE_AGENT
         elif len(tasks) == 2:
@@ -464,7 +463,7 @@ class EnhancedQueryProcessor:
         else:
             strategy = ExecutionStrategy.HYBRID
         
-        # 쿼리 부분 생성
+        # Create query parts
         query_parts = []
         for i, task in enumerate(tasks):
             query_parts.append({
@@ -477,14 +476,14 @@ class EnhancedQueryProcessor:
                 "confidence": task.get('confidence', 0.8)
             })
         
-        # 분해 결과 생성
+        # Create decomposition result
         decomposition = QueryDecomposition(
             query_parts=query_parts,
             execution_strategy=strategy,
             dependencies={}
         )
 
-        # 매핑 생성
+        # Create mappings
         mappings = []
         for i, task in enumerate(tasks):
             agent_id = task.get('best_agent', 'internet_agent')
@@ -506,12 +505,12 @@ class EnhancedQueryProcessor:
             )
             mappings.append(mapping)
             
-            logger.info(f"🎯 향상된 매핑 생성: {agent_id} -> {optimized_message[:50]}...")
+            logger.info(f"🎯 Enhanced mapping created: {agent_id} -> {optimized_message[:50]}...")
         
         return decomposition, mappings
 
     def _build_agents_summary(self, available_agents: List[str]) -> str:
-        """에이전트 정보 요약 생성 - tags 포함으로 개선"""
+        """Generate agent information summary - improved with tags"""
         summary_lines = []
         
         for agent_id in available_agents:
@@ -525,41 +524,41 @@ class EnhancedQueryProcessor:
                 tags = agent_data.get('tags', [])
                 capabilities = agent_data.get('capabilities', [])
                 
-                # 주요 능력 3개 추출
+                # Extract top 3 capabilities
                 main_capabilities = []
                 for cap in capabilities[:3]:
                     if isinstance(cap, dict):
-                        cap_name = cap.get('name', '알 수 없음')
+                        cap_name = cap.get('name', 'Unknown')
                         main_capabilities.append(cap_name)
                     else:
                         main_capabilities.append(str(cap))
                 
-                # 에이전트 정보 구성 (tags 포함)
+                # Build agent info (including tags)
                 summary_lines.append(f"- {agent_id}: {name} ({agent_type})")
                 if description:
-                    summary_lines.append(f"  설명: {description[:80]}...")
+                    summary_lines.append(f"  Description: {description[:80]}...")
                 if main_capabilities:
-                    summary_lines.append(f"  능력: {', '.join(main_capabilities)}")
+                    summary_lines.append(f"  Capabilities: {', '.join(main_capabilities)}")
                 if tags:
-                    # 태그를 5개까지만 표시
+                    # Show up to 5 tags
                     display_tags = tags[:5]
                     if len(tags) > 5:
-                        display_tags.append(f"외 {len(tags)-5}개")
-                    summary_lines.append(f"  🏷️ 태그: {', '.join(display_tags)}")
+                        display_tags.append(f"+{len(tags)-5} more")
+                    summary_lines.append(f"  Tags: {', '.join(display_tags)}")
             else:
-                summary_lines.append(f"- {agent_id}: {self._infer_type_from_id(agent_id)} 에이전트")
+                summary_lines.append(f"- {agent_id}: {self._infer_type_from_id(agent_id)} agent")
         
         return "\n".join(summary_lines)
 
     def _find_agent_info(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """에이전트 정보 찾기"""
+        """Find agent information"""
         for agent_info in self.installed_agents_info:
             if agent_info.get('agent_id') == agent_id:
                 return agent_info
         return None
 
     def _get_agent_type_from_installed_info(self, agent_id: str) -> Optional[str]:
-        """설치된 에이전트 정보에서 타입 추출"""
+        """Extract type from installed agent information"""
         agent_info = self._find_agent_info(agent_id)
         if agent_info:
             agent_data = agent_info.get('agent_data', {})
@@ -567,7 +566,7 @@ class EnhancedQueryProcessor:
         return self._infer_type_from_id(agent_id)
 
     def _infer_type_from_id(self, agent_id: str) -> str:
-        """에이전트 ID에서 타입 추론"""
+        """Infer type from agent ID"""
         agent_id_lower = agent_id.lower()
         
         if 'weather' in agent_id_lower:
@@ -592,9 +591,9 @@ class EnhancedQueryProcessor:
             return 'CUSTOM'
 
     def _select_default_agent(self, query: str, available_agents: List[str]) -> str:
-        """기본 에이전트 선택"""
+        """Select default agent"""
         if available_agents:
-            # 인터넷 검색 에이전트 우선
+            # Prefer internet search agent
             for agent_id in available_agents:
                 if any(keyword in agent_id.lower() for keyword in ['internet', 'search']):
                     return agent_id
@@ -602,11 +601,11 @@ class EnhancedQueryProcessor:
         return "internet_agent"
 
     def _select_agents_simple(self, query: str, available_agents: List[str]) -> List[str]:
-        """간단한 멀티에이전트 선택 - 워크플로우 디자이너용
+        """Simple multi-agent selection - for workflow designer
 
-        복합 쿼리를 분석하여 필요한 모든 에이전트를 선택합니다.
-        단순 쿼리: 1개 에이전트 반환
-        복합 쿼리: 필요한 만큼 여러 에이전트 반환
+        Analyzes compound queries and selects all necessary agents.
+        Simple query: returns 1 agent
+        Compound query: returns multiple agents as needed
         """
         if not available_agents:
             return []
@@ -614,39 +613,39 @@ class EnhancedQueryProcessor:
         selected_agents = []
         query_lower = query.lower()
 
-        # 1. 복합 쿼리 패턴 감지
+        # 1. Detect compound query pattern
         is_multi_task = self._detect_multi_task_pattern(query)
 
         if is_multi_task:
-            # 복합 쿼리: 세그먼트별로 에이전트 선택
+            # Compound query: select agent per segment
             segments = self._split_query_by_connectors(query)
-            logger.info(f"🔀 복합 쿼리 감지: {len(segments)}개 세그먼트")
+            logger.info(f"🔀 Compound query detected: {len(segments)} segments")
 
             for segment in segments:
                 best_agent = self._find_best_agent_for_segment(segment, available_agents)
                 if best_agent and best_agent not in selected_agents:
                     selected_agents.append(best_agent)
-                    logger.info(f"  📍 세그먼트 '{segment[:30]}...' → {best_agent}")
+                    logger.info(f"  📍 Segment '{segment[:30]}...' → {best_agent}")
 
         else:
-            # 단일 쿼리: 가장 적합한 에이전트 1개 선택
+            # Single query: select 1 best fitting agent
             best_agent = self._find_best_agent_for_segment(query, available_agents)
             if best_agent:
                 selected_agents.append(best_agent)
-                logger.info(f"📍 단일 쿼리 → {best_agent}")
+                logger.info(f"📍 Single query → {best_agent}")
 
-        # 폴백: 에이전트가 선택되지 않은 경우
+        # Fallback: if no agent selected
         if not selected_agents:
             default_agent = self._select_default_agent(query, available_agents)
             if default_agent:
                 selected_agents.append(default_agent)
-                logger.info(f"📍 폴백 → {default_agent}")
+                logger.info(f"📍 Fallback → {default_agent}")
 
-        logger.info(f"✅ 선택된 에이전트: {selected_agents} (총 {len(selected_agents)}개)")
+                logger.info(f"✅ Selected agents: {selected_agents} (total {len(selected_agents)})")
         return selected_agents
 
     def _find_best_agent_for_segment(self, segment: str, available_agents: List[str]) -> Optional[str]:
-        """세그먼트에 가장 적합한 에이전트 찾기"""
+        """Find the best fitting agent for a segment"""
         segment_lower = segment.lower()
         best_agent = None
         best_score = 0
@@ -659,22 +658,22 @@ class EnhancedQueryProcessor:
                 best_score = score
                 best_agent = agent_id
 
-        # 최소 점수 임계값 적용
-        if best_score >= 10:  # 최소 점수 필요
+        # Apply minimum score threshold
+        if best_score >= 10:  # Minimum score required
             return best_agent
 
         return None
 
     def _create_fallback_result(self, query: str, available_agents: List[str]) -> Tuple[QueryDecomposition, List[AgentQueryMapping]]:
-        """폴백 결과 생성"""
-        logger.warning("🔄 향상된 프로세서 폴백 모드")
+        """Create fallback result"""
+        logger.warning("🔄 Enhanced processor fallback mode")
         
-        # 기본 에이전트 선택
+        # Select default agent
         selected_agent = self._select_default_agent(query, available_agents)
         
         query_parts = [{
             "part_id": "fallback_task",
-            "description": "폴백 작업 처리",
+            "description": "Fallback task processing",
             "keywords": [],
             "required_agents": [selected_agent],
             "priority": 1,
@@ -689,7 +688,7 @@ class EnhancedQueryProcessor:
         
         mappings = [AgentQueryMapping(
             agent_id=selected_agent,
-            optimized_query=f"{query} - 이 요청을 처리해주세요",
+optimized_query=f"{query} - please handle this request",
             context={
                 "task_type": "general",
                 "expected_output": "text",
@@ -704,15 +703,15 @@ class EnhancedQueryProcessor:
         return decomposition, mappings
 
 
-# 전역 인스턴스
+# Global instance
 _query_processor = None
 
 def get_enhanced_query_processor() -> EnhancedQueryProcessor:
-    """전역 쿼리 프로세서 인스턴스 반환"""
+    """Return global query processor instance"""
     global _query_processor
     if _query_processor is None:
         _query_processor = EnhancedQueryProcessor()
     return _query_processor
 
 
-logger.info("🧠 고도화된 쿼리 프로세서 로드 완료! (LLM + 키워드 조합)") 
+    logger.info("🧠 Enhanced query processor loaded! (LLM + keyword combination)") 

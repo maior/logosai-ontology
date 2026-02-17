@@ -1,8 +1,8 @@
 """
-🧠 Ontology-Enhanced Multi-Agent System
-온톨로지 기반 멀티 에이전트 시스템
+LogosAI Ontology System
 
-새로운 아키텍처로 완전히 재설계된 시스템
+Knowledge-driven multi-agent orchestration with LLM-powered
+query analysis and intelligent agent selection.
 """
 
 from .core.models import (
@@ -48,7 +48,7 @@ __all__ = [
     "SemanticQueryManager",
     "AdvancedExecutionEngine",
     "SmartWorkflowDesigner",
-    "SimpleKnowledgeGraphEngine",
+    "KnowledgeGraphEngine",
     
     # System
     "OntologySystem"

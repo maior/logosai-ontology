@@ -1,5 +1,5 @@
 """
-복잡도 분석 유틸리티
+Complexity Analysis Utilities
 """
 
 from typing import Dict, Any, List
@@ -10,23 +10,23 @@ from ..engines.execution_engine import QueryComplexityAnalyzer
 
 
 class ComplexityAnalyzer:
-    """복잡도 분석 유틸리티 클래스"""
+    """Complexity analysis utility class"""
     
     def __init__(self):
         self.complexity_analyzer = QueryComplexityAnalyzer()
     
     def safe_analyze_complexity(self, semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """안전한 복잡도 분석 (오류 처리 포함)"""
+        """Safe complexity analysis (with error handling)"""
         try:
-            # 기본 복잡도 분석 시도
+            # Attempt basic complexity analysis
             complexity_result = self.complexity_analyzer.analyze_query_complexity(semantic_query)
             
-            # 결과 검증 및 기본값 설정
+            # Validate results and set default values
             if not isinstance(complexity_result, dict):
-                logger.warning("복잡도 분석 결과가 딕셔너리가 아님. 기본값 사용")
+                logger.warning("Complexity analysis result is not a dict. Using default values")
                 return self._get_default_complexity_analysis(semantic_query)
             
-            # 필수 필드 확인 및 보완
+            # Check and supplement required fields
             required_fields = {
                 'overall_complexity': 0.7,
                 'cognitive_load': 0.6,
@@ -43,25 +43,25 @@ class ComplexityAnalyzer:
                 if field not in complexity_result:
                     complexity_result[field] = default_value
             
-            # 점수 범위 검증 (0-1 사이)
+            # Validate score range (between 0 and 1)
             score_fields = ['overall_complexity', 'cognitive_load', 'execution_complexity', 
                           'data_complexity', 'reasoning_depth', 'interdependency_level', 'confidence_score']
             
             for field in score_fields:
                 try:
                     score = float(complexity_result[field])
-                    complexity_result[field] = max(0.0, min(1.0, score))  # 0-1 범위로 제한
+                    complexity_result[field] = max(0.0, min(1.0, score))  # restrict to 0-1 range
                 except (ValueError, TypeError):
                     complexity_result[field] = required_fields[field]
             
-            # 단계 수 검증
+            # Validate step count
             try:
                 steps = int(complexity_result['estimated_steps'])
-                complexity_result['estimated_steps'] = max(1, min(10, steps))  # 1-10 범위로 제한
+                complexity_result['estimated_steps'] = max(1, min(10, steps))  # restrict to 1-10 range
             except (ValueError, TypeError):
                 complexity_result['estimated_steps'] = 3
             
-            # 추가 메타데이터
+            # Additional metadata
             complexity_result.update({
                 'analysis_timestamp': semantic_query.created_at.isoformat() if semantic_query.created_at else None,
                 'query_length': len(semantic_query.query_text),
@@ -71,26 +71,26 @@ class ComplexityAnalyzer:
                 'analysis_method': 'advanced_analyzer'
             })
             
-            logger.info(f"✅ 복잡도 분석 완료: {complexity_result['overall_complexity']:.2f}")
+            logger.info(f"✅ Complexity analysis complete: {complexity_result['overall_complexity']:.2f}")
             return complexity_result
             
         except Exception as e:
-            logger.error(f"❌ 복잡도 분석 실패: {e}")
+            logger.error(f"❌ Complexity analysis failed: {e}")
             return self._get_default_complexity_analysis(semantic_query)
     
     def _get_default_complexity_analysis(self, semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """기본 복잡도 분석 결과 반환"""
-        # 쿼리 텍스트 기반 간단한 복잡도 추정
+        """Return default complexity analysis result"""
+        # Simple complexity estimation based on query text
         query_text = semantic_query.query_text.lower()
         
-        # 키워드 기반 복잡도 추정
+        # Keyword-based complexity estimation
         complexity_indicators = {
             'high': ['분석', 'compare', '비교', 'complex', '복잡', 'detailed', '상세', 'comprehensive'],
             'medium': ['explain', '설명', 'describe', '묘사', 'summarize', '요약', 'calculate'],
             'low': ['what', '무엇', 'who', '누구', 'when', '언제', 'where', '어디']
         }
         
-        complexity_score = 0.5  # 기본값
+        complexity_score = 0.5  # default value
         
         for level, keywords in complexity_indicators.items():
             if any(keyword in query_text for keyword in keywords):
@@ -102,7 +102,7 @@ class ComplexityAnalyzer:
                     complexity_score = 0.4
                 break
         
-        # 쿼리 길이 기반 조정
+        # Adjust based on query length
         if len(query_text) > 100:
             complexity_score += 0.1
         elif len(query_text) < 20:
@@ -119,7 +119,7 @@ class ComplexityAnalyzer:
             'interdependency_level': complexity_score * 0.7,
             'resource_requirements': 'moderate' if complexity_score > 0.6 else 'low',
             'estimated_steps': max(1, int(complexity_score * 5)),
-            'confidence_score': 0.6,  # 기본 분석이므로 낮은 신뢰도
+            'confidence_score': 0.6,  # low confidence since this is a fallback analysis
             'analysis_timestamp': semantic_query.created_at.isoformat() if semantic_query.created_at else None,
             'query_length': len(semantic_query.query_text),
             'entities_count': len(semantic_query.entities) if semantic_query.entities else 0,
@@ -130,10 +130,10 @@ class ComplexityAnalyzer:
         }
     
     def classify_result_type(self, result_data: Any) -> str:
-        """결과 데이터의 타입을 분류"""
+        """Classify the type of result data"""
         try:
             if isinstance(result_data, dict):
-                # 딕셔너리 내용 기반 분류
+                # Classify based on dictionary content
                 if any(key in result_data for key in ['chart', 'graph', 'plot', 'visualization']):
                     return 'visualization'
                 elif any(key in result_data for key in ['calculation', 'math', 'number', 'result']):
@@ -148,7 +148,7 @@ class ComplexityAnalyzer:
                     return 'general'
             
             elif isinstance(result_data, str):
-                # 문자열 내용 기반 분류
+                # Classify based on string content
                 content = result_data.lower()
                 if any(word in content for word in ['chart', 'graph', 'plot', 'diagram']):
                     return 'visualization'
@@ -164,7 +164,7 @@ class ComplexityAnalyzer:
                     return 'general'
             
             elif isinstance(result_data, (list, tuple)):
-                # 리스트/튜플인 경우 첫 번째 요소로 판단
+                # Determine from first element for list/tuple
                 if len(result_data) > 0:
                     return self.classify_result_type(result_data[0])
                 else:
@@ -174,11 +174,11 @@ class ComplexityAnalyzer:
                 return 'general'
                 
         except Exception as e:
-            logger.warning(f"결과 타입 분류 실패: {e}")
+            logger.warning(f"Result type classification failed: {e}")
             return 'general'
     
     def infer_agent_capabilities(self, agent_id: str) -> List[str]:
-        """에이전트 ID를 기반으로 능력 추론"""
+        """Infer capabilities based on agent ID"""
         capability_map = {
             'internet_agent': ['web_search', 'information_retrieval', 'real_time_data'],
             'finance_agent': ['financial_data', 'market_analysis', 'economic_indicators'],

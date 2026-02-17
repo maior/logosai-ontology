@@ -1,8 +1,8 @@
 """
 🔗 Result Processor
-결과 처리자
+Result Processor
 
-워크플로우 실행 결과 통합 및 처리
+Integrates and processes workflow execution results
 """
 
 from typing import Dict, List, Any
@@ -12,72 +12,72 @@ from ..core.models import SemanticQuery, AgentExecutionResult, WorkflowPlan
 
 
 class ResultProcessor:
-    """🔗 결과 처리자"""
+    """🔗 Result Processor"""
     
     async def integrate_results(self, 
                                execution_results: List[AgentExecutionResult],
                                workflow_plan: WorkflowPlan,
                                semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """결과 통합"""
+        """Integrate results"""
         try:
-            logger.info(f"🔄 결과 통합 시작 - 총 {len(execution_results)}개 결과")
+            logger.info(f"🔄 Starting result integration - total {len(execution_results)} results")
             
-            # 모든 결과 상세 로깅
+            # Log all results in detail
             for i, result in enumerate(execution_results):
-                logger.info(f"  결과 {i+1}: {result.agent_id}")
-                logger.info(f"    성공: {result.success}")
-                logger.info(f"    실행시간: {result.execution_time:.2f}초")
-                logger.info(f"    신뢰도: {result.confidence}")
+                logger.info(f"  Result {i+1}: {result.agent_id}")
+                logger.info(f"    Success: {result.success}")
+                logger.info(f"    Execution time: {result.execution_time:.2f}s")
+                logger.info(f"    Confidence: {result.confidence}")
                 
                 if result.data:
-                    logger.info(f"    데이터 타입: {type(result.data)}")
+                    logger.info(f"    Data type: {type(result.data)}")
                     if isinstance(result.data, dict):
-                        logger.info(f"    데이터 키: {list(result.data.keys())}")
-                        # 실제 데이터 내용 일부 로깅
+                        logger.info(f"    Data keys: {list(result.data.keys())}")
+                        # Log partial actual data content
                         for key, value in result.data.items():
                             if isinstance(value, str) and len(value) > 100:
                                 logger.info(f"      {key}: {value[:100]}...")
                             else:
                                 logger.info(f"      {key}: {value}")
                     else:
-                        logger.info(f"    데이터 내용: {str(result.data)[:200]}...")
+                        logger.info(f"    Data content: {str(result.data)[:200]}...")
                 
                 if result.error_message:
-                    logger.warning(f"    오류: {result.error_message}")
+                    logger.warning(f"    Error: {result.error_message}")
             
-            # 성공한 결과들만 추출
+            # Extract only successful results
             successful_results = [r for r in execution_results if r.success]
-            logger.info(f"📊 성공한 결과: {len(successful_results)}개")
+            logger.info(f"📊 Successful results: {len(successful_results)}")
             
             if not successful_results:
-                logger.warning("⚠️ 모든 에이전트 실행이 실패했습니다.")
+                logger.warning("⚠️ All agent executions have failed.")
                 return {
                     "status": "failed",
-                    "message": "모든 에이전트 실행이 실패했습니다.",
+                    "message": "All agent executions have failed.",
                     "error_details": [r.error_message for r in execution_results if r.error_message]
                 }
             
-            # 결과 데이터 수집
+            # Collect result data
             result_data = []
             for result in successful_results:
                 if result.data:
                     processed_data = {
                         "agent_id": result.agent_id,
-                        "agent_name": getattr(result, 'agent_name', result.agent_id),  # agent_name 추가
+                        "agent_name": getattr(result, 'agent_name', result.agent_id),  # add agent_name
                         "data": result.data,
                         "confidence": result.confidence,
                         "execution_time": result.execution_time
                     }
                     result_data.append(processed_data)
-                    logger.info(f"✅ 결과 데이터 추가: {result.agent_id} (이름: {processed_data['agent_name']})")
+                    logger.info(f"✅ Result data added: {result.agent_id} (name: {processed_data['agent_name']})")
             
-            logger.info(f"📋 처리할 결과 데이터: {len(result_data)}개")
+            logger.info(f"📋 Result data to process: {len(result_data)}")
             
-            # 의도별 결과 통합
+            # Integrate results by intent
             intent = getattr(semantic_query, 'intent', 'general')
-            logger.info(f"🎯 의도별 통합 시작: {intent}")
+            logger.info(f"🎯 Starting intent-based integration: {intent}")
             
-            # 통합 결과와 reasoning 정보를 함께 반환
+            # Return integrated result together with reasoning information
             if intent == "information_retrieval":
                 integrated_result = self._integrate_information_results_structured(result_data)
             elif intent == "analysis":
@@ -87,11 +87,11 @@ class ResultProcessor:
             else:
                 integrated_result = self._integrate_general_results_structured(result_data)
             
-            # 통합 결과가 딕셔너리인 경우와 문자열인 경우를 구분
+            # Distinguish between dict and string integrated result
             if isinstance(integrated_result, dict):
-                logger.info(f"✅ 구조화된 통합 완료 - 내용 길이: {len(integrated_result.get('content', ''))}자")
+                logger.info(f"✅ Structured integration complete - content length: {len(integrated_result.get('content', ''))} chars")
                 
-                # 동적 reasoning 생성
+                # Generate dynamic reasoning
                 dynamic_reasoning = self._generate_dynamic_reasoning(
                     semantic_query=semantic_query,
                     workflow_plan=workflow_plan,
@@ -99,7 +99,7 @@ class ResultProcessor:
                     integrated_result=integrated_result
                 )
                 
-                # 기존 reasoning과 동적 reasoning 통합
+                # Merge existing reasoning with dynamic reasoning
                 final_reasoning = integrated_result.get('reasoning', '')
                 if dynamic_reasoning:
                     final_reasoning = f"{dynamic_reasoning}\n\n{final_reasoning}" if final_reasoning else dynamic_reasoning
@@ -118,17 +118,17 @@ class ResultProcessor:
                     }
                 }
             else:
-                # 기존 문자열 반환을 위한 하위 호환성
-                logger.info(f"✅ 통합 완료 - 내용 길이: {len(integrated_result)}자")
+                # Backward compatibility for string return
+                logger.info(f"✅ Integration complete - content length: {len(integrated_result)} chars")
                 
-                # 문자열 결과를 위한 동적 reasoning 생성
+                # Generate dynamic reasoning for string result
                 temp_integrated_result = {
                     "content": integrated_result,
                     "agent_results": [
                         {
                             "agent_id": r.agent_id,
-                            "agent_name": getattr(r, 'agent_name', r.agent_id),  # agent_name이 있으면 사용, 없으면 agent_id
-                            "result": r.data if r.data else "처리 완료",
+                            "agent_name": getattr(r, 'agent_name', r.agent_id),  # use agent_name if available, else agent_id
+                            "result": r.data if r.data else "Processing complete",
                             "execution_time": r.execution_time,
                             "confidence": r.confidence
                         } for r in successful_results
@@ -156,16 +156,16 @@ class ResultProcessor:
                 }
             
         except Exception as e:
-            logger.error(f"결과 통합 실패: {e}")
+            logger.error(f"Result integration failed: {e}")
             return {
                 "status": "error",
-                "message": f"결과 통합 중 오류 발생: {str(e)}",
+                "message": f"Error during result integration: {str(e)}",
                 "partial_results": [r.to_dict() if hasattr(r, 'to_dict') else str(r) for r in execution_results]
             }
     
     def _integrate_information_results_structured(self, result_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """정보 검색 결과 구조화된 통합"""
-        logger.info(f"🔍 정보 검색 결과 구조화 통합 시작 - {len(result_data)}개 결과")
+        """Structured integration of information retrieval results"""
+        logger.info(f"🔍 Starting structured information result integration - {len(result_data)} results")
         
         contents = []
         reasonings = []
@@ -173,45 +173,45 @@ class ResultProcessor:
         
         for result in result_data:
             agent_id = result["agent_id"]
-            agent_name = result.get("agent_name", agent_id)  # ExecutionEngine에서 전달된 agent_name 사용
+            agent_name = result.get("agent_name", agent_id)  # use agent_name passed from ExecutionEngine
             data = result["data"]
             
-            logger.info(f"  처리 중: {agent_id} (이름: {agent_name})")
-            logger.info(f"  데이터 타입: {type(data)}")
+            logger.info(f"  Processing: {agent_id} (name: {agent_name})")
+            logger.info(f"  Data type: {type(data)}")
             
             content = None
             reasoning = None
             
             if isinstance(data, dict):
-                logger.info(f"  데이터 키들: {list(data.keys())}")
+                logger.info(f"  Data keys: {list(data.keys())}")
                 
-                # answer와 reasoning 키가 있으면 우선적으로 사용
+                # Prefer answer and reasoning keys if available
                 if "answer" in data:
                     content = data["answer"]
                     reasoning = data.get("reasoning", "")
-                    logger.info(f"  📝 answer 키에서 내용 추출: {len(str(content))}자")
+                    logger.info(f"  📝 Content extracted from answer key: {len(str(content))} chars")
                     if reasoning:
-                        logger.info(f"  📝 reasoning 키에서 추론 추출: {len(str(reasoning))}자")
-                # result가 딕셔너리이고 answer가 있는지 확인
+                        logger.info(f"  📝 Reasoning extracted from reasoning key: {len(str(reasoning))} chars")
+                # Check if result is a dict and has answer
                 elif "result" in data:
                     result_value = data["result"]
                     if isinstance(result_value, dict) and "answer" in result_value:
                         content = result_value["answer"]
                         reasoning = result_value.get("reasoning", "")
-                        logger.info(f"  📝 result.answer에서 내용 추출: {len(str(content))}자")
+                        logger.info(f"  📝 Content extracted from result.answer: {len(str(content))} chars")
                     else:
                         content = str(result_value)
-                # 다양한 형태의 검색 결과 처리
+                # Handle various forms of search results
                 elif "search_results" in data:
                     search_results = data["search_results"]
                     if isinstance(search_results, list) and search_results:
-                        content = f"검색 결과 {len(search_results)}개 항목:\n"
-                        for i, item in enumerate(search_results[:5], 1):  # 상위 5개만
-                            title = item.get("title", "제목 없음")
+                        content = f"Search results {len(search_results)} items:\n"
+                        for i, item in enumerate(search_results[:5], 1):  # top 5 only
+                            title = item.get("title", "No title")
                             snippet = item.get("snippet", item.get("description", ""))
                             content += f"{i}. {title}\n   {snippet}\n"
                     else:
-                        content = "검색 결과가 없습니다."
+                        content = "No search results found."
                 elif "content" in data:
                     content = data["content"]
                     reasoning = data.get("reasoning", "")
@@ -219,19 +219,19 @@ class ResultProcessor:
                     content = data["text"]
                     reasoning = data.get("reasoning", "")
                 else:
-                    # 폴백
+                    # Fallback
                     content = str(data)
-                    logger.warning(f"  ⚠️ 폴백: 전체 데이터를 문자열로 변환")
+                    logger.warning(f"  ⚠️ Fallback: converting entire data to string")
             else:
                 content = str(data)
-                logger.info(f"  📝 문자열/기타 타입에서 직접 변환")
+                logger.info(f"  📝 Direct conversion from string/other type")
             
             if content and str(content).strip():
                 contents.append(content)
                 if reasoning:
                     reasonings.append(reasoning)
                 
-                # agent_results 구성
+                # Build agent_results
                 agent_results.append({
                     "agent_id": agent_id,
                     "agent_name": agent_name,
@@ -243,14 +243,14 @@ class ResultProcessor:
                     "category": self._extract_category(data, agent_id)
                 })
                 
-                logger.info(f"  ✅ 내용 추가: {len(str(content))}자")
+                logger.info(f"  ✅ Content added: {len(str(content))} chars")
             else:
-                logger.warning(f"  ⚠️ 빈 내용: {agent_id}")
+                logger.warning(f"  ⚠️ Empty content: {agent_id}")
         
-        final_content = "\n\n".join(contents) if contents else "검색 결과를 찾을 수 없습니다."
+        final_content = "\n\n".join(contents) if contents else "No search results found."
         final_reasoning = "\n\n".join(reasonings) if reasonings else ""
         
-        logger.info(f"🔍 정보 검색 결과 통합 완료 - 최종 길이: {len(final_content)}자")
+        logger.info(f"🔍 Information result integration complete - final length: {len(final_content)} chars")
         
         return {
             "content": final_content,
@@ -259,92 +259,92 @@ class ResultProcessor:
         }
     
     def _integrate_information_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """정보 검색 결과 통합"""
-        logger.info(f"🔍 정보 검색 결과 통합 시작 - {len(result_data)}개 결과")
+        """Integrate information search results"""
+        logger.info(f"🔍 Starting information search result integration - {len(result_data)} results")
         
         contents = []
         for result in result_data:
             agent_id = result["agent_id"]
-            agent_name = result.get("agent_name", agent_id)  # ExecutionEngine에서 전달된 agent_name 사용
+            agent_name = result.get("agent_name", agent_id)  # use agent_name passed from ExecutionEngine
             data = result["data"]
             
-            logger.info(f"  처리 중: {agent_id} (이름: {agent_name})")
-            logger.info(f"  데이터 타입: {type(data)}")
+            logger.info(f"  Processing: {agent_id} (name: {agent_name})")
+            logger.info(f"  Data type: {type(data)}")
             
             content = None
             
             if isinstance(data, dict):
-                logger.info(f"  데이터 키들: {list(data.keys())}")
+                logger.info(f"  Data keys: {list(data.keys())}")
                 
-                # answer 키가 있으면 우선적으로 사용
+                # Use answer key preferentially if present
                 if "answer" in data:
                     content = data["answer"]
-                    logger.info(f"  📝 answer 키에서 내용 추출: {len(str(content))}자")
-                # 다양한 형태의 검색 결과 처리
+                    logger.info(f"  📝 Extracting content from answer key: {len(str(content))} chars")
+                # Handle various forms of search results
                 elif "search_results" in data:
                     search_results = data["search_results"]
                     if isinstance(search_results, list) and search_results:
-                        content = f"검색 결과 {len(search_results)}개 항목:\n"
-                        for i, item in enumerate(search_results[:5], 1):  # 상위 5개만
-                            title = item.get("title", "제목 없음")
+                        content = f"Search results {len(search_results)} items:\n"
+                        for i, item in enumerate(search_results[:5], 1):  # top 5 only
+                            title = item.get("title", "No title")
                             snippet = item.get("snippet", item.get("description", ""))
                             content += f"{i}. {title}\n   {snippet}\n"
                     else:
-                        content = "검색 결과가 없습니다."
+                        content = "No search results found."
                 elif "items" in data:
                     items = data["items"]
                     if isinstance(items, list) and items:
-                        content = f"검색 항목 {len(items)}개:\n"
+                        content = f"Search items {len(items)}:\n"
                         for i, item in enumerate(items[:5], 1):
-                            title = item.get("title", item.get("name", "제목 없음"))
+                            title = item.get("title", item.get("name", "No title"))
                             content += f"{i}. {title}\n"
                     else:
-                        content = "검색 항목이 없습니다."
+                        content = "No search items found."
                 elif "content" in data:
                     content = data["content"]
                 elif "text" in data:
                     content = data["text"]
                 elif "result" in data:
-                    # result가 딕셔너리이고 answer가 있는지 확인
+                    # Check if result is a dict and has answer key
                     result_value = data["result"]
                     if isinstance(result_value, dict) and "answer" in result_value:
                         content = result_value["answer"]
-                        logger.info(f"  📝 result.answer에서 내용 추출: {len(str(content))}자")
+                        logger.info(f"  📝 Extracting content from result.answer: {len(str(content))} chars")
                     else:
                         content = str(result_value)
                 else:
-                    # 다른 키가 없으면 전체 딕셔너리를 문자열로 변환하지 말고 주요 내용만 추출
-                    logger.warning(f"  ⚠️ 알려진 키가 없음, 전체 구조: {data}")
-                    # 딕셔너리에서 가장 중요해 보이는 텍스트 내용을 찾아서 추출
+                    # If no known key, extract main content without converting entire dict to string
+                    logger.warning(f"  ⚠️ No known key found, full structure: {data}")
+                    # Find and extract the most important text content from the dictionary
                     for key in ['response', 'message', 'output', 'data']:
                         if key in data:
                             potential_content = data[key]
                             if isinstance(potential_content, str) and len(potential_content.strip()) > 0:
                                 content = potential_content
-                                logger.info(f"  📝 {key} 키에서 내용 추출")
+                                logger.info(f"  📝 Extracting content from {key} key")
                                 break
                     
-                    # 여전히 content가 없으면 전체를 문자열로 변환
+                    # If still no content, convert entire dict to string
                     if content is None:
                         content = str(data)
-                        logger.warning(f"  ⚠️ 폴백: 전체 딕셔너리를 문자열로 변환")
+                        logger.warning(f"  ⚠️ Fallback: converting entire dictionary to string")
             else:
                 content = str(data)
-                logger.info(f"  📝 문자열/기타 타입에서 직접 변환")
+                logger.info(f"  📝 Direct conversion from string/other type")
             
             if content and str(content).strip():
-                contents.append(content)  # agent_id 제거
-                logger.info(f"  ✅ 내용 추가: {len(str(content))}자 (agent_id 제외)")
+                contents.append(content)  # exclude agent_id
+                logger.info(f"  ✅ Content added: {len(str(content))} chars (agent_id excluded)")
             else:
-                logger.warning(f"  ⚠️ 빈 내용: {agent_id}")
+                logger.warning(f"  ⚠️ Empty content: {agent_id}")
         
-        final_content = "\n\n".join(contents) if contents else "검색 결과를 찾을 수 없습니다."
-        logger.info(f"🔍 정보 검색 결과 통합 완료 - 최종 길이: {len(final_content)}자")
+        final_content = "\n\n".join(contents) if contents else "No search results found."
+        logger.info(f"🔍 Information search result integration complete - final length: {len(final_content)} chars")
         
         return final_content
     
     def _integrate_analysis_results_structured(self, result_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """분석 결과 구조화된 통합"""
+        """Structured integration of analysis results"""
         analysis_parts = []
         reasonings = []
         agent_results = []
@@ -365,7 +365,7 @@ class ResultProcessor:
                 elif "insights" in data:
                     insights = data.get("insights", [])
                     if insights:
-                        content = f"**분석 결과 (신뢰도: {confidence:.2f})**\n"
+                        content = f"**Analysis Result (confidence: {confidence:.2f})**\n"
                         for insight in insights:
                             content += f"- {insight}\n"
                     else:
@@ -400,7 +400,7 @@ class ResultProcessor:
         }
     
     def _integrate_analysis_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """분석 결과 통합"""
+        """Integrate analysis results"""
         analysis_parts = []
         
         for result in result_data:
@@ -412,19 +412,19 @@ class ResultProcessor:
             if isinstance(data, dict):
                 insights = data.get("insights", [])
                 if insights:
-                    analysis_parts.append(f"**분석 결과 (신뢰도: {confidence:.2f})**")  # agent_id 제거
+                    analysis_parts.append(f"**Analysis Result (confidence: {confidence:.2f})**")  # exclude agent_id
                     for insight in insights:
                         analysis_parts.append(f"- {insight}")
                 else:
-                    analysis_parts.append(str(data))  # agent_id 제거
+                    analysis_parts.append(str(data))  # exclude agent_id
             else:
-                analysis_parts.append(str(data))  # agent_id 제거
+                analysis_parts.append(str(data))  # exclude agent_id
         
         return "\n".join(analysis_parts)
     
     def _integrate_comparison_results_structured(self, result_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """비교 결과 구조화된 통합"""
-        comparison_parts = ["## 비교 분석 결과"]
+        """Structured integration of comparison results"""
+        comparison_parts = ["## Comparison Analysis Results"]
         reasonings = []
         agent_results = []
         
@@ -446,7 +446,7 @@ class ResultProcessor:
                 content = str(data)
             
             if content:
-                comparison_parts.append(f"\n### {i}. 결과")
+                comparison_parts.append(f"\n### {i}. Result")
                 comparison_parts.append(content)
                 
                 if reasoning:
@@ -470,20 +470,20 @@ class ResultProcessor:
         }
     
     def _integrate_comparison_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """비교 결과 통합"""
-        comparison_parts = ["## 비교 분석 결과"]
+        """Integrate comparison results"""
+        comparison_parts = ["## Comparison Analysis Results"]
         
         for i, result in enumerate(result_data, 1):
             agent_id = result["agent_id"]
             data = result["data"]
             
-            comparison_parts.append(f"\n### {i}. 결과")  # agent_id 제거
+            comparison_parts.append(f"\n### {i}. Result")  # exclude agent_id
             comparison_parts.append(str(data))
         
         return "\n".join(comparison_parts)
     
     def _integrate_general_results_structured(self, result_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """일반 결과 구조화된 통합"""
+        """Structured integration of general results"""
         general_parts = []
         reasonings = []
         agent_results = []
@@ -530,7 +530,7 @@ class ResultProcessor:
         }
     
     def _integrate_general_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """일반 결과 통합"""
+        """Integrate general results"""
         general_parts = []
         
         for result in result_data:
@@ -538,7 +538,7 @@ class ResultProcessor:
             agent_name = result.get("agent_name", agent_id)
             data = result["data"]
             
-            general_parts.append(str(data))  # agent_id 제거
+            general_parts.append(str(data))  # exclude agent_id
         
         return "\n".join(general_parts)
     
@@ -547,111 +547,111 @@ class ResultProcessor:
                                    workflow_plan: WorkflowPlan,
                                    execution_results: List[AgentExecutionResult],
                                    integrated_result: Dict[str, Any]) -> str:
-        """쿼리 분석과 실행 결과를 결합한 동적 reasoning 생성"""
+        """Generate dynamic reasoning by combining query analysis and execution results"""
         try:
-            logger.info("🧠 동적 reasoning 생성 시작")
+            logger.info("🧠 Starting dynamic reasoning generation")
             
-            # 1. 쿼리 맥락 추출
+            # 1. Extract query context
             query_context = {
                 "original_query": getattr(semantic_query, 'original_query', ''),
                 "intent": getattr(semantic_query, 'intent', 'general'),
                 "key_entities": getattr(semantic_query, 'key_entities', []),
                 "expected_output": getattr(semantic_query, 'expected_output_type', 'text')
             }
-            logger.info(f"쿼리 맥락: 의도={query_context['intent']}, 핵심개체={len(query_context['key_entities'])}개")
+            logger.info(f"Query context: intent={query_context['intent']}, key entities={len(query_context['key_entities'])}")
             
-            # 2. 워크플로우 정보 추출
+            # 2. Extract workflow info
             workflow_info = {
                 "strategy": getattr(workflow_plan, 'optimization_strategy', 'AUTO'),
                 "planned_agents": [step.agent_id for step in getattr(workflow_plan, 'steps', [])],
                 "successful_agents": [getattr(r, 'agent_name', r.agent_id) for r in execution_results if r.success],
                 "failed_agents": [getattr(r, 'agent_name', r.agent_id) for r in execution_results if not r.success]
             }
-            logger.info(f"워크플로우: 전략={workflow_info['strategy']}, 성공={len(workflow_info['successful_agents'])}개")
+            logger.info(f"Workflow: strategy={workflow_info['strategy']}, successful={len(workflow_info['successful_agents'])}")
             
-            # 3. 의도별 reasoning 구성
+            # 3. Compose reasoning by intent
             reasoning_parts = []
             
-            # 의도 설명
+            # Intent description
             intent_map = {
-                "information_retrieval": "정보 검색",
-                "analysis": "분석",
-                "comparison": "비교",
-                "general": "일반 질의"
+                "information_retrieval": "Information Search",
+                "analysis": "Analysis",
+                "comparison": "Comparison",
+                "general": "General Query"
             }
             intent_desc = intent_map.get(query_context['intent'], query_context['intent'])
-            reasoning_parts.append(f"사용자님의 '{query_context['original_query']}' 요청은 {intent_desc} 작업으로 분류되었습니다.")
+            reasoning_parts.append(f"Your request '{query_context['original_query']}' has been classified as a {intent_desc} task.")
             
-            # 접근 방법 설명
+            # Approach description
             strategy_map = {
-                "PARALLEL": "병렬 처리",
-                "SEQUENTIAL": "순차 처리",
-                "HYBRID": "하이브리드",
-                "AUTO": "자동 최적화"
+                "PARALLEL": "Parallel Processing",
+                "SEQUENTIAL": "Sequential Processing",
+                "HYBRID": "Hybrid",
+                "AUTO": "Auto Optimization"
             }
             strategy_desc = strategy_map.get(workflow_info['strategy'], workflow_info['strategy'])
             
             if workflow_info['successful_agents']:
                 reasoning_parts.append(
-                    f"{strategy_desc} 방식으로 {len(workflow_info['successful_agents'])}개의 전문 에이전트가 "
-                    f"작업을 수행했습니다: {', '.join(workflow_info['successful_agents'])}"
+                    f"{len(workflow_info['successful_agents'])} specialized agents processed using {strategy_desc}: "
+                    f"{', '.join(workflow_info['successful_agents'])}"
                 )
             
-            # 실패한 에이전트가 있는 경우
+            # If there are failed agents
             if workflow_info['failed_agents']:
                 reasoning_parts.append(
-                    f"일부 에이전트({', '.join(workflow_info['failed_agents'])})는 처리에 실패했지만, "
-                    f"다른 에이전트들의 결과로 답변을 구성했습니다."
+                    f"Some agents ({', '.join(workflow_info['failed_agents'])}) failed, "
+                    f"but the answer was constructed from results of other agents."
                 )
             
-            # 핵심 개체 언급 (있는 경우)
+            # Mention key entities (if present)
             if query_context['key_entities']:
-                key_entities_str = ', '.join(query_context['key_entities'][:5])  # 최대 5개만
-                reasoning_parts.append(f"주요 키워드: {key_entities_str}")
+                key_entities_str = ', '.join(query_context['key_entities'][:5])  # max 5 only
+                reasoning_parts.append(f"Key keywords: {key_entities_str}")
             
-            # 에이전트별 핵심 기여 요약
+            # Summary of key contributions per agent
             agent_contributions = []
             for agent_result in integrated_result.get('agent_results', []):
-                # agent_name이 없거나 agent_id와 같으면 agent_id를 보기 좋게 표시
+                # Display agent_id cleanly when agent_name is missing or same
                 agent_name = agent_result.get('agent_name', '')
                 if not agent_name or agent_name == agent_result.get('agent_id', ''):
                     agent_name = agent_result.get('agent_id', 'Unknown')
-                    # _agent 접미사 제거하여 더 깔끔하게
+                    # Remove _agent suffix for cleaner display
                     if agent_name.endswith('_agent'):
                         agent_name = agent_name[:-6].replace('_', ' ').title() + ' Agent'
                 
                 if isinstance(agent_result.get('result'), dict):
                     agent_reasoning = agent_result['result'].get('reasoning', '')
                     if agent_reasoning:
-                        # reasoning이 너무 길면 요약
+                        # Summarize if reasoning is too long
                         if len(agent_reasoning) > 150:
                             agent_reasoning = agent_reasoning[:150] + "..."
                         agent_contributions.append(f"• {agent_name}: {agent_reasoning}")
             
             if agent_contributions:
-                reasoning_parts.append("\n에이전트별 분석:\n" + "\n".join(agent_contributions[:5]))  # 최대 5개
+                reasoning_parts.append("\nPer-agent analysis:\n" + "\n".join(agent_contributions[:5]))  # max 5
             
-            # 실행 시간과 신뢰도 정보 (metadata가 있는 경우)
+            # Execution time and confidence info (if metadata available)
             metadata = integrated_result.get('metadata', {})
             if metadata:
                 exec_time = metadata.get('total_execution_time', 0)
                 avg_confidence = metadata.get('average_confidence', 0)
                 if exec_time > 0:
-                    reasoning_parts.append(f"\n처리 시간: {exec_time:.2f}초, 평균 신뢰도: {avg_confidence:.2%}")
+                    reasoning_parts.append(f"\nProcessing time: {exec_time:.2f}s, Average confidence: {avg_confidence:.2%}")
             
-            # 최종 reasoning 조합
+            # Combine final reasoning
             final_reasoning = "\n\n".join(reasoning_parts)
-            logger.info(f"✅ 동적 reasoning 생성 완료 - 길이: {len(final_reasoning)}자")
+            logger.info(f"✅ Dynamic reasoning generation complete - length: {len(final_reasoning)} chars")
             
             return final_reasoning
             
         except Exception as e:
-            logger.error(f"❌ 동적 reasoning 생성 중 오류: {str(e)}")
-            # 오류 발생 시 기본 reasoning 반환
-            return f"'{getattr(semantic_query, 'original_query', '질의')}'에 대한 처리를 완료했습니다."
+            logger.error(f"❌ Error during dynamic reasoning generation: {str(e)}")
+            # Return default reasoning on error
+            return f"Processing of '{getattr(semantic_query, 'original_query', 'query')}' is complete."
     
     def _detect_agent_type(self, agent_id: str) -> str:
-        """에이전트 ID로부터 타입 추출"""
+        """Extract type from agent ID"""
         agent_id_lower = agent_id.lower()
         
         if "calculator" in agent_id_lower or "calc" in agent_id_lower:
@@ -676,27 +676,27 @@ class ResultProcessor:
             return "general"
     
     def _extract_category(self, data: Any, agent_id: str) -> str:
-        """에이전트 결과에서 category 추출"""
-        # 1. data가 dict이고 metadata가 있으면 거기서 추출
+        """Extract category from agent result"""
+        # 1. Extract from metadata if data is dict
         if isinstance(data, dict):
-            # metadata에서 category 찾기
+            # Find category in metadata
             metadata = data.get("metadata", {})
             if metadata.get("category"):
-                logger.info(f"✅ metadata에서 category 발견: {metadata['category']}")
+                logger.info(f"✅ Category found in metadata: {metadata['category']}")
                 return metadata["category"]
             
-            # 최상위 레벨에서 category 찾기
+            # Find category at top level
             if data.get("category"):
-                logger.info(f"✅ 최상위 레벨에서 category 발견: {data['category']}")
+                logger.info(f"✅ Category found at top level: {data['category']}")
                 return data["category"]
         
-        # 2. agent_id에서 추론
+        # 2. Infer from agent_id
         inferred_category = self._infer_category_from_agent_id(agent_id)
-        logger.info(f"📊 agent_id '{agent_id}'에서 category 추론: {inferred_category}")
+        logger.info(f"📊 Category inferred from agent_id '{agent_id}': {inferred_category}")
         return inferred_category
     
     def _infer_category_from_agent_id(self, agent_id: str) -> str:
-        """에이전트 ID로부터 카테고리 추론"""
+        """Infer category from agent ID"""
         agent_id_lower = agent_id.lower()
         
         if "samsung" in agent_id_lower:

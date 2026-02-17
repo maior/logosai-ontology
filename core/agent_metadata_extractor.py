@@ -1,8 +1,8 @@
 """
 🔍 Agent Metadata Extractor
-에이전트 메타데이터 추출기
+Agent Metadata Extractor
 
-에이전트의 상세 정보를 추출하고 구조화
+Extracts and structures detailed agent information
 """
 
 from typing import Dict, List, Any, Optional
@@ -10,15 +10,15 @@ from loguru import logger
 
 
 class AgentMetadataExtractor:
-    """에이전트 메타데이터 추출 및 구조화"""
+    """Extract and structure agent metadata"""
     
     def extract_agent_metadata(self, agent_info: Dict[str, Any]) -> Dict[str, Any]:
-        """에이전트 정보에서 풍부한 메타데이터 추출"""
+        """Extract rich metadata from agent information"""
         
         agent_id = agent_info.get('agent_id', '')
         agent_data = agent_info.get('agent_data', {})
         
-        # 기본 정보
+        # Basic information
         metadata = {
             'agent_id': agent_id,
             'name': agent_data.get('name', agent_id),
@@ -28,40 +28,40 @@ class AgentMetadataExtractor:
             'api_key': agent_data.get('api_key', '')
         }
         
-        # capabilities 추출
+        # Extract capabilities
         capabilities = agent_data.get('capabilities', [])
         metadata['capabilities'] = self._extract_capabilities(capabilities)
         metadata['capability_names'] = [cap.get('name', '') for cap in capabilities if isinstance(cap, dict)]
         
-        # tags 추출 및 정규화
+        # Extract and normalize tags
         tags = agent_data.get('tags', [])
         metadata['tags'] = self._normalize_tags(tags)
         metadata['tag_categories'] = self._categorize_tags(metadata['tags'])
         
-        # examples 추출
+        # Extract examples
         examples = agent_data.get('examples', [])
         metadata['examples'] = examples
         metadata['example_patterns'] = self._extract_patterns_from_examples(examples)
         
-        # 도메인 추출
+        # Extract domains
         metadata['domains'] = self._extract_domains(agent_data)
         
-        # 특수 능력 감지
+        # Detect special abilities
         metadata['special_abilities'] = self._detect_special_abilities(metadata)
         
         return metadata
     
     def _extract_agent_type(self, agent_data: Dict[str, Any]) -> str:
-        """에이전트 타입 추출"""
-        # metadata에서 먼저 확인
+        """Extract agent type"""
+        # Check metadata first
         if 'metadata' in agent_data and 'agent_type' in agent_data['metadata']:
             return agent_data['metadata']['agent_type']
         
-        # agent_type 필드 확인
+        # Check agent_type field
         if 'agent_type' in agent_data:
             return agent_data['agent_type']
         
-        # 이름이나 설명에서 추론
+        # Infer from name or description
         name = agent_data.get('name', '').lower()
         desc = agent_data.get('description', '').lower()
         
@@ -84,7 +84,7 @@ class AgentMetadataExtractor:
         return 'GENERAL'
     
     def _extract_capabilities(self, capabilities: List[Any]) -> List[Dict[str, Any]]:
-        """능력 정보 추출 및 정규화"""
+        """Extract and normalize capability information"""
         normalized = []
         
         for cap in capabilities:
@@ -104,7 +104,7 @@ class AgentMetadataExtractor:
         return normalized
     
     def _categorize_capability(self, capability_name: str) -> str:
-        """능력을 카테고리로 분류"""
+        """Categorize capability"""
         cap_lower = capability_name.lower()
         
         if any(word in cap_lower for word in ['검색', 'search', '조회', 'find']):
@@ -121,20 +121,20 @@ class AgentMetadataExtractor:
             return 'general'
     
     def _normalize_tags(self, tags: List[str]) -> List[str]:
-        """태그 정규화"""
+        """Normalize tags"""
         normalized = []
         
         for tag in tags:
             if isinstance(tag, str):
-                # 소문자로 변환하고 공백 제거
+                # Convert to lowercase and strip whitespace
                 normalized_tag = tag.lower().strip()
                 if normalized_tag:
                     normalized.append(normalized_tag)
         
-        return list(set(normalized))  # 중복 제거
+        return list(set(normalized))  # Remove duplicates
     
     def _categorize_tags(self, tags: List[str]) -> Dict[str, List[str]]:
-        """태그를 카테고리별로 분류"""
+        """Categorize tags by category"""
         categories = {
             'domain': [],
             'function': [],
@@ -155,12 +155,12 @@ class AgentMetadataExtractor:
         return categories
     
     def _extract_patterns_from_examples(self, examples: List[str]) -> List[str]:
-        """예제에서 패턴 추출"""
+        """Extract patterns from examples"""
         patterns = []
         
         for example in examples:
             if isinstance(example, str):
-                # 간단한 패턴 추출 (실제로는 더 정교한 로직 필요)
+                # Simple pattern extraction (more sophisticated logic needed in production)
                 if '계산' in example or 'calculate' in example:
                     patterns.append('calculation_task')
                 elif '조회' in example or '확인' in example or 'check' in example:
@@ -173,10 +173,10 @@ class AgentMetadataExtractor:
         return list(set(patterns))
     
     def _extract_domains(self, agent_data: Dict[str, Any]) -> List[str]:
-        """에이전트가 다루는 도메인 추출"""
+        """Extract domains handled by the agent"""
         domains = []
         
-        # 이름, 설명, 태그에서 도메인 추출
+        # Extract domain from name, description, and tags
         text_to_analyze = ' '.join([
             agent_data.get('name', ''),
             agent_data.get('description', ''),
@@ -198,18 +198,18 @@ class AgentMetadataExtractor:
         return domains if domains else ['general']
     
     def _detect_special_abilities(self, metadata: Dict[str, Any]) -> List[str]:
-        """특수 능력 감지"""
+        """Detect special abilities"""
         special_abilities = []
         
-        # 플로우차트 생성 능력
+        # Flowchart generation ability
         if any('flowchart' in tag or '플로우차트' in tag for tag in metadata['tags']):
             special_abilities.append('flowchart_generation')
         
-        # 실시간 데이터 처리 능력
+        # Real-time data processing ability
         if any('실시간' in tag or 'realtime' in tag for tag in metadata['tags']):
             special_abilities.append('realtime_data')
         
-        # 멀티모달 능력
+        # Multimodal ability
         if any('이미지' in cap['name'] or 'image' in cap['name'] 
                for cap in metadata['capabilities']):
             special_abilities.append('multimodal')
@@ -218,7 +218,7 @@ class AgentMetadataExtractor:
 
 
 def get_agent_metadata_extractor() -> AgentMetadataExtractor:
-    """싱글톤 인스턴스 반환"""
+    """Return singleton instance"""
     global _extractor_instance
     if '_extractor_instance' not in globals():
         _extractor_instance = AgentMetadataExtractor()

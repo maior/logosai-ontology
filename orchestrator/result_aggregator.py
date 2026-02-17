@@ -176,10 +176,10 @@ class ResultAggregator:
 
         # TODO: Implement LLM summarization
         # For now, return formatted text
-        summary = f"# 결과 요약\n\n"
+        summary = f"# Result Summary\n\n"
         if original_query:
-            summary += f"**질문**: {original_query}\n\n"
-        summary += f"**처리된 에이전트**: {len(all_results)}개\n\n"
+            summary += f"**Query**: {original_query}\n\n"
+        summary += f"**Agents processed**: {len(all_results)}\n\n"
         summary += results_text
 
         return summary
@@ -227,7 +227,7 @@ class ResultAggregator:
                     "content": str(data),
                 })
 
-        comparison["summary"] = f"{len(comparison['items'])}개 항목 비교"
+        comparison["summary"] = f"{len(comparison['items'])} items compared"
 
         return comparison
 
@@ -292,7 +292,7 @@ class ResultAggregator:
 
     def _results_to_markdown(self, results: List[Dict[str, Any]]) -> str:
         """Convert results to Markdown format"""
-        md_lines = ["# 실행 결과\n"]
+        md_lines = ["# Execution Results\n"]
 
         for i, result in enumerate(results, 1):
             agent_id = result.get("agent_id", "unknown")

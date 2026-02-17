@@ -24,14 +24,14 @@ class EnhancedOntologyWorkflowDesigner(IWorkflowDesigner):
     """Enhanced workflow designer with improved query analysis and parallel execution support"""
     
     def __init__(self, installed_agents_info: List[Dict[str, Any]] = None):
-        # 실제 설치된 에이전트 정보 저장
+        # Store information about actually installed agents
         self.installed_agents_info = installed_agents_info or []
         self.agents_capabilities_cache = {}
-        
+
         # Enhanced query processor
         self.query_processor = EnhancedOntologyQueryProcessor()
-        
-        # 에이전트 간 의존성 규칙
+
+        # Inter-agent dependency rules
         self.dependency_rules = {
             "chart": ["search", "data", "analysis"],
             "analysis": ["search", "data"],
@@ -39,7 +39,7 @@ class EnhancedOntologyWorkflowDesigner(IWorkflowDesigner):
             "report": ["search", "analysis", "data"]
         }
         
-        logger.info(f"🎯 EnhancedOntologyWorkflowDesigner 초기화 완료 - 설치된 에이전트: {len(self.installed_agents_info)}개")
+        logger.info(f"🎯 EnhancedOntologyWorkflowDesigner initialized - installed agents: {len(self.installed_agents_info)}")
     
     async def design_workflow(self, 
                             semantic_query: SemanticQuery,
@@ -48,10 +48,10 @@ class EnhancedOntologyWorkflowDesigner(IWorkflowDesigner):
         Enhanced workflow design with comprehensive query analysis
         """
         try:
-            logger.info(f"🎯 Enhanced 워크플로우 설계 시작 - 쿼리: {semantic_query.natural_language[:100]}...")
+            logger.info(f"🎯 Enhanced workflow design started - query: {semantic_query.natural_language[:100]}...")
             
             if not available_agents:
-                logger.warning("사용 가능한 에이전트가 없습니다.")
+                logger.warning("No available agents.")
                 return self._create_fallback_workflow(semantic_query, [])
             
             # Convert agent IDs to agent info format for query processor
@@ -113,11 +113,11 @@ class EnhancedOntologyWorkflowDesigner(IWorkflowDesigner):
                 'complexity_level': query_analysis.complexity.value
             }
             
-            logger.info(f"✅ Enhanced 워크플로우 설계 완료 - {len(workflow_steps)}개 단계, 예상 시간: {estimated_time:.1f}초")
+            logger.info(f"✅ Enhanced workflow design completed - {len(workflow_steps)} steps, estimated time: {estimated_time:.1f}s")
             return workflow_plan
             
         except Exception as e:
-            logger.error(f"❌ Enhanced 워크플로우 설계 실패: {e}")
+            logger.error(f"❌ Enhanced workflow design failed: {e}")
             return self._create_fallback_workflow(semantic_query, available_agents)
     
     def _convert_to_agent_info(self, agent_ids: List[str]) -> List[Dict[str, Any]]:
@@ -292,7 +292,7 @@ class EnhancedOntologyWorkflowDesigner(IWorkflowDesigner):
         
         # Verify DAG
         if not nx.is_directed_acyclic_graph(graph):
-            logger.warning("순환 참조 감지, 제거 중...")
+            logger.warning("Cyclic reference detected, removing...")
             self._remove_cycles(graph)
         
         return graph

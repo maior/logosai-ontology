@@ -1,8 +1,7 @@
 """
 🔄 Mermaid Fallback Service
-Mermaid 폴백 서비스
 
-data_visualization_agent가 설치되지 않은 경우 LLM으로 Mermaid 다이어그램 생성
+Generates Mermaid diagrams using an LLM when data_visualization_agent is not installed.
 """
 
 import json
@@ -14,27 +13,27 @@ from ..core.llm_manager import get_ontology_llm_manager, OntologyLLMType
 
 
 class MermaidFallbackService:
-    """Mermaid 폴백 서비스"""
-    
+    """Mermaid fallback service."""
+
     def __init__(self):
         self.llm_manager = get_ontology_llm_manager()
-        
+
     async def generate_mermaid_from_agent_results(
         self,
         original_query: str,
         agent_results: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """에이전트 결과를 기반으로 Mermaid 다이어그램 생성"""
+        """Generate a Mermaid diagram based on agent results."""
         try:
-            logger.info(f"🔄 Mermaid 폴백 생성 시작 - {len(agent_results)}개 결과")
-            
-            # 1. 에이전트 결과에서 데이터 추출
+            logger.info(f"🔄 Starting Mermaid fallback generation - {len(agent_results)} results")
+
+            # 1. Extract data from agent results
             extracted_data = self._extract_data_from_results(agent_results)
-            
-            # 2. 시각화 타입 결정
+
+            # 2. Determine visualization type
             viz_type = self._determine_visualization_type(original_query)
-            
-            # 3. 타입별 Mermaid 생성
+
+            # 3. Generate Mermaid by type
             if viz_type == "flowchart":
                 mermaid_result = await self._generate_flowchart_mermaid(
                     original_query, extracted_data
@@ -56,15 +55,15 @@ class MermaidFallbackService:
                     original_query, extracted_data
                 )
             
-            logger.info(f"✅ Mermaid 폴백 생성 완료: {viz_type}")
+            logger.info(f"✅ Mermaid fallback generation complete: {viz_type}")
             return mermaid_result
-            
+
         except Exception as e:
-            logger.error(f"Mermaid 폴백 생성 실패: {e}")
+            logger.error(f"Mermaid fallback generation failed: {e}")
             return self._create_error_fallback(original_query, str(e))
     
     def _extract_data_from_results(self, agent_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """에이전트 결과에서 시각화 가능한 데이터 추출"""
+        """Extract visualizable data from agent results."""
         extracted_data = {
             'agents': [],
             'data_points': [],
@@ -77,8 +76,8 @@ class MermaidFallbackService:
             try:
                 agent_id = result.get('agent_id', 'unknown')
                 agent_data = result.get('data', {})
-                
-                # 에이전트 정보 추가
+
+                # Add agent information
                 extracted_data['agents'].append({
                     'id': agent_id,
                     'name': agent_id.replace('_', ' ').title(),
@@ -86,7 +85,7 @@ class MermaidFallbackService:
                     'data': agent_data
                 })
                 
-                # 데이터 포인트 추출
+                # Extract data points
                 if isinstance(agent_data, dict):
                     for key, value in agent_data.items():
                         if isinstance(value, (int, float)):
@@ -101,8 +100,8 @@ class MermaidFallbackService:
                                 'description': value,
                                 'source': agent_id
                             })
-                
-                # 관계 추출 (에이전트 간)
+
+                # Extract relationships (between agents)
                 if len(extracted_data['agents']) > 1:
                     prev_agent = extracted_data['agents'][-2]['id']
                     curr_agent = agent_id
@@ -113,48 +112,48 @@ class MermaidFallbackService:
                     })
                         
             except Exception as e:
-                logger.warning(f"데이터 추출 실패 {result.get('agent_id', 'unknown')}: {e}")
+                logger.warning(f"Data extraction failed for {result.get('agent_id', 'unknown')}: {e}")
                 continue
         
         return extracted_data
     
     def _determine_visualization_type(self, query: str) -> str:
-        """쿼리 분석을 통한 시각화 타입 결정"""
+        """Determine visualization type by analyzing the query."""
         query_lower = query.lower()
-        
-        # 플로우차트 키워드
+
+        # Flowchart keywords
         if any(keyword in query_lower for keyword in [
             '플로우차트', '순서도', '과정', '단계', '절차', 'flowchart', 'process', 'workflow'
         ]):
             return "flowchart"
-        
-        # 타임라인 키워드  
+
+        # Timeline keywords
         if any(keyword in query_lower for keyword in [
             '타임라인', '일정', '스케줄', '시간순', 'timeline', 'schedule'
         ]):
             return "timeline"
-        
-        # 마인드맵 키워드
+
+        # Mindmap keywords
         if any(keyword in query_lower for keyword in [
             '마인드맵', '아이디어', '구조', 'mindmap', 'mind map', 'idea'
         ]):
             return "mindmap"
-        
-        # 차트 키워드
+
+        # Chart keywords
         if any(keyword in query_lower for keyword in [
             '차트', '그래프', '통계', '데이터', 'chart', 'graph', 'data'
         ]):
             return "chart"
-        
-        # 기본값
+
+        # Default
         return "generic"
     
     async def _generate_flowchart_mermaid(
-        self, 
-        query: str, 
+        self,
+        query: str,
         data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """플로우차트 Mermaid 생성"""
+        """Generate a flowchart Mermaid diagram."""
         
         prompt = f"""
 사용자 쿼리: {query}
@@ -195,22 +194,22 @@ Mermaid 코드만 응답하세요.
                 'type': 'mermaid',
                 'format': 'flowchart',
                 'content': mermaid_code,
-                'title': '처리 과정 플로우차트',
-                'description': f'{len(data["agents"])}개 에이전트 실행 과정',
+                'title': 'Processing Flowchart',
+                'description': f'{len(data["agents"])} agent execution process',
                 'data': data,
                 'fallback': True
             }
-            
+
         except Exception as e:
-            logger.error(f"플로우차트 생성 실패: {e}")
+            logger.error(f"Flowchart generation failed: {e}")
             return self._create_basic_flowchart(data)
     
     async def _generate_timeline_mermaid(
-        self, 
-        query: str, 
+        self,
+        query: str,
         data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """타임라인 Mermaid 생성"""
+        """Generate a timeline Mermaid diagram."""
         
         prompt = f"""
 사용자 쿼리: {query}
@@ -250,22 +249,22 @@ Mermaid 코드만 응답하세요.
                 'type': 'mermaid',
                 'format': 'timeline',
                 'content': mermaid_code,
-                'title': '처리 과정 타임라인',
-                'description': f'{len(data["agents"])}개 에이전트 실행 타임라인',
+                'title': 'Processing Timeline',
+                'description': f'{len(data["agents"])} agent execution timeline',
                 'data': data,
                 'fallback': True
             }
-            
+
         except Exception as e:
-            logger.error(f"타임라인 생성 실패: {e}")
+            logger.error(f"Timeline generation failed: {e}")
             return self._create_basic_timeline(data)
     
     async def _generate_mindmap_mermaid(
-        self, 
-        query: str, 
+        self,
+        query: str,
         data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """마인드맵 Mermaid 생성"""
+        """Generate a mindmap Mermaid diagram."""
         
         prompt = f"""
 사용자 쿼리: {query}
@@ -310,80 +309,80 @@ Mermaid 코드만 응답하세요.
                 'type': 'mermaid',
                 'format': 'mindmap',
                 'content': mermaid_code,
-                'title': '처리 결과 마인드맵',
-                'description': f'{len(data["agents"])}개 에이전트 결과 구조화',
+                'title': 'Processing Result Mindmap',
+                'description': f'{len(data["agents"])} agent results structured',
                 'data': data,
                 'fallback': True
             }
-            
+
         except Exception as e:
-            logger.error(f"마인드맵 생성 실패: {e}")
+            logger.error(f"Mindmap generation failed: {e}")
             return self._create_basic_mindmap(data)
     
     async def _generate_chart_mermaid(
-        self, 
-        query: str, 
+        self,
+        query: str,
         data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """차트 Mermaid 생성"""
-        
-        # 데이터 포인트가 있으면 차트 생성
+        """Generate a chart Mermaid diagram."""
+
+        # Build chart if data points are available
         if data['data_points']:
             chart_data = []
             for point in data['data_points']:
                 chart_data.append(f"{point['label']}: {point['value']}")
-            
+
             mermaid_code = f"""graph LR
-    subgraph "데이터 차트"
+    subgraph "Data Chart"
         {chr(10).join([f'    {chr(65+i)}["{item}"]' for i, item in enumerate(chart_data)])}
     end"""
         else:
             mermaid_code = self._create_basic_chart_fallback(data)
-        
+
         return {
             'type': 'mermaid',
             'format': 'chart',
             'content': mermaid_code,
-            'title': '데이터 차트',
-            'description': f'{len(data["data_points"])}개 데이터 포인트',
+            'title': 'Data Chart',
+            'description': f'{len(data["data_points"])} data points',
             'data': data,
             'fallback': True
         }
     
     async def _generate_generic_mermaid(
-        self, 
-        query: str, 
+        self,
+        query: str,
         data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """범용 Mermaid 생성"""
-        
-        # 에이전트 실행 과정을 단순한 플로우차트로 표현
+        """Generate a generic Mermaid diagram."""
+
+        # Represent the agent execution process as a simple flowchart
         return await self._generate_flowchart_mermaid(query, data)
     
     def _extract_mermaid_code(self, response: str) -> str:
-        """LLM 응답에서 Mermaid 코드 추출"""
+        """Extract Mermaid code from an LLM response."""
         try:
-            # ```mermaid 블록 찾기
+            # Find ```mermaid block
             mermaid_match = re.search(r'```mermaid\s*(.*?)\s*```', response, re.DOTALL)
             if mermaid_match:
                 return mermaid_match.group(1).strip()
-            
-            # ``` 블록 찾기
+
+            # Find ``` block
             code_match = re.search(r'```\s*(.*?)\s*```', response, re.DOTALL)
             if code_match:
                 return code_match.group(1).strip()
-            
-            # 블록이 없으면 전체 응답 사용
+
+            # If no block found, use the full response
             return response.strip()
-            
+
         except Exception as e:
-            logger.error(f"Mermaid 코드 추출 실패: {e}")
-            return "graph TD\n    A[오류] --> B[코드 추출 실패]"
+            logger.error(f"Mermaid code extraction failed: {e}")
+            return "graph TD\n    A[Error] --> B[Code extraction failed]"
     
     def _create_basic_flowchart(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """기본 플로우차트 생성"""
+        """Create a basic flowchart."""
         mermaid_lines = ["graph TD"]
-        mermaid_lines.append('    A[시작] --> B[처리 시작]')
+        mermaid_lines.append('    A[Start] --> B[Processing Begin]')
         
         for i, agent in enumerate(data['agents']):
             node_id = chr(67 + i)  # C, D, E, ...
@@ -391,94 +390,94 @@ Mermaid 코드만 응답하세요.
             status = "✅" if agent['success'] else "❌"
             mermaid_lines.append(f'    {chr(66 + i)} --> {node_id}["{status} {agent_name}"]')
         
-        mermaid_lines.append(f'    {chr(66 + len(data["agents"]))} --> Z[완료]')
-        
+        mermaid_lines.append(f'    {chr(66 + len(data["agents"]))} --> Z[Complete]')
+
         return {
             'type': 'mermaid',
             'format': 'flowchart',
             'content': '\n'.join(mermaid_lines),
-            'title': '기본 처리 과정',
-            'description': f'{len(data["agents"])}개 에이전트 처리 과정',
+            'title': 'Basic Processing Flow',
+            'description': f'{len(data["agents"])} agent processing flow',
             'data': data,
             'fallback': True
         }
     
     def _create_basic_timeline(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """기본 타임라인 생성"""
+        """Create a basic timeline."""
         mermaid_lines = ["timeline"]
-        mermaid_lines.append('    title 처리 과정 타임라인')
+        mermaid_lines.append('    title Processing Timeline')
         mermaid_lines.append('')
-        
+
         for i, agent in enumerate(data['agents']):
             step_num = i + 1
             agent_name = agent['name']
-            status = "완료" if agent['success'] else "실패"
-            mermaid_lines.append(f'    {step_num}단계 : {agent_name} 실행')
+            status = "Complete" if agent['success'] else "Failed"
+            mermaid_lines.append(f'    Step {step_num} : {agent_name} execution')
             mermaid_lines.append(f'            : {status}')
-        
+
         return {
             'type': 'mermaid',
             'format': 'timeline',
             'content': '\n'.join(mermaid_lines),
-            'title': '기본 타임라인',
-            'description': f'{len(data["agents"])}개 에이전트 실행 타임라인',
+            'title': 'Basic Timeline',
+            'description': f'{len(data["agents"])} agent execution timeline',
             'data': data,
             'fallback': True
         }
     
     def _create_basic_mindmap(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """기본 마인드맵 생성"""
+        """Create a basic mindmap."""
         mermaid_lines = ["mindmap"]
-        mermaid_lines.append('  root((처리 결과))')
-        
+        mermaid_lines.append('  root((Processing Result))')
+
         for agent in data['agents']:
             agent_name = agent['name']
-            status = "성공" if agent['success'] else "실패"
+            status = "Success" if agent['success'] else "Failed"
             mermaid_lines.append(f'    {agent_name}')
             mermaid_lines.append(f'      {status}')
-        
+
         return {
             'type': 'mermaid',
             'format': 'mindmap',
             'content': '\n'.join(mermaid_lines),
-            'title': '기본 마인드맵',
-            'description': f'{len(data["agents"])}개 에이전트 결과 구조화',
+            'title': 'Basic Mindmap',
+            'description': f'{len(data["agents"])} agent results structured',
             'data': data,
             'fallback': True
         }
     
     def _create_basic_chart_fallback(self, data: Dict[str, Any]) -> str:
-        """기본 차트 폴백"""
+        """Basic chart fallback."""
         mermaid_lines = ["graph LR"]
-        mermaid_lines.append('    subgraph "에이전트 실행 결과"')
-        
+        mermaid_lines.append('    subgraph "Agent Execution Results"')
+
         for i, agent in enumerate(data['agents']):
             node_id = chr(65 + i)
             agent_name = agent['name']
-            status = "성공" if agent['success'] else "실패"
+            status = "Success" if agent['success'] else "Failed"
             mermaid_lines.append(f'        {node_id}["{agent_name}<br/>{status}"]')
-        
+
         mermaid_lines.append('    end')
         return '\n'.join(mermaid_lines)
     
     def _create_error_fallback(self, query: str, error_msg: str) -> Dict[str, Any]:
-        """오류 폴백 생성"""
+        """Create an error fallback diagram."""
         mermaid_code = f"""graph TD
-    A[쿼리: {query[:30]}...] --> B[처리 중 오류 발생]
-    B --> C[오류: {error_msg[:50]}...]
-    C --> D[기본 응답 생성]"""
-        
+    A[Query: {query[:30]}...] --> B[Error during processing]
+    B --> C[Error: {error_msg[:50]}...]
+    C --> D[Generating default response]"""
+
         return {
             'type': 'mermaid',
             'format': 'error',
             'content': mermaid_code,
-            'title': '처리 오류',
-            'description': f'오류로 인한 기본 응답: {error_msg}',
+            'title': 'Processing Error',
+            'description': f'Default response due to error: {error_msg}',
             'error': error_msg,
             'fallback': True
         }
 
 
 def get_mermaid_fallback_service() -> MermaidFallbackService:
-    """Mermaid 폴백 서비스 인스턴스 반환"""
+    """Return a MermaidFallbackService instance."""
     return MermaidFallbackService()

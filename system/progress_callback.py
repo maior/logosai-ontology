@@ -1,8 +1,8 @@
 """
 🔄 Progress Callback
-진행 상황 콜백 모듈
+Progress Callback Module
 
-온톨로지 시스템의 진행 상황을 추적하고 알림
+Tracks and notifies progress of the ontology system
 """
 
 import time
@@ -14,7 +14,7 @@ from ..core.interfaces import ProgressCallback
 
 
 class SimpleProgressCallback(ProgressCallback):
-    """간단한 진행 상황 콜백"""
+    """Simple progress callback"""
     
     def __init__(self):
         self.messages = []
@@ -23,7 +23,7 @@ class SimpleProgressCallback(ProgressCallback):
         self.errors = []
     
     async def on_progress(self, message: str, progress: float, metadata: Dict[str, Any] = None):
-        """진행 상황 업데이트"""
+        """Update progress"""
         self.messages.append({
             "message": message,
             "progress": progress,
@@ -34,7 +34,7 @@ class SimpleProgressCallback(ProgressCallback):
         logger.info(f"Progress ({progress:.1%}): {message}")
     
     async def on_step_complete(self, step_id: str, result: AgentExecutionResult):
-        """단계 완료 알림"""
+        """Step completion notification"""
         self.completed_steps.append({
             "step_id": step_id,
             "agent_id": result.agent_id,
@@ -45,7 +45,7 @@ class SimpleProgressCallback(ProgressCallback):
         logger.info(f"Step completed: {step_id} ({result.agent_id}) - {'✅' if result.success else '❌'}")
     
     async def on_error(self, error_message: str, error_details: Dict[str, Any] = None):
-        """오류 발생 알림"""
+        """Error notification"""
         self.errors.append({
             "message": error_message,
             "details": error_details or {},
@@ -54,7 +54,7 @@ class SimpleProgressCallback(ProgressCallback):
         logger.error(f"Error: {error_message}")
     
     def get_summary(self) -> Dict[str, Any]:
-        """진행 상황 요약"""
+        """Progress summary"""
         return {
             "current_progress": self.current_progress,
             "total_messages": len(self.messages),

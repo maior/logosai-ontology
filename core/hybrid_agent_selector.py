@@ -1,37 +1,37 @@
 """
 🧠 Hybrid Agent Selector v3.0
-GNN + RL + 지식그래프 + LLM 통합 에이전트 선택기
+GNN + RL + Knowledge Graph + LLM integrated agent selector
 
 Phase 0: GNN+RL Selection (NEW in v3.0)
-  - Graph Neural Network로 Knowledge Graph 구조 학습
-  - Reinforcement Learning (PPO)으로 에이전트 선택 정책 최적화
-  - 높은 신뢰도 (>0.8) 시 직접 선택
+  - Learns Knowledge Graph structure with Graph Neural Network
+  - Optimizes agent selection policy with Reinforcement Learning (PPO)
+  - Directly selects when confidence is high (>0.8)
 
 Phase 1: Knowledge Graph Analysis
-  - 엔티티 추출 및 관련 개념 탐색
-  - 과거 성공 패턴 조회 (시간 감쇠 적용)
-  - 그래프 기반 후보 추천
+  - Entity extraction and related concept exploration
+  - Query past success patterns (with time decay)
+  - Graph-based candidate recommendation
 
 Phase 2: LLM Final Decision
-  - 그래프 인사이트를 컨텍스트로 활용
-  - 의미론적 분석 + 그래프 근거로 최종 결정
+  - Utilizes graph insights as context
+  - Final decision combining semantic analysis + graph evidence
 
 Phase 3: Feedback Loop
-  - 성공적인 쿼리-에이전트 매핑을 그래프에 저장
-  - GNN+RL 경험 버퍼에 저장 (학습)
-  - LLM 기반 의미론적 쿼리 분석 (하드코딩 제거)
-  - 시간 감쇠 (Time Decay) 적용
-  - 패턴 일반화 학습 (카테고리 기반)
+  - Stores successful query-agent mappings in the graph
+  - Stores to GNN+RL experience buffer (for training)
+  - LLM-based semantic query analysis (no hardcoding)
+  - Applies Time Decay
+  - Pattern generalization learning (category-based)
 
 v3.0 Updates (2026-02-01):
-  - GNN+RL 통합: IntelligentAgentSelector 연동
-  - 3단계 선택: GNN+RL → KG → LLM
-  - 신뢰도 기반 폴백: 낮은 신뢰도 시 다음 단계로
+  - GNN+RL integration: IntelligentAgentSelector connected
+  - 3-stage selection: GNN+RL → KG → LLM
+  - Confidence-based fallback: proceeds to next stage on low confidence
 
 v2.0 Updates (2026-01-31):
-  - 시간 감쇠: 최근 패턴에 높은 가중치
-  - LLM 기반 의미론적 매칭: 하드코딩 키워드 제거
-  - 패턴 일반화: 쿼리 카테고리 기반 학습
+  - Time decay: higher weight for recent patterns
+  - LLM-based semantic matching: no hardcoded keywords
+  - Pattern generalization: query category-based learning
 """
 
 import asyncio
@@ -45,51 +45,51 @@ from loguru import logger
 from .llm_manager import get_ontology_llm_manager, OntologyLLMType
 
 
-# 시간 감쇠 설정
+# Time decay configuration
 TIME_DECAY_CONFIG = {
-    "half_life_days": 30,  # 30일 후 가중치 50%로 감소
-    "min_weight": 0.1,     # 최소 가중치 (아무리 오래되어도 10%는 유지)
-    "max_age_days": 365    # 1년 이상된 패턴은 최소 가중치 적용
+    "half_life_days": 30,  # Weight decreases to 50% after 30 days
+    "min_weight": 0.1,     # Minimum weight (maintains at least 10% no matter how old)
+    "max_age_days": 365    # Patterns older than 1 year get minimum weight
 }
 
 
 class HybridAgentSelector:
     """
-    🧠 하이브리드 에이전트 선택기 v3.0
+    🧠 Hybrid Agent Selector v3.0
 
-    GNN+RL + Knowledge Graph + LLM을 결합하여 최적의 에이전트를 선택합니다.
+    Selects the optimal agent by combining GNN+RL + Knowledge Graph + LLM.
 
     Features:
-    - GNN+RL 기반 지능형 에이전트 선택 (v3.0)
-    - 시작 시 Agent Marketplace와 자동 동기화
-    - 지식그래프 기반 패턴 학습
-    - LLM 기반 의미론적 분석
+    - GNN+RL based intelligent agent selection (v3.0)
+    - Auto-sync with Agent Marketplace on startup
+    - Knowledge graph based pattern learning
+    - LLM-based semantic analysis
     """
 
-    # GNN+RL 사용 여부 및 신뢰도 임계값
-    USE_GNN_RL = True  # GNN+RL 활성화
-    GNN_RL_CONFIDENCE_THRESHOLD = 0.7  # 이 이상이면 GNN+RL 결과 직접 사용
+    # GNN+RL enable flag and confidence threshold
+    USE_GNN_RL = True  # GNN+RL enabled
+    GNN_RL_CONFIDENCE_THRESHOLD = 0.7  # Use GNN+RL result directly above this threshold
 
     def __init__(self, knowledge_graph=None, llm_manager=None, auto_sync: bool = True, use_gnn_rl: bool = True):
         """
         Args:
-            knowledge_graph: KnowledgeGraphEngine 인스턴스 (없으면 지연 로딩)
-            llm_manager: LLM 매니저 (없으면 기본 매니저 사용)
-            auto_sync: 시작 시 에이전트 자동 동기화 여부
-            use_gnn_rl: GNN+RL 사용 여부 (v3.0)
+            knowledge_graph: KnowledgeGraphEngine instance (lazy loaded if None)
+            llm_manager: LLM manager (uses default manager if None)
+            auto_sync: Whether to auto-sync agents on startup
+            use_gnn_rl: Whether to use GNN+RL (v3.0)
         """
         self._knowledge_graph = knowledge_graph
         self._llm_manager = llm_manager
-        self._intelligent_selector = None  # v3.0: GNN+RL 선택기
+        self._intelligent_selector = None  # v3.0: GNN+RL selector
         self._sync_service = None
         self._initialized = False
         self._gnn_rl_enabled = use_gnn_rl and self.USE_GNN_RL
 
-        # 통계 추적
+        # Statistics tracking
         self.stats = {
             "total_selections": 0,
-            "gnn_rl_selections": 0,     # v3.0: GNN+RL 직접 선택 횟수
-            "gnn_rl_fallback": 0,       # v3.0: GNN+RL 신뢰도 낮아 폴백 횟수
+            "gnn_rl_selections": 0,     # v3.0: GNN+RL direct selection count
+            "gnn_rl_fallback": 0,       # v3.0: GNN+RL fallback due to low confidence
             "graph_assisted": 0,
             "llm_only": 0,
             "feedback_stored": 0,
@@ -99,17 +99,17 @@ class HybridAgentSelector:
             "time_decay_applied": 0
         }
 
-        # v2.0: 쿼리 카테고리 캐시 (LLM 호출 최소화)
+        # v2.0: Query category cache (minimize LLM calls)
         self._category_cache: Dict[str, Dict[str, Any]] = {}
 
-        # 자동 동기화
+        # Auto sync
         if auto_sync:
             asyncio.create_task(self._initialize_async())
 
-        logger.info(f"🧠 하이브리드 에이전트 선택기 v3.0 초기화 완료 (GNN+RL: {'활성화' if self._gnn_rl_enabled else '비활성화'})")
+        logger.info(f"Hybrid agent selector v3.0 initialized (GNN+RL: {'enabled' if self._gnn_rl_enabled else 'disabled'})")
 
     async def _initialize_async(self):
-        """비동기 초기화 (에이전트 동기화)"""
+        """Async initialization (agent sync)"""
         if self._initialized:
             return
 
@@ -118,57 +118,57 @@ class HybridAgentSelector:
 
             self._sync_service = get_sync_service()
 
-            # Knowledge Graph 설정
+            # Configure Knowledge Graph
             if self.knowledge_graph:
                 self._sync_service._knowledge_graph = self.knowledge_graph
 
-            # 전체 동기화 실행
+            # Run full sync
             result = await self._sync_service.full_sync()
             self.stats["agents_synced"] = result.get("total_agents", 0)
 
             self._initialized = True
-            logger.info(f"🔄 에이전트 동기화 완료: {self.stats['agents_synced']}개")
+            logger.info(f"🔄 Agent sync complete: {self.stats['agents_synced']} agents")
 
         except Exception as e:
-            logger.warning(f"⚠️ 에이전트 자동 동기화 실패 (수동 동기화 필요): {e}")
+            logger.warning(f"⚠️ Agent auto-sync failed (manual sync required): {e}")
 
     async def ensure_initialized(self):
-        """초기화 보장 (동기화 완료 대기)"""
+        """Ensure initialization (wait for sync)"""
         if not self._initialized:
             await self._initialize_async()
 
     @property
     def knowledge_graph(self):
-        """지식그래프 지연 로딩"""
+        """Lazy load knowledge graph"""
         if self._knowledge_graph is None:
             try:
                 from ..engines.knowledge_graph_clean import KnowledgeGraphEngine
                 self._knowledge_graph = KnowledgeGraphEngine(fast_mode=True)
-                logger.info("📊 지식그래프 엔진 로드 완료")
+                logger.info("📊 Knowledge graph engine loaded")
             except Exception as e:
-                logger.warning(f"⚠️ 지식그래프 로드 실패, LLM만 사용: {e}")
+                logger.warning(f"⚠️ Knowledge graph load failed, using LLM only: {e}")
         return self._knowledge_graph
 
     @property
     def llm_manager(self):
-        """LLM 매니저 지연 로딩"""
+        """Lazy load LLM manager"""
         if self._llm_manager is None:
             self._llm_manager = get_ontology_llm_manager()
         return self._llm_manager
 
     @property
     def intelligent_selector(self):
-        """v3.0: GNN+RL 지능형 선택기 지연 로딩"""
+        """v3.0: Lazy load GNN+RL intelligent selector"""
         if self._intelligent_selector is None and self._gnn_rl_enabled:
             try:
                 from ..ml.intelligent_selector import IntelligentAgentSelector
                 self._intelligent_selector = IntelligentAgentSelector(
-                    auto_load=True,  # 저장된 모델 자동 로드
+                    auto_load=True,  # Auto-load saved models
                     device='cpu'
                 )
-                logger.info("🤖 GNN+RL IntelligentAgentSelector 로드 완료")
+                logger.info("🤖 GNN+RL IntelligentAgentSelector loaded")
             except Exception as e:
-                logger.warning(f"⚠️ GNN+RL 선택기 로드 실패, 폴백 사용: {e}")
+                logger.warning(f"⚠️ GNN+RL selector load failed, using fallback: {e}")
                 self._gnn_rl_enabled = False
         return self._intelligent_selector
 
@@ -180,18 +180,18 @@ class HybridAgentSelector:
         context: Optional[Dict[str, Any]] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        🧠 하이브리드 에이전트 선택 (메인 메서드) v3.0
+        🧠 Hybrid agent selection (main method) v3.0
 
-        선택 흐름:
-        1. Phase 0 (v3.0): GNN+RL 선택 → 신뢰도 높으면 직접 반환
-        2. Phase 1: Knowledge Graph 분석 → 인사이트 수집
-        3. Phase 2: LLM 최종 결정 → 그래프 인사이트 활용
+        Selection flow:
+        1. Phase 0 (v3.0): GNN+RL selection → return directly if confidence is high
+        2. Phase 1: Knowledge Graph analysis → collect insights
+        3. Phase 2: LLM final decision → utilize graph insights
 
         Args:
-            query: 사용자 쿼리
-            available_agents: 사용 가능한 에이전트 ID 목록
-            agents_info: 에이전트 메타데이터 {agent_id: {name, description, capabilities, tags}}
-            context: 추가 컨텍스트 (선택사항)
+            query: User query
+            available_agents: List of available agent IDs
+            agents_info: Agent metadata {agent_id: {name, description, capabilities, tags}}
+            context: Additional context (optional)
 
         Returns:
             Tuple[selected_agent_id, selection_metadata]
@@ -206,7 +206,7 @@ class HybridAgentSelector:
                 gnn_rl_agent, gnn_rl_meta = await self.intelligent_selector.select_agent(
                     query=query,
                     available_agents=available_agents,
-                    deterministic=False  # 탐험 허용
+                    deterministic=False  # Allow exploration
                 )
 
                 gnn_rl_confidence = gnn_rl_meta.get('confidence', 0.0)
@@ -218,10 +218,10 @@ class HybridAgentSelector:
                 }
 
                 logger.info(
-                    f"🤖 GNN+RL 선택: {gnn_rl_agent} (신뢰도: {gnn_rl_confidence:.1%})"
+                    f"🤖 GNN+RL selection: {gnn_rl_agent} (confidence: {gnn_rl_confidence:.1%})"
                 )
 
-                # 신뢰도가 충분히 높으면 직접 반환
+                # Return directly if confidence is sufficiently high
                 if gnn_rl_confidence >= self.GNN_RL_CONFIDENCE_THRESHOLD:
                     if gnn_rl_agent in available_agents:
                         elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -229,7 +229,7 @@ class HybridAgentSelector:
 
                         metadata = {
                             "selected_agent": gnn_rl_agent,
-                            "reasoning": f"GNN+RL 모델이 {gnn_rl_confidence:.1%} 신뢰도로 선택",
+                            "reasoning": f"GNN+RL model selected with {gnn_rl_confidence:.1%} confidence",
                             "gnn_rl_result": gnn_rl_result,
                             "selection_method": "gnn_rl",
                             "elapsed_ms": elapsed_ms,
@@ -237,24 +237,24 @@ class HybridAgentSelector:
                         }
 
                         logger.info(
-                            f"🤖 GNN+RL 직접 선택 완료: {gnn_rl_agent} "
-                            f"(신뢰도: {gnn_rl_confidence:.1%}, {elapsed_ms:.0f}ms)"
+                            f"🤖 GNN+RL direct selection complete: {gnn_rl_agent} "
+                            f"(confidence: {gnn_rl_confidence:.1%}, {elapsed_ms:.0f}ms)"
                         )
                         return gnn_rl_agent, metadata
                     else:
-                        logger.warning(f"⚠️ GNN+RL 선택 {gnn_rl_agent}이 available_agents에 없음, 폴백")
+                        logger.warning(f"⚠️ GNN+RL selection {gnn_rl_agent} not in available_agents, falling back")
 
-                # 신뢰도 낮으면 폴백
+                # Fall back if confidence is low
                 self.stats["gnn_rl_fallback"] += 1
-                logger.info(f"🔄 GNN+RL 신뢰도 낮음 ({gnn_rl_confidence:.1%}), KG+LLM 폴백")
+                logger.info(f"🔄 GNN+RL confidence low ({gnn_rl_confidence:.1%}), falling back to KG+LLM")
 
             except Exception as e:
-                logger.warning(f"⚠️ GNN+RL 선택 실패, KG+LLM 폴백: {e}")
+                logger.warning(f"GNN+RL selection failed, falling back to KG+LLM: {e}")
 
         # ========== Phase 1: Knowledge Graph Analysis ==========
         graph_insights = await self._analyze_with_knowledge_graph(query, available_agents)
 
-        # GNN+RL 결과를 그래프 인사이트에 추가 (LLM 참고용)
+        # Add GNN+RL result to graph insights (for LLM reference)
         if gnn_rl_result:
             graph_insights["gnn_rl_suggestion"] = gnn_rl_result
 
@@ -265,7 +265,7 @@ class HybridAgentSelector:
 
         elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
 
-        # 메타데이터 구성
+        # Build metadata
         selection_method = "hybrid"
         if gnn_rl_result:
             selection_method = "gnn_rl_assisted"
@@ -289,9 +289,9 @@ class HybridAgentSelector:
         else:
             self.stats["llm_only"] += 1
 
-        logger.info(
-            f"🧠 하이브리드 선택 완료: {selected_agent} "
-            f"(방식: {selection_method}, {elapsed_ms:.0f}ms)"
+            logger.info(
+            f"🧠 Hybrid selection complete: {selected_agent} "
+            f"(method: {selection_method}, {elapsed_ms:.0f}ms)"
         )
 
         return selected_agent, metadata
@@ -302,11 +302,11 @@ class HybridAgentSelector:
         available_agents: List[str]
     ) -> Dict[str, Any]:
         """
-        📊 Phase 1: 지식그래프 분석
+        📊 Phase 1: Knowledge Graph analysis
 
-        - 엔티티 추출
-        - 관련 개념 탐색
-        - 과거 성공 패턴 조회
+        - Entity extraction
+        - Related concept exploration
+        - Query past success patterns
         """
         insights = {
             "has_insights": False,
@@ -321,60 +321,60 @@ class HybridAgentSelector:
             return insights
 
         try:
-            # 1. 엔티티 추출 (간단한 규칙 기반 + 그래프 매칭)
+            # 1. Entity extraction (simple rule-based + graph matching)
             entities = await self._extract_entities(query)
             insights["entities"] = entities
 
-            # 2. 관련 개념 탐색
+            # 2. Related concept exploration
             related_concepts = []
-            for entity in entities[:5]:  # 상위 5개만
+            for entity in entities[:5]:  # Top 5 only
                 concepts = await self.knowledge_graph.find_related_concepts(entity, max_depth=2)
                 related_concepts.extend(concepts[:10])
             insights["related_concepts"] = list(set(related_concepts))[:20]
 
-            # 3. 과거 성공 패턴 조회
+            # 3. Query past success patterns
             past_patterns = await self._find_past_patterns(query, entities)
             insights["past_patterns"] = past_patterns
 
-            # 4. 추천 에이전트 도출
+            # 4. Derive agent recommendations
             recommended = await self._derive_agent_recommendations(
                 entities, related_concepts, past_patterns, available_agents
             )
             insights["recommended_agents"] = recommended
 
-            # 5. 신뢰도 계산
+            # 5. Calculate confidence
             if recommended or past_patterns:
                 insights["has_insights"] = True
                 insights["confidence"] = self._calculate_confidence(insights)
 
-            logger.info(
-                f"📊 그래프 분석 완료: {len(entities)} 엔티티, "
-                f"{len(related_concepts)} 관련 개념, "
-                f"{len(past_patterns)} 과거 패턴"
+                logger.info(
+                f"📊 Graph analysis complete: {len(entities)} entities, "
+                f"{len(related_concepts)} related concepts, "
+                f"{len(past_patterns)} past patterns"
             )
 
         except Exception as e:
-            logger.warning(f"⚠️ 지식그래프 분석 실패: {e}")
+            logger.warning(f"⚠️ Knowledge graph analysis failed: {e}")
 
         return insights
 
     async def _extract_entities(self, query: str) -> List[str]:
-        """엔티티 추출 (간단한 규칙 기반)"""
+        """Entity extraction (simple rule-based)"""
         entities = []
 
-        # 한국어 명사/고유명사 패턴
-        # 더 정교한 NER이 필요하면 추후 확장
+        # Korean noun/proper noun patterns
+        # Extend later if more sophisticated NER is needed
         patterns = [
-            r'삼성전자|삼성|애플|구글|테슬라|마이크로소프트',  # 회사명
-            r'주가|환율|날씨|뉴스|가격|실적|매출',  # 도메인 키워드
-            r'\d+원|\d+달러|\d+%',  # 숫자 패턴
+            r'삼성전자|삼성|애플|구글|테슬라|마이크로소프트',  # Company names
+            r'주가|환율|날씨|뉴스|가격|실적|매출',  # Domain keywords
+            r'\d+원|\d+달러|\d+%',  # Numeric patterns
         ]
 
         for pattern in patterns:
             matches = re.findall(pattern, query, re.IGNORECASE)
             entities.extend(matches)
 
-        # 그래프에 있는 노드와 매칭
+        # Match with nodes in the graph
         if self.knowledge_graph and hasattr(self.knowledge_graph, 'graph_engine'):
             graph = self.knowledge_graph.graph_engine.graph
             words = query.split()
@@ -390,12 +390,12 @@ class HybridAgentSelector:
         entities: List[str]
     ) -> List[Dict[str, Any]]:
         """
-        과거 성공 패턴 조회 (v2.0: 시간 감쇠 + 의미론적 매칭)
+        Query past success patterns (v2.0: time decay + semantic matching)
 
-        v2.0 개선사항:
-        - LLM 기반 의미론적 쿼리 분석
-        - 시간 감쇠 가중치 적용
-        - 패턴 일반화 매칭 (카테고리 기반)
+        v2.0 improvements:
+        - LLM-based semantic query analysis
+        - Apply time decay weighting
+        - Pattern generalization matching (category-based)
         """
         patterns = []
 
@@ -405,7 +405,7 @@ class HybridAgentSelector:
         try:
             graph = self.knowledge_graph.graph_engine.graph
 
-            # v2.0: LLM 기반 의미 분석 (하드코딩 제거)
+            # v2.0: LLM-based semantic analysis (no hardcoding)
             query_semantics = await self._analyze_query_semantics(query)
             query_category = query_semantics.get("category", "general")
             query_pattern = query_semantics.get("generalization_pattern", "general_query")
@@ -414,43 +414,43 @@ class HybridAgentSelector:
             for node_id, attrs in graph.nodes(data=True):
                 node_type = attrs.get('type', '')
 
-                # 과거 성공적인 쿼리-에이전트 매핑 찾기
+                # Find past successful query-agent mappings
                 if node_type == 'query_agent_mapping':
                     past_agent = attrs.get('selected_agent', '')
                     success_rate = attrs.get('success_rate', 0.0)
                     usage_count = attrs.get('usage_count', 1)
                     last_used = attrs.get('last_used')
 
-                    # v2.0: 시간 감쇠 적용
+                    # v2.0: Apply time decay
                     time_weight = self._calculate_time_decay(last_used)
                     self.stats["time_decay_applied"] += 1
 
-                    # 매칭 점수 계산 (여러 요소 고려)
+                    # Calculate matching score (considering multiple factors)
                     match_score = 0.0
 
-                    # 1. 카테고리 매칭 (v2.0: 일반화된 패턴 매칭)
+                    # 1. Category matching (v2.0: generalized pattern matching)
                     past_category = attrs.get('category', '')
                     past_pattern = attrs.get('generalization_pattern', '')
 
                     if past_pattern == query_pattern:
-                        match_score += 1.0  # 정확한 패턴 매칭
+                        match_score += 1.0  # Exact pattern match
                         self.stats["pattern_generalizations"] += 1
                     elif past_category == query_category:
-                        match_score += 0.7  # 카테고리 매칭
+                        match_score += 0.7  # Category match
 
-                    # 2. 키워드 매칭 (의미론적)
+                    # 2. Keyword matching (semantic)
                     past_keywords = attrs.get('keywords', [])
                     if past_keywords:
                         keyword_overlap = len(set(past_keywords) & set(query_keywords))
                         match_score += min(keyword_overlap * 0.2, 0.5)
 
-                    # 3. 엔티티 매칭
+                    # 3. Entity matching
                     past_entities = attrs.get('entities', [])
                     if past_entities and entities:
                         entity_overlap = len(set(past_entities) & set(entities))
                         match_score += min(entity_overlap * 0.1, 0.3)
 
-                    # v2.0: 최종 점수 = 매칭점수 × 성공률 × 시간가중치
+                    # v2.0: Final score = match_score × success_rate × time_weight
                     if match_score > 0:
                         final_score = match_score * success_rate * time_weight
 
@@ -466,7 +466,7 @@ class HybridAgentSelector:
                             'last_used': last_used
                         })
 
-                # 에이전트-도메인 매핑 찾기
+                # Find agent-domain mapping
                 if node_type == 'agent':
                     agent_id = node_id
                     for neighbor in graph.neighbors(agent_id):
@@ -474,7 +474,7 @@ class HybridAgentSelector:
                         if neighbor_attrs.get('type') == 'domain':
                             domain_name = neighbor_attrs.get('domain_name', '')
 
-                            # v2.0: 카테고리 기반 도메인 매칭
+                            # v2.0: Category-based domain matching
                             if query_category in domain_name.lower() or any(kw in domain_name.lower() for kw in query_keywords):
                                 patterns.append({
                                     'agent': agent_id,
@@ -482,36 +482,36 @@ class HybridAgentSelector:
                                     'category': query_category,
                                     'success_rate': attrs.get('success_rate', 0.5),
                                     'usage_count': attrs.get('usage_count', 1),
-                                    'final_score': 0.3  # 도메인 매칭은 낮은 점수
+                                    'final_score': 0.3  # Lower score for domain match
                                 })
 
-            # v2.0: 최종 점수 기준 정렬 (시간 감쇠 반영)
+            # v2.0: Sort by final score (time decay applied)
             patterns.sort(key=lambda x: x.get('final_score', 0), reverse=True)
 
             logger.info(
-                f"📊 과거 패턴 조회: {len(patterns)}개 발견 "
+                f"📊 Past patterns found: {len(patterns)} "
                 f"(category={query_category}, pattern={query_pattern})"
             )
 
         except Exception as e:
-            logger.warning(f"⚠️ 과거 패턴 조회 실패: {e}")
+            logger.warning(f"⚠️ Past pattern query failed: {e}")
 
-        return patterns[:5]  # 상위 5개만
+        return patterns[:5]  # Top 5 only
 
     # =========================================================================
-    # v2.0 NEW: 시간 감쇠 (Time Decay)
+    # v2.0 NEW: Time Decay
     # =========================================================================
 
     def _calculate_time_decay(self, last_used_str: Optional[str]) -> float:
         """
-        🕐 v2.0: 시간 감쇠 가중치 계산
+        🕐 v2.0: Calculate time decay weight
 
-        최근 패턴에 높은 가중치, 오래된 패턴에 낮은 가중치를 부여합니다.
+        Assigns higher weight to recent patterns, lower weight to older patterns.
 
         Formula: weight = max(min_weight, 0.5 ^ (days / half_life))
 
         Returns:
-            float: 0.1 ~ 1.0 사이의 가중치
+            float: Weight between 0.1 and 1.0
         """
         if not last_used_str:
             return TIME_DECAY_CONFIG["min_weight"]
@@ -524,30 +524,30 @@ class HybridAgentSelector:
             days_ago = (datetime.now() - last_used).days
 
             if days_ago <= 0:
-                return 1.0  # 오늘 사용된 패턴
+                return 1.0  # Pattern used today
 
             if days_ago >= TIME_DECAY_CONFIG["max_age_days"]:
                 return TIME_DECAY_CONFIG["min_weight"]
 
-            # 지수 감쇠: 0.5 ^ (days / half_life)
+            # Exponential decay: 0.5 ^ (days / half_life)
             half_life = TIME_DECAY_CONFIG["half_life_days"]
             decay_weight = math.pow(0.5, days_ago / half_life)
 
             return max(TIME_DECAY_CONFIG["min_weight"], decay_weight)
 
         except Exception as e:
-            logger.warning(f"⚠️ 시간 감쇠 계산 실패: {e}")
-            return 0.5  # 기본값
+            logger.warning(f"⚠️ Time decay calculation failed: {e}")
+            return 0.5  # Default value
 
     # =========================================================================
-    # v2.0 NEW: LLM 기반 의미론적 쿼리 분석 (하드코딩 제거)
+    # v2.0 NEW: LLM-based semantic query analysis (no hardcoding)
     # =========================================================================
 
     async def _analyze_query_semantics(self, query: str) -> Dict[str, Any]:
         """
-        🧠 v2.0: LLM 기반 쿼리 의미 분석
+        🧠 v2.0: LLM-based query semantic analysis
 
-        하드코딩된 키워드 매칭 대신 LLM을 사용하여 쿼리의 의미를 분석합니다.
+        Uses LLM instead of hardcoded keyword matching to analyze query semantics.
 
         Returns:
             {
@@ -558,7 +558,7 @@ class HybridAgentSelector:
                 "generalization_pattern": "stock_price_query"
             }
         """
-        # 캐시 확인 (동일 쿼리 재분석 방지)
+        # Check cache (prevent re-analysis of same query)
         cache_key = query[:100]
         if cache_key in self._category_cache:
             return self._category_cache[cache_key]
@@ -598,12 +598,12 @@ class HybridAgentSelector:
 
             response_text = response.content if hasattr(response, 'content') else str(response)
 
-            # JSON 추출
+            # Extract JSON
             json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
 
-                # 결과 정규화
+                # Normalize result
                 semantic_result = {
                     "category": result.get("category", "general"),
                     "intent": result.get("intent", "search"),
@@ -612,27 +612,27 @@ class HybridAgentSelector:
                     "generalization_pattern": result.get("generalization_pattern", "general_query")
                 }
 
-                # 캐시 저장
+                # Cache result
                 self._category_cache[cache_key] = semantic_result
 
                 logger.info(
-                    f"🧠 쿼리 의미 분석 완료: category={semantic_result['category']}, "
+                    f"🧠 Query semantic analysis complete: category={semantic_result['category']}, "
                     f"pattern={semantic_result['generalization_pattern']}"
                 )
 
                 return semantic_result
 
         except Exception as e:
-            logger.warning(f"⚠️ LLM 의미 분석 실패, 기본 분석 사용: {e}")
+            logger.warning(f"⚠️ LLM semantic analysis failed, using fallback: {e}")
 
-        # 폴백: 기본 분석
+        # Fallback: basic analysis
         return self._fallback_semantic_analysis(query)
 
     def _fallback_semantic_analysis(self, query: str) -> Dict[str, Any]:
-        """LLM 실패 시 기본 의미 분석 (최소한의 규칙)"""
+        """Basic semantic analysis when LLM fails (minimal rules)"""
         query_lower = query.lower()
 
-        # 카테고리 추론 (최소한의 규칙)
+        # Infer category (minimal rules)
         category = "general"
         if any(w in query_lower for w in ['주가', '환율', '주식', '펀드', '투자']):
             category = "finance"
@@ -653,12 +653,12 @@ class HybridAgentSelector:
 
     def _extract_intent_keywords(self, query: str) -> List[str]:
         """
-        쿼리에서 의도 키워드 추출 (v2.0: 호환성 유지용)
+        Extract intent keywords from query (v2.0: for backward compatibility)
 
-        NOTE: 이 메서드는 호환성을 위해 유지되지만,
-        새로운 코드에서는 _analyze_query_semantics()를 사용하세요.
+        NOTE: This method is maintained for compatibility,
+        but new code should use _analyze_query_semantics().
         """
-        # 비동기 호출이 불가능한 컨텍스트에서는 기본 분석 사용
+        # Use basic analysis in contexts where async calls are not possible
         fallback = self._fallback_semantic_analysis(query)
         return fallback.get("keywords", [])
 
@@ -670,25 +670,25 @@ class HybridAgentSelector:
         available_agents: List[str]
     ) -> List[Dict[str, Any]]:
         """
-        그래프 기반 에이전트 추천 도출 (v2.0: 시간 감쇠 반영)
+        Derive graph-based agent recommendations (v2.0: with time decay)
 
-        v2.0 개선사항:
-        - final_score 사용 (시간 감쇠 이미 적용됨)
-        - 일반화 패턴 정보 포함
+        v2.0 improvements:
+        - Uses final_score (time decay already applied)
+        - Includes generalization pattern information
         """
         recommendations = []
         agent_scores = {}
-        agent_details = {}  # 추천 상세 정보
+        agent_details = {}  # Recommendation detail info
 
-        # 1. 과거 패턴 기반 점수 (v2.0: 시간 감쇠 반영된 final_score 사용)
+        # 1. Score based on past patterns (v2.0: uses final_score with time decay)
         for pattern in past_patterns:
             agent = pattern.get('agent', '')
             if agent in available_agents:
-                # v2.0: final_score는 이미 시간 감쇠가 적용됨
+                # v2.0: final_score already has time decay applied
                 score = pattern.get('final_score', 0)
                 agent_scores[agent] = agent_scores.get(agent, 0) + score
 
-                # 상세 정보 저장
+                # Store detail info
                 if agent not in agent_details:
                     agent_details[agent] = {
                         'patterns': [],
@@ -702,7 +702,7 @@ class HybridAgentSelector:
                 if pattern.get('category'):
                     agent_details[agent]['categories'].add(pattern.get('category'))
 
-        # 2. 도메인 연관성 기반 점수 (그래프 탐색)
+        # 2. Score based on domain relevance (graph traversal)
         if self.knowledge_graph and hasattr(self.knowledge_graph, 'graph_engine'):
             graph = self.knowledge_graph.graph_engine.graph
 
@@ -717,7 +717,7 @@ class HybridAgentSelector:
                         score = overlap_entities * 0.3 + overlap_concepts * 0.1
                         agent_scores[agent_id] = agent_scores.get(agent_id, 0) + score
 
-        # 추천 목록 생성 (v2.0: 상세 정보 포함)
+        # Generate recommendations (v2.0: includes detail info)
         for agent_id, score in sorted(agent_scores.items(), key=lambda x: x[1], reverse=True):
             if score > 0:
                 details = agent_details.get(agent_id, {})
@@ -734,26 +734,26 @@ class HybridAgentSelector:
                     ) if details.get('patterns') else 1.0
                 })
 
-        return recommendations[:3]  # 상위 3개
+        return recommendations[:3]  # Top 3
 
     def _calculate_confidence(self, insights: Dict[str, Any]) -> float:
-        """그래프 인사이트 신뢰도 계산"""
+        """Calculate graph insight confidence"""
         confidence = 0.0
 
-        # 과거 패턴이 있으면 +0.3
+        # +0.3 if past patterns exist
         if insights.get('past_patterns'):
             best_pattern = insights['past_patterns'][0]
             confidence += 0.3 * best_pattern.get('success_rate', 0.5)
 
-        # 추천 에이전트가 있으면 +0.3
+        # +0.3 if recommended agents exist
         if insights.get('recommended_agents'):
             confidence += 0.3
 
-        # 관련 개념이 많으면 +0.2
+        # +0.2 if many related concepts
         if len(insights.get('related_concepts', [])) > 5:
             confidence += 0.2
 
-        # 엔티티가 추출되었으면 +0.2
+        # +0.2 if entities were extracted
         if insights.get('entities'):
             confidence += 0.2
 
@@ -767,9 +767,9 @@ class HybridAgentSelector:
         graph_insights: Dict[str, Any]
     ) -> Tuple[str, str]:
         """
-        🤖 Phase 2: LLM 최종 결정 (그래프 인사이트 활용)
+        🤖 Phase 2: LLM final decision (utilizing graph insights)
         """
-        # 에이전트 목록 문자열 생성
+        # Build agent list string
         agents_list = []
         for agent_id in available_agents:
             info = agents_info.get(agent_id, {})
@@ -791,7 +791,7 @@ class HybridAgentSelector:
 
         agents_formatted = '\n'.join(agents_list)
 
-        # 그래프 인사이트 컨텍스트 구성
+        # Build graph insights context
         graph_context = ""
         if graph_insights.get("has_insights"):
             graph_context = f"""
@@ -805,7 +805,7 @@ class HybridAgentSelector:
 위 그래프 분석 결과를 참고하되, 최종 판단은 쿼리 의도와 에이전트 능력을 종합적으로 고려하세요.
 """
 
-        # LLM 프롬프트
+        # LLM prompt
         prompt = f"""당신은 사용자 쿼리를 분석하여 가장 적합한 에이전트를 선택하는 전문가입니다.
 
 사용자 쿼리: "{query}"
@@ -832,7 +832,7 @@ class HybridAgentSelector:
 
             response_text = response.content if hasattr(response, 'content') else str(response)
 
-            # JSON 파싱
+            # JSON parsing
             json_match = re.search(
                 r'\{[^{}]*"selected_agent"\s*:\s*"([^"]+)"[^{}]*"reasoning"\s*:\s*"([^"]*)"[^{}]*\}',
                 response_text, re.DOTALL
@@ -842,32 +842,32 @@ class HybridAgentSelector:
                 selected_agent = json_match.group(1)
                 reasoning = json_match.group(2)
 
-                # 선택된 에이전트 검증
+                # Validate selected agent
                 if selected_agent in available_agents:
                     return selected_agent, reasoning
 
-                # 부분 매칭 시도
+                # Try partial match
                 for agent in available_agents:
                     if selected_agent.lower() in agent.lower() or agent.lower() in selected_agent.lower():
                         return agent, reasoning
 
-            # 파싱 실패 시 그래프 추천 사용
+            # Use graph recommendation on parse failure
             if graph_insights.get("recommended_agents"):
                 recommended = graph_insights["recommended_agents"][0]
-                return recommended["agent_id"], f"그래프 추천 (LLM 파싱 실패): {recommended.get('reason', '')}"
+                return recommended["agent_id"], f"Graph recommendation (LLM parse failed): {recommended.get('reason', '')}"
 
-            logger.warning(f"⚠️ LLM 응답 파싱 실패: {response_text[:200]}")
+            logger.warning(f"LLM response parse failed: {response_text[:200]}")
 
         except Exception as e:
-            logger.error(f"❌ LLM 선택 실패: {e}")
+            logger.error(f"LLM selection failed: {e}")
 
-            # 그래프 추천으로 폴백
+            # Fall back to graph recommendation
             if graph_insights.get("recommended_agents"):
                 recommended = graph_insights["recommended_agents"][0]
-                return recommended["agent_id"], f"그래프 기반 폴백 (LLM 실패): {str(e)[:50]}"
+                return recommended["agent_id"], f"Graph-based fallback (LLM failed): {str(e)[:50]}"
 
-        # 최종 폴백
-        return available_agents[0] if available_agents else 'unknown', "폴백: 첫 번째 에이전트"
+        # Final fallback
+        return available_agents[0] if available_agents else 'unknown', "Fallback: first agent"
 
     async def store_feedback(
         self,
@@ -877,36 +877,36 @@ class HybridAgentSelector:
         execution_result: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
-        📝 Phase 3: 피드백 저장 (v2.0 Enhanced 학습 루프)
+        📝 Phase 3: Store feedback (v2.0 Enhanced learning loop)
 
-        v2.0 개선사항:
-        - LLM 기반 의미론적 분석 결과 저장
-        - 카테고리 및 일반화 패턴 저장
-        - 엔티티 및 키워드 저장
-        - 시간 정보 정확히 기록
+        v2.0 improvements:
+        - Store LLM-based semantic analysis results
+        - Store category and generalization pattern
+        - Store entities and keywords
+        - Record time information accurately
         """
         if not self.knowledge_graph:
             return False
 
         try:
-            # v2.0: LLM 기반 의미 분석
+            # v2.0: LLM-based semantic analysis
             query_semantics = await self._analyze_query_semantics(query)
 
-            # 매핑 노드 ID (v2.0: 패턴 기반으로 더 일반적인 ID)
+            # Mapping node ID (v2.0: more general ID based on pattern)
             pattern = query_semantics.get("generalization_pattern", "general_query")
             mapping_id = f"mapping_{selected_agent}_{pattern}_{hash(query) % 1000}"
 
-            # 기존 매핑 확인
+            # Check existing mapping
             graph = self.knowledge_graph.graph_engine.graph
 
             if mapping_id in graph.nodes:
-                # 기존 매핑 업데이트
+                # Update existing mapping
                 attrs = graph.nodes[mapping_id]
                 usage_count = attrs.get('usage_count', 1) + 1
 
-                # 성공률 업데이트 (지수 이동 평균 - 최근 결과에 더 높은 가중치)
-                # v2.0: EMA (Exponential Moving Average) 사용
-                alpha = 0.3  # 최근 결과 가중치
+                # Update success rate (exponential moving average - higher weight for recent results)
+                # v2.0: Use EMA (Exponential Moving Average)
+                alpha = 0.3  # Weight for recent results
                 old_success_rate = attrs.get('success_rate', 0.5)
                 new_success_rate = alpha * (1.0 if success else 0.0) + (1 - alpha) * old_success_rate
 
@@ -914,51 +914,51 @@ class HybridAgentSelector:
                 attrs['success_rate'] = new_success_rate
                 attrs['last_used'] = datetime.now().isoformat()
 
-                # v2.0: 샘플 쿼리 업데이트 (다양성 유지)
+                # v2.0: Update sample queries (maintain diversity)
                 existing_samples = attrs.get('query_samples', [])
                 if len(existing_samples) < 5 and query[:50] not in existing_samples:
                     existing_samples.append(query[:50])
                     attrs['query_samples'] = existing_samples
 
-                logger.info(
-                    f"📝 피드백 업데이트: {selected_agent} ({pattern}) "
-                    f"[성공률: {old_success_rate:.2f}→{new_success_rate:.2f}, 사용: {usage_count}회]"
+                    logger.info(
+                    f"📝 Feedback updated: {selected_agent} ({pattern}) "
+                    f"[success rate: {old_success_rate:.2f}→{new_success_rate:.2f}, usage: {usage_count}]"
                 )
 
             else:
-                # v2.0: 새 매핑 생성 (의미론적 분석 결과 포함)
+                # v2.0: Create new mapping (including semantic analysis results)
                 await self.knowledge_graph.add_concept(
                     mapping_id,
                     "query_agent_mapping",
                     {
                         "query_sample": query[:100],
-                        "query_samples": [query[:50]],  # v2.0: 다양한 샘플 저장
+                        "query_samples": [query[:50]],  # v2.0: Store diverse samples
                         "selected_agent": selected_agent,
-                        # v2.0: 의미론적 분석 결과
+                        # v2.0: Semantic analysis results
                         "category": query_semantics.get("category", "general"),
                         "intent": query_semantics.get("intent", "search"),
                         "generalization_pattern": pattern,
                         "entities": query_semantics.get("entities", []),
                         "keywords": query_semantics.get("keywords", []),
-                        # 성공률 및 사용 통계
+                        # Success rate and usage statistics
                         "success_rate": 1.0 if success else 0.0,
                         "usage_count": 1,
-                        # 시간 정보
+                        # Time information
                         "created_at": datetime.now().isoformat(),
                         "last_used": datetime.now().isoformat()
                     }
                 )
 
-                # 에이전트와 매핑 연결
+                # Connect agent with mapping
                 await self.knowledge_graph.add_relationship(
                     selected_agent, mapping_id, "has_mapping"
                 )
 
-                # v2.0: 카테고리 노드와도 연결 (패턴 일반화)
+                # v2.0: Also connect with category node (pattern generalization)
                 category = query_semantics.get("category", "general")
                 category_node_id = f"category_{category}"
 
-                # 카테고리 노드가 없으면 생성
+                # Create category node if it does not exist
                 if category_node_id not in graph.nodes:
                     await self.knowledge_graph.add_concept(
                         category_node_id,
@@ -971,44 +971,44 @@ class HybridAgentSelector:
                 )
 
                 logger.info(
-                    f"📝 새 피드백 저장: {selected_agent} "
+                    f"📝 New feedback stored: {selected_agent} "
                     f"(category={category}, pattern={pattern})"
                 )
 
             self.stats["feedback_stored"] += 1
 
-            # v3.0: GNN+RL 경험 버퍼에도 피드백 저장
+            # v3.0: Also store feedback in GNN+RL experience buffer
             if self._gnn_rl_enabled and self.intelligent_selector:
                 try:
                     await self.intelligent_selector.store_feedback(
                         success=success,
                         execution_result=execution_result
                     )
-                    logger.info(f"🤖 GNN+RL 피드백 저장 완료: {selected_agent} (success={success})")
+                    logger.info(f"🤖 GNN+RL feedback stored: {selected_agent} (success={success})")
                 except Exception as gnn_rl_error:
-                    logger.warning(f"⚠️ GNN+RL 피드백 저장 실패: {gnn_rl_error}")
+                    logger.warning(f"⚠️ GNN+RL feedback store failed: {gnn_rl_error}")
 
             return True
 
         except Exception as e:
-            logger.warning(f"⚠️ 피드백 저장 실패: {e}")
+            logger.warning(f"⚠️ Feedback store failed: {e}")
             return False
 
     def get_stats(self) -> Dict[str, Any]:
         """
-        선택기 통계 조회 (v2.0: 확장된 통계)
+        Get selector statistics (v2.0: extended statistics)
 
         Returns:
             Dict with statistics including:
-            - total_selections: 총 선택 횟수
-            - graph_assisted: 그래프 보조 선택 횟수
-            - llm_only: LLM 단독 선택 횟수
-            - feedback_stored: 저장된 피드백 수
-            - agents_synced: 동기화된 에이전트 수
-            - semantic_analysis_count: LLM 의미 분석 횟수 (v2.0)
-            - pattern_generalizations: 패턴 일반화 매칭 횟수 (v2.0)
-            - time_decay_applied: 시간 감쇠 적용 횟수 (v2.0)
-            - graph_assist_ratio: 그래프 보조 비율
+            - total_selections: Total selection count
+            - graph_assisted: Graph-assisted selection count
+            - llm_only: LLM-only selection count
+            - feedback_stored: Stored feedback count
+            - agents_synced: Synced agent count
+            - semantic_analysis_count: LLM semantic analysis count (v2.0)
+            - pattern_generalizations: Pattern generalization match count (v2.0)
+            - time_decay_applied: Time decay application count (v2.0)
+            - graph_assist_ratio: Graph assist ratio
         """
         return {
             **self.stats,
@@ -1024,21 +1024,21 @@ class HybridAgentSelector:
         }
 
     def clear_category_cache(self):
-        """v2.0: 카테고리 캐시 초기화"""
+        """v2.0: Clear category cache"""
         self._category_cache.clear()
-        logger.info("🧹 카테고리 캐시 초기화 완료")
+        logger.info("🧹 Category cache cleared")
 
 
-# 싱글톤 인스턴스
+# Singleton instance
 _hybrid_selector_instance = None
 
 
 def get_hybrid_selector() -> HybridAgentSelector:
-    """하이브리드 선택기 싱글톤 인스턴스 반환"""
+    """Return hybrid selector singleton instance"""
     global _hybrid_selector_instance
     if _hybrid_selector_instance is None:
         _hybrid_selector_instance = HybridAgentSelector()
     return _hybrid_selector_instance
 
 
-logger.info("🧠 하이브리드 에이전트 선택기 v2.0 모듈 로드 완료 (시간감쇠 + LLM 의미분석 + 패턴일반화)")
+    logger.info("🧠 Hybrid agent selector v2.0 module loaded (time decay + LLM semantic analysis + pattern generalization)")

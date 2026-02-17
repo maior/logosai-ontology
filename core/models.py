@@ -1,9 +1,8 @@
 """
 🧠 Core Data Models
-핵심 데이터 모델 정의
-중복 호출 방지와 효율적인 데이터 관리를 위한 통일된 데이터 구조
 
-LLM 통합 버전 - 모든 모델이 LLM과 함께 작동
+Unified data structures for efficient data management and duplicate call prevention.
+LLM-integrated version - all models work together with LLM.
 """
 
 import time
@@ -17,14 +16,14 @@ from dataclasses import dataclass
 import networkx as nx
 import asyncio
 
-# LLM 관리자 import (지연 import로 순환 import 방지)
+# LLM manager import (deferred import to prevent circular imports)
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .llm_manager import OntologyLLMManager
 
 
 class QueryType(Enum):
-    """쿼리 유형 분류"""
+    """Query type classification"""
     SIMPLE = "simple"
     COMPLEX = "complex"
     MULTI_STEP = "multi_step"
@@ -33,7 +32,7 @@ class QueryType(Enum):
 
 
 class ExecutionStrategy(Enum):
-    """실행 전략 유형"""
+    """Execution strategy types"""
     SINGLE_AGENT = "single_agent"
     SEQUENTIAL = "sequential"
     PARALLEL = "parallel"
@@ -42,7 +41,7 @@ class ExecutionStrategy(Enum):
 
 
 class AgentType(Enum):
-    """에이전트 유형"""
+    """Agent types"""
     RESEARCH = "research"
     ANALYSIS = "analysis"
     CREATIVE = "creative"
@@ -51,7 +50,7 @@ class AgentType(Enum):
 
 
 class ExecutionStatus(Enum):
-    """실행 상태"""
+    """Execution status"""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -60,7 +59,7 @@ class ExecutionStatus(Enum):
 
 
 class DataTransformationType(Enum):
-    """데이터 변환 타입"""
+    """Data transformation types"""
     DIRECT_PASS = "direct_pass"
     FORMAT_CONVERSION = "format_conversion"
     DATA_EXTRACTION = "data_extraction"
@@ -69,7 +68,7 @@ class DataTransformationType(Enum):
 
 
 class WorkflowComplexity(Enum):
-    """워크플로우 복잡도"""
+    """Workflow complexity levels"""
     SIMPLE = "simple"
     MODERATE = "moderate"
     COMPLEX = "complex"
@@ -77,7 +76,7 @@ class WorkflowComplexity(Enum):
 
 
 class OptimizationStrategy(Enum):
-    """최적화 전략"""
+    """Optimization strategies"""
     SPEED_FIRST = "speed_first"
     QUALITY_FIRST = "quality_first"
     BALANCED = "balanced"
@@ -85,27 +84,27 @@ class OptimizationStrategy(Enum):
 
 
 class LLMProvider(Enum):
-    """LLM 제공업체"""
+    """LLM providers"""
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
 
 
 class OntologyLLMType(Enum):
-    """온톨로지 LLM 타입 정의"""
-    SEMANTIC_ANALYZER = "semantic_analyzer"      # 의미론적 분석 전용
-    WORKFLOW_DESIGNER = "workflow_designer"      # 워크플로우 설계 전용
-    KNOWLEDGE_REASONER = "knowledge_reasoner"    # 지식 추론 전용
-    RESULT_INTEGRATOR = "result_integrator"      # 결과 통합 전용
-    QUERY_PROCESSOR = "query_processor"          # 쿼리 처리 전용
-    GRAPH_BUILDER = "graph_builder"              # 그래프 구축 전용
-    PERFORMANCE_OPTIMIZER = "performance_optimizer"  # 성능 최적화 전용
-    CREATIVE_REASONER = "creative_reasoner"      # 창의적 추론 전용
+    """Ontology LLM type definitions"""
+    SEMANTIC_ANALYZER = "semantic_analyzer"      # Dedicated for semantic analysis
+    WORKFLOW_DESIGNER = "workflow_designer"      # Dedicated for workflow design
+    KNOWLEDGE_REASONER = "knowledge_reasoner"    # Dedicated for knowledge reasoning
+    RESULT_INTEGRATOR = "result_integrator"      # Dedicated for result integration
+    QUERY_PROCESSOR = "query_processor"          # Dedicated for query processing
+    GRAPH_BUILDER = "graph_builder"              # Dedicated for graph building
+    PERFORMANCE_OPTIMIZER = "performance_optimizer"  # Dedicated for performance optimization
+    CREATIVE_REASONER = "creative_reasoner"      # Dedicated for creative reasoning
 
 
 @dataclass
 class OntologyLLMConfig:
-    """온톨로지 LLM 설정"""
+    """Ontology LLM configuration"""
     provider: LLMProvider
     model: str
     temperature: float = 0.7
@@ -117,7 +116,7 @@ class OntologyLLMConfig:
     max_retries: int = 3
     streaming: bool = False
     
-    # 온톨로지 특화 설정
+    # Ontology-specific settings
     description: str = ""
     use_case: str = ""
     specialization: str = ""
@@ -125,7 +124,7 @@ class OntologyLLMConfig:
     creativity_level: str = "balanced"  # conservative, balanced, creative
     precision_level: str = "high"       # low, medium, high
     
-    # 캐싱 및 성능 설정
+    # Caching and performance settings
     cache_enabled: bool = True
     cache_ttl_minutes: int = 30
     parallel_safe: bool = True
@@ -133,7 +132,7 @@ class OntologyLLMConfig:
 
 @dataclass
 class SemanticQuery:
-    """의미론적 쿼리 모델 - 중복 호출 방지를 위한 고유 식별자 포함"""
+    """Semantic query model - includes unique identifier to prevent duplicate calls"""
     query_text: str
     query_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     query_type: QueryType = QueryType.SIMPLE
@@ -143,7 +142,7 @@ class SemanticQuery:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.now)
     
-    # 새로운 속성들 (기존 시스템과의 호환성을 위해)
+    # New attributes (for backward compatibility with existing system)
     intent: str = "information_retrieval"
     entities: List[str] = field(default_factory=list)
     concepts: List[str] = field(default_factory=list)
@@ -152,21 +151,21 @@ class SemanticQuery:
     natural_language: str = field(default="")
     
     def __post_init__(self):
-        """초기화 후 처리"""
-        # natural_language가 비어있으면 query_text로 설정
+        """Post-initialization processing"""
+        # Set natural_language to query_text if empty
         if not self.natural_language:
             self.natural_language = self.query_text
     
     def __hash__(self):
-        """캐싱을 위한 해시 함수"""
+        """Hash function for caching"""
         return hash((self.query_text, tuple(sorted(self.context.items()))))
     
     def get_cache_key(self) -> str:
-        """캐시 키 생성"""
+        """Generate cache key"""
         return f"query_{hash(self)}_{getattr(self.query_type, 'value', str(self.query_type))}"
     
     def to_dict(self) -> Dict[str, Any]:
-        """JSON 직렬화를 위한 딕셔너리 변환"""
+        """Convert to dictionary for JSON serialization"""
         return {
             'query_text': self.query_text,
             'query_id': self.query_id,
@@ -193,10 +192,10 @@ class SemanticQuery:
                         relations: List[str] = None,
                         structured_query: Dict[str, Any] = None,
                         **kwargs) -> 'SemanticQuery':
-        """텍스트로부터 SemanticQuery 생성"""
+        """Create SemanticQuery from text"""
         return cls(
             query_text=query_text,
-            natural_language=query_text,  # natural_language도 설정
+            natural_language=query_text,  # Also set natural_language
             intent=intent,
             entities=entities or [],
             concepts=concepts or [],
@@ -205,14 +204,14 @@ class SemanticQuery:
             **kwargs
         )
     
-    # LLM 통합 메서드들
+    # LLM integration methods
     async def analyze_with_llm(self, llm_manager: Optional['OntologyLLMManager'] = None) -> Dict[str, Any]:
-        """LLM을 사용한 쿼리 분석"""
+        """Query analysis using LLM"""
         if llm_manager is None:
             from .llm_manager import OntologyLLMManager
             llm_manager = OntologyLLMManager()
         
-        # 의미론적 분석 LLM 사용
+        # Use semantic analysis LLM
         analysis_prompt = f"""
         다음 쿼리를 분석해주세요:
         - 쿼리 텍스트: {self.query_text}
@@ -234,13 +233,13 @@ class SemanticQuery:
         result = await llm_manager.call_llm_async('SEMANTIC_ANALYZER', analysis_prompt)
         
         if result and 'enhanced_entities' in result:
-            # 분석 결과로 현재 객체 업데이트
+            # Update current object with analysis results
             self.entities.extend([e for e in result['enhanced_entities'] if e not in self.entities])
             self.concepts.extend([c for c in result['enhanced_concepts'] if c not in self.concepts])
             self.relations.extend([r for r in result['enhanced_relations'] if r not in self.relations])
             self.complexity_score = result.get('complexity_score', self.complexity_score)
             
-            # 필요한 에이전트 타입들을 AgentType enum으로 변환
+            # Convert required agent types to AgentType enum
             if 'required_agent_types' in result:
                 try:
                     self.required_agents = [
@@ -248,18 +247,18 @@ class SemanticQuery:
                         if agent_str.lower() in [e.value for e in AgentType]
                     ]
                 except ValueError:
-                    pass  # 잘못된 에이전트 타입은 무시
+                    pass  # Ignore invalid agent types
         
         return result or {}
     
     def enhance_with_llm_sync(self, llm_manager: Optional['OntologyLLMManager'] = None) -> 'SemanticQuery':
-        """동기식 LLM 개선 (호환성을 위해)"""
+        """Synchronous LLM enhancement (for compatibility)"""
         import asyncio
         
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # 이미 실행 중인 루프에서는 별도 태스크로 실행
+                # Run as a separate task when a loop is already running
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, self.analyze_with_llm(llm_manager))
@@ -267,38 +266,38 @@ class SemanticQuery:
             else:
                 asyncio.run(self.analyze_with_llm(llm_manager))
         except Exception as e:
-            # LLM 호출 실패 시에도 기본 객체는 반환
+            # Return the base object even if LLM call fails
             self.metadata['llm_enhancement_error'] = str(e)
         
         return self
     
     def get_optimized_agent_selection(self, available_agents: List[AgentType] = None) -> List[AgentType]:
-        """최적화된 에이전트 선택"""
+        """Optimized agent selection"""
         if available_agents is None:
             available_agents = list(AgentType)
         
-        # 쿼리 복잡도에 따른 에이전트 선택
+        # Select agents based on query complexity
         if self.complexity_score >= 0.8:
-            # 높은 복잡도: 전문 에이전트들 필요
+            # High complexity: specialized agents needed
             recommended = [AgentType.ANALYSIS, AgentType.TECHNICAL]
         elif self.complexity_score >= 0.5:
-            # 중간 복잡도: 연구 및 분석 에이전트
+            # Medium complexity: research and analysis agents
             recommended = [AgentType.RESEARCH, AgentType.ANALYSIS]
         else:
-            # 낮은 복잡도: 일반 에이전트
+            # Low complexity: general agent
             recommended = [AgentType.GENERAL]
         
-        # 의도에 따른 추가 에이전트
+        # Additional agents based on intent
         if self.intent in ['creative_generation', 'brainstorming']:
             recommended.append(AgentType.CREATIVE)
         
-        # 사용 가능한 에이전트와 교집합
+        # Intersect with available agents
         return [agent for agent in recommended if agent in available_agents]
 
 
 @dataclass
 class ExecutionContext:
-    """실행 컨텍스트 - 실행 환경과 상태 관리"""
+    """Execution context - manages execution environment and state"""
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     user_id: Optional[str] = None
     execution_strategy: ExecutionStrategy = ExecutionStrategy.AUTO
@@ -309,14 +308,14 @@ class ExecutionContext:
     debug_mode: bool = False
     custom_config: Dict[str, Any] = field(default_factory=dict)
     
-    # 호환성을 위한 추가 속성
+    # Additional attributes for backward compatibility
     user_profile: Dict[str, Any] = field(default_factory=dict)
-    available_agents: Dict[str, Any] = field(default_factory=dict)  # 사용 가능한 에이전트들
-    progress_callback: Any = None  # ProgressCallback 인터페이스
+    available_agents: Dict[str, Any] = field(default_factory=dict)  # Available agents
+    progress_callback: Any = None  # ProgressCallback interface
     
     def __post_init__(self):
-        """초기화 후 처리"""
-        # user_profile이 비어있고 custom_config에 사용자 정보가 있으면 설정
+        """Post-initialization processing"""
+        # Set user_profile if empty and custom_config contains user info
         if not self.user_profile and self.custom_config:
             user_email = self.custom_config.get('user_email', '')
             if user_email:
@@ -326,7 +325,7 @@ class ExecutionContext:
                 }
     
     def to_dict(self) -> Dict[str, Any]:
-        """딕셔너리로 변환"""
+        """Convert to dictionary"""
         return {
             'session_id': self.session_id,
             'user_id': self.user_id,
@@ -344,48 +343,48 @@ class ExecutionContext:
 
 @dataclass
 class AgentExecutionResult:
-    """에이전트 실행 결과 - 통일된 결과 형식"""
+    """Agent execution result - unified result format"""
     result_data: Any
     execution_time: float
     status: ExecutionStatus
-    agent_type: AgentType = AgentType.GENERAL  # 기본값 설정
+    agent_type: AgentType = AgentType.GENERAL  # Default value
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     created_at: datetime = field(default_factory=datetime.now)
     
-    # 추가 속성들 (호환성을 위해)
+    # Additional attributes (for backward compatibility)
     agent_id: str = ""
-    agent_name: str = ""  # 에이전트의 표시 이름
+    agent_name: str = ""  # Display name of the agent
     data: Any = None
     confidence: float = 0.8
     success: bool = field(default=False)
     
     def __post_init__(self):
-        """초기화 후 처리"""
-        # agent_id가 비어있으면 agent_type으로 설정
+        """Post-initialization processing"""
+        # Set agent_id to agent_type if empty
         if not self.agent_id:
             self.agent_id = getattr(self.agent_type, 'value', str(self.agent_type))
         
-        # data가 None이면 result_data로 설정
+        # Set data to result_data if None
         if self.data is None:
             self.data = self.result_data
         
-        # success 상태 설정
+        # Set success status
         self.success = self.is_successful()
         
-        # created_at이 설정되지 않았으면 timestamp와 동일하게 설정
+        # Set created_at to timestamp if not set
         if not hasattr(self, 'created_at') or self.created_at is None:
             self.created_at = self.timestamp
     
     @classmethod
     def create_from_dict(cls, data: Dict[str, Any]) -> 'AgentExecutionResult':
-        """딕셔너리로부터 AgentExecutionResult 생성 (호환성 메서드)"""
-        # 필수 필드들 추출
+        """Create AgentExecutionResult from dictionary (compatibility method)"""
+        # Extract required fields
         result_data = data.get('result_data', data.get('data', data.get('result', None)))
         execution_time = data.get('execution_time', 0.0)
         
-        # status 처리
+        # Process status
         status_str = data.get('status', 'completed' if data.get('success', True) else 'failed')
         if isinstance(status_str, str):
             try:
@@ -395,7 +394,7 @@ class AgentExecutionResult:
         else:
             status = status_str
         
-        # agent_type 처리
+        # Process agent_type
         agent_type_str = data.get('agent_type', 'general')
         if isinstance(agent_type_str, str):
             try:
@@ -418,7 +417,7 @@ class AgentExecutionResult:
     
     @classmethod
     def create_simple(cls, agent_id: str, success: bool, data: Any, execution_time: float = 0.0, **kwargs) -> 'AgentExecutionResult':
-        """간단한 생성 메서드 (호환성)"""
+        """Simple creation method (for compatibility)"""
         return cls(
             result_data=data,
             execution_time=execution_time,
@@ -431,11 +430,11 @@ class AgentExecutionResult:
         )
     
     def is_successful(self) -> bool:
-        """실행 성공 여부"""
+        """Whether execution was successful"""
         return self.status == ExecutionStatus.COMPLETED and self.error_message is None
     
     def to_dict(self) -> Dict[str, Any]:
-        """딕셔너리로 변환"""
+        """Convert to dictionary"""
         return {
             'agent_type': getattr(self.agent_type, 'value', str(self.agent_type)),
             'agent_id': self.agent_id,
@@ -454,7 +453,7 @@ class AgentExecutionResult:
 
 @dataclass
 class WorkflowStep:
-    """워크플로우 단계"""
+    """Workflow step"""
     step_id: str
     semantic_purpose: str
     required_concepts: List[str]
@@ -470,7 +469,7 @@ class WorkflowStep:
     
     @classmethod
     def create_simple(cls, agent_id: str, purpose: str, **kwargs) -> 'WorkflowStep':
-        """간단한 워크플로우 단계 생성"""
+        """Create a simple workflow step"""
         return cls(
             step_id=f"step_{uuid.uuid4().hex[:6]}",
             semantic_purpose=purpose,
@@ -484,7 +483,7 @@ class WorkflowStep:
 
 @dataclass
 class WorkflowPlan:
-    """워크플로우 실행 계획"""
+    """Workflow execution plan"""
     plan_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     query: SemanticQuery = None
     execution_steps: List[Dict[str, Any]] = field(default_factory=list)
@@ -494,15 +493,15 @@ class WorkflowPlan:
     optimization_hints: List[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     
-    # 추가 속성들 (호환성을 위해)
+    # Additional attributes (for backward compatibility)
     optimization_strategy: OptimizationStrategy = OptimizationStrategy.BALANCED
-    steps: List = field(default_factory=list)  # WorkflowStep 객체들의 리스트
+    steps: List = field(default_factory=list)  # List of WorkflowStep objects
     estimated_quality: float = 0.8
     reasoning_chain: List[str] = field(default_factory=list)
     execution_graph: Any = None  # nx.DiGraph
     
     def add_step(self, agent_type: AgentType, config: Dict[str, Any], dependencies: List[str] = None):
-        """실행 단계 추가"""
+        """Add an execution step"""
         step = {
             'step_id': str(uuid.uuid4()),
             'agent_type': agent_type.value,
@@ -526,11 +525,11 @@ class WorkflowPlan:
                      agent_type: AgentType = AgentType.GENERAL,
                      estimated_time: float = 30.0,
                      **kwargs) -> 'WorkflowPlan':
-        """간단한 워크플로우 플랜 생성"""
-        # semantic_query와 query 중 하나를 사용
+        """Create a simple workflow plan"""
+        # Use either semantic_query or query
         target_query = semantic_query or query
         if not target_query:
-            raise ValueError("semantic_query 또는 query 중 하나는 필수입니다.")
+            raise ValueError("Either semantic_query or query is required.")
         
         plan = cls(
             query=target_query,
@@ -542,14 +541,14 @@ class WorkflowPlan:
             **kwargs
         )
         
-        # steps가 제공되면 사용, 아니면 기본 단계 생성
+        # Use provided steps or create a default step
         if steps:
-            # steps가 WorkflowStep 객체들의 리스트인 경우
+            # If steps is a list of WorkflowStep objects
             plan.steps = steps
             for step in steps:
                 if hasattr(step, 'agent_id'):
                     plan.add_step(
-                        agent_type=AgentType.GENERAL,  # 기본값
+                        agent_type=AgentType.GENERAL,  # Default value
                         config={
                             'step_id': step.step_id,
                             'agent_id': step.agent_id,
@@ -558,7 +557,7 @@ class WorkflowPlan:
                         }
                     )
         else:
-            # 기본 실행 단계 추가
+            # Add default execution step
             plan.add_step(
                 agent_type=agent_type,
                 config={
@@ -570,14 +569,14 @@ class WorkflowPlan:
         
         return plan
 
-    # LLM 통합 메서드들
+    # LLM integration methods
     async def optimize_with_llm(self, llm_manager: Optional['OntologyLLMManager'] = None) -> Dict[str, Any]:
-        """LLM을 사용한 워크플로우 최적화"""
+        """Workflow optimization using LLM"""
         if llm_manager is None:
             from .llm_manager import OntologyLLMManager
             llm_manager = OntologyLLMManager()
         
-        # 워크플로우 설계 전문 LLM 사용
+        # Use workflow design specialized LLM
         optimization_prompt = f"""
         다음 워크플로우 계획을 최적화해주세요:
         
@@ -610,7 +609,7 @@ class WorkflowPlan:
         result = await llm_manager.call_llm_async('WORKFLOW_DESIGNER', optimization_prompt)
         
         if result and 'optimized_steps' in result:
-            # 기존 단계들을 새로운 최적화된 단계들로 교체
+            # Replace existing steps with newly optimized steps
             self.execution_steps.clear()
             self.dependencies.clear()
             
@@ -630,22 +629,22 @@ class WorkflowPlan:
                     dependencies=step_data.get('dependencies', [])
                 )
             
-            # 전체 예상 시간 업데이트
+            # Update total estimated time
             if 'total_estimated_time' in result:
                 self.estimated_time = result['total_estimated_time']
             
-            # 품질 개선 정보 저장
+            # Save quality improvement information
             if 'estimated_quality_improvement' in result:
                 self.estimated_quality = min(1.0, self.estimated_quality + result['estimated_quality_improvement'])
             
-            # 최적화 힌트 추가
+            # Add optimization hints
             if 'optimization_reasoning' in result:
                 self.optimization_hints.append(result['optimization_reasoning'])
         
         return result or {}
     
     def get_parallel_execution_groups(self) -> List[List[str]]:
-        """병렬 실행 가능한 단계 그룹들 반환"""
+        """Return groups of steps that can be executed in parallel"""
         if not self.execution_steps:
             return []
         
@@ -653,14 +652,14 @@ class WorkflowPlan:
         remaining_steps = self.execution_steps.copy()
         
         while remaining_steps:
-            # 의존성이 없는 단계들을 찾아서 그룹으로 묶기
+            # Find steps with no dependencies and group them
             parallel_group = []
             completed_steps = set()
             
             for step in remaining_steps[:]:
                 dependencies = self.dependencies.get(step['step_id'], [])
                 
-                # 모든 의존성이 완료되었거나 의존성이 없는 경우
+                # All dependencies completed or no dependencies
                 if not dependencies or all(dep in completed_steps for dep in dependencies):
                     parallel_group.append(step['step_id'])
                     remaining_steps.remove(step)
@@ -669,29 +668,29 @@ class WorkflowPlan:
             if parallel_group:
                 groups.append(parallel_group)
             else:
-                # 더 이상 진행할 수 없는 경우 (순환 의존성 등)
+                # Cannot proceed further (e.g., circular dependency)
                 break
         
         return groups
     
     def estimate_execution_time(self, consider_parallel: bool = True) -> float:
-        """실행 시간 추정"""
+        """Estimate execution time"""
         if not self.execution_steps:
             return 0.0
         
         if not consider_parallel:
-            # 순차 실행 시간
+            # Sequential execution time
             return sum(
                 step.get('config', {}).get('estimated_time', 30.0) 
                 for step in self.execution_steps
             )
         
-        # 병렬 실행 고려한 시간
+        # Time considering parallel execution
         parallel_groups = self.get_parallel_execution_groups()
         total_time = 0.0
         
         for group in parallel_groups:
-            # 각 그룹에서 가장 오래 걸리는 단계의 시간
+            # Time of the longest step in each group
             group_times = []
             for step_id in group:
                 step = next((s for s in self.execution_steps if s['step_id'] == step_id), None)
@@ -882,7 +881,7 @@ class SystemMetrics:
         return (successful / total * 100) if total > 0 else 0.0
     
     def to_dict(self) -> Dict[str, Any]:
-        """딕셔너리로 변환"""
+        """Convert to dictionary"""
         return {
             # 기존 메트릭
             'total_queries': self.total_queries,

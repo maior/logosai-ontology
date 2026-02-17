@@ -1,8 +1,8 @@
 """
 🔍 Query Processing Module
-쿼리 처리 모듈
+Query Processing Module
 
-쿼리 분석, 복잡도 계산, 워크플로우 생성을 담당
+Responsible for query analysis, complexity calculation, and workflow creation
 """
 
 import asyncio
@@ -21,7 +21,7 @@ from ..engines.execution_engine import QueryComplexityAnalyzer
 
 
 class QueryProcessor:
-    """🔍 쿼리 처리기 - 쿼리 분석 및 워크플로우 생성 전담"""
+    """🔍 Query Processor - dedicated to query analysis and workflow creation"""
     
     def __init__(self):
         self.semantic_query_manager = SemanticQueryManager()
@@ -29,65 +29,65 @@ class QueryProcessor:
         self.workflow_designer = None
         self.installed_agents_info = []
         
-        logger.info("🔍 쿼리 처리기 초기화 완료")
+        logger.info("🔍 Query processor initialized")
     
     def initialize_workflow_designer(self, installed_agents_info: List[Dict[str, Any]] = None):
-        """워크플로우 설계자 초기화 (설치된 에이전트 정보와 함께)"""
+        """Initialize workflow designer with installed agent information"""
         try:
             if installed_agents_info:
                 self.installed_agents_info = installed_agents_info
-                logger.info(f"🎯 설치된 에이전트 정보 업데이트: {len(installed_agents_info)}개")
+                logger.info(f"🎯 Updated installed agent information: {len(installed_agents_info)} agents")
             
-            # SmartWorkflowDesigner를 설치된 에이전트 정보와 함께 초기화
+            # Initialize SmartWorkflowDesigner with installed agent information
             self.workflow_designer = SmartWorkflowDesigner(self.installed_agents_info)
-            logger.info(f"🎯 워크플로우 설계자 초기화 완료 - 에이전트 정보: {len(self.installed_agents_info)}개")
+            logger.info(f"🎯 Workflow designer initialized - agent count: {len(self.installed_agents_info)}")
             
         except Exception as e:
-            logger.error(f"워크플로우 설계자 초기화 실패: {e}")
-            # 폴백: 기본 워크플로우 설계자 사용
+            logger.error(f"Workflow designer initialization failed: {e}")
+            # Fallback: use default workflow designer
             self.workflow_designer = SmartWorkflowDesigner()
     
     async def process_query_to_workflow(self, 
                                       query_text: str, 
                                       execution_context: ExecutionContext,
                                       available_agents: List[str]) -> tuple[SemanticQuery, Dict[str, Any], WorkflowPlan]:
-        """쿼리를 분석해서 워크플로우까지 생성"""
+        """Analyze query and create workflow"""
         try:
-            logger.info(f"🔍 쿼리 분석 시작: '{query_text[:50]}...'")
+            logger.info(f"🔍 Starting query analysis: '{query_text[:50]}...'")
             
-            # 1. 의미론적 쿼리 생성
+            # 1. Create semantic query
             semantic_query = await self.semantic_query_manager.create_semantic_query(
                 query_text, execution_context
             )
-            logger.info(f"📝 의미론적 쿼리 생성 완료: ID={semantic_query.query_id}")
+            logger.info(f"📝 Semantic query created: ID={semantic_query.query_id}")
             
-            # 2. 복잡도 분석
+            # 2. Complexity analysis
             complexity_analysis = self.analyze_complexity(semantic_query)
-            logger.info(f"🔍 복잡도 분석 완료: {complexity_analysis.get('recommended_strategy', 'AUTO')} (점수: {complexity_analysis.get('complexity_score', 0):.2f})")
+            logger.info(f"🔍 Complexity analysis complete: {complexity_analysis.get('recommended_strategy', 'AUTO')} (score: {complexity_analysis.get('complexity_score', 0):.2f})")
             
-            # 3. 워크플로우 설계
-            logger.info(f"🤖 사용 가능한 에이전트: {len(available_agents)}개 - {available_agents}")
+            # 3. Design workflow
+            logger.info(f"🤖 Available agents: {len(available_agents)} - {available_agents}")
             
             workflow_plan = await self.workflow_designer.design_workflow(
                 semantic_query, available_agents
             )
             
-            # 워크플로우 최적화 (중복 제거 포함)
+            # Optimize workflow (including duplicate removal)
             workflow_plan = self.workflow_designer.optimize_workflow(workflow_plan)
             
-            # 워크플로우 설계 상세 로깅
+            # Log workflow design details
             self._log_workflow_details(workflow_plan)
             
             return semantic_query, complexity_analysis, workflow_plan
             
         except Exception as e:
-            logger.error(f"쿼리 처리 실패: {e}")
+            logger.error(f"Query processing failed: {e}")
             raise
     
     def analyze_complexity(self, semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """안전하고 단순한 복잡도 분석"""
+        """Safe and simple complexity analysis"""
         try:
-            # SemanticQuery가 딕셔너리인지 객체인지 안전하게 확인
+            # Safely check if SemanticQuery is a dict or object
             if isinstance(semantic_query, dict):
                 query_text = semantic_query.get('natural_language', '')
                 required_agents = semantic_query.get('required_agents', [])
@@ -99,16 +99,16 @@ class QueryProcessor:
                     if isinstance(structured_query, dict) and 'required_agents' in structured_query:
                         required_agents = structured_query['required_agents']
             
-            # 기본 복잡도 분석 - 단순화
+            # Basic complexity analysis - simplified
             analysis = {
-                'complexity_score': 0.5,  # 기본값
+                'complexity_score': 0.5,  # default value
                 'query_type': 'GENERAL',
                 'required_agents_count': len(required_agents) if required_agents else 0,
-                'estimated_processing_time': 30.0,  # 기본 30초
+                'estimated_processing_time': 30.0,  # default 30 seconds
                 'recommended_strategy': ExecutionStrategy.AUTO
             }
             
-            # 텍스트 길이 기반 복잡도 추정
+            # Estimate complexity based on text length
             if query_text:
                 text_length = len(query_text)
                 if text_length > 100:
@@ -118,13 +118,13 @@ class QueryProcessor:
                 else:
                     analysis['complexity_score'] = 0.4
                 
-                # 핵심 키워드 기반 복잡도 조정
-                complex_keywords = ['분석', '비교', '차트', '그래프', '계산']
+                # Adjust complexity based on key keywords
+                complex_keywords = ['분석', '비교', '차트', '그래프', '계산']  # analysis, comparison, chart, graph, calculation
                 keyword_count = sum(1 for keyword in complex_keywords if keyword in query_text)
                 if keyword_count > 0:
                     analysis['complexity_score'] = min(analysis['complexity_score'] + 0.1 * keyword_count, 1.0)
             
-            # 에이전트 수에 따른 전략 결정 - 단순화
+            # Determine strategy based on agent count - simplified
             agents_count = analysis['required_agents_count']
             if agents_count <= 1:
                 analysis['recommended_strategy'] = ExecutionStrategy.SINGLE_AGENT
@@ -136,18 +136,18 @@ class QueryProcessor:
                 analysis['recommended_strategy'] = ExecutionStrategy.HYBRID
                 analysis['estimated_processing_time'] = agents_count * 15.0
             
-            # 복잡도 점수에 따른 추가 조정
+            # Additional adjustment based on complexity score
             if analysis['complexity_score'] >= 0.8:
                 analysis['recommended_strategy'] = ExecutionStrategy.HYBRID
             elif analysis['complexity_score'] >= 0.6 and agents_count > 1:
                 analysis['recommended_strategy'] = ExecutionStrategy.PARALLEL
             
-            logger.info(f"🔍 복잡도 분석 완료: 점수={analysis['complexity_score']:.2f}, 전략={analysis['recommended_strategy']}")
+            logger.info(f"🔍 Complexity analysis complete: score={analysis['complexity_score']:.2f}, strategy={analysis['recommended_strategy']}")
             return analysis
             
         except Exception as e:
-            logger.error(f"복잡도 분석 실패: {e}")
-            # 안전한 폴백 분석
+            logger.error(f"Complexity analysis failed: {e}")
+            # Safe fallback analysis
             return {
                 'complexity_score': 0.5,
                 'query_type': 'GENERAL',
@@ -159,53 +159,53 @@ class QueryProcessor:
             }
     
     def _log_workflow_details(self, workflow_plan: WorkflowPlan):
-        """워크플로우 상세 정보 로깅"""
-        logger.info(f"🔧 워크플로우 설계 완료:")
-        logger.info(f"  - 플랜 ID: {workflow_plan.plan_id}")
-        logger.info(f"  - 단계 수: {len(workflow_plan.steps)}")
-        logger.info(f"  - 최적화 전략: {getattr(workflow_plan.optimization_strategy, 'value', str(workflow_plan.optimization_strategy))}")
-        logger.info(f"  - 예상 품질: {workflow_plan.estimated_quality:.2f}")
-        logger.info(f"  - 예상 시간: {workflow_plan.estimated_time:.1f}초")
+        """Log workflow details"""
+        logger.info(f"🔧 Workflow design complete:")
+        logger.info(f"  - Plan ID: {workflow_plan.plan_id}")
+        logger.info(f"  - Step count: {len(workflow_plan.steps)}")
+        logger.info(f"  - Optimization strategy: {getattr(workflow_plan.optimization_strategy, 'value', str(workflow_plan.optimization_strategy))}")
+        logger.info(f"  - Estimated quality: {workflow_plan.estimated_quality:.2f}")
+        logger.info(f"  - Estimated time: {workflow_plan.estimated_time:.1f}s")
         
-        # 각 단계 상세 로깅
+        # Log each step in detail
         for i, step in enumerate(workflow_plan.steps):
-            logger.info(f"    단계 {i+1}: {step.step_id}")
-            logger.info(f"      - 에이전트: {step.agent_id}")
-            logger.info(f"      - 목적: {step.semantic_purpose}")
-            logger.info(f"      - 복잡도: {getattr(step.estimated_complexity, 'value', str(step.estimated_complexity))}")
-            logger.info(f"      - 예상 시간: {step.estimated_time:.1f}초")
+            logger.info(f"    Step {i+1}: {step.step_id}")
+            logger.info(f"      - Agent: {step.agent_id}")
+            logger.info(f"      - Purpose: {step.semantic_purpose}")
+            logger.info(f"      - Complexity: {getattr(step.estimated_complexity, 'value', str(step.estimated_complexity))}")
+            logger.info(f"      - Estimated time: {step.estimated_time:.1f}s")
             if step.depends_on:
-                logger.info(f"      - 의존성: {step.depends_on}")
+                logger.info(f"      - Dependencies: {step.depends_on}")
     
     def generate_workflow_mermaid(self, workflow_plan: WorkflowPlan) -> str:
-        """워크플로우 Mermaid 다이어그램 생성"""
+        """Generate Mermaid diagram for workflow"""
         try:
             if not workflow_plan or not workflow_plan.steps:
-                return 'graph TD\n    A["빈 워크플로우"] --> B["단계 없음"]'
+                return 'graph TD\n    A["Empty workflow"] --> B["No steps"]'
             
             mermaid_lines = ["graph TD"]
             
-            # 시작 노드
+            # Start node
             mermaid_lines.append(f'    START["{workflow_plan.query.query_text[:30]}..."]')
             
-            # 단계들 정의
+            # Define steps
             for i, step in enumerate(workflow_plan.steps):
                 step_label = f"{step.agent_id}\\n{step.semantic_purpose[:20]}..."
                 mermaid_lines.append(f'    {step.step_id}["{step_label}"]')
                 
-                # 의존성이 없는 첫 단계는 START와 연결
+                # First steps with no dependencies are connected to START
                 if not step.depends_on:
                     mermaid_lines.append(f'    START --> {step.step_id}')
             
-            # 의존성 관계 추가
+            # Add dependency relationships
             for step in workflow_plan.steps:
                 for dep in step.depends_on:
                     mermaid_lines.append(f'    {dep} --> {step.step_id}')
             
-            # 마지막 단계들을 END와 연결
+            # Connect last steps to END
             last_steps = []
             for step in workflow_plan.steps:
-                # 다른 단계의 의존성에 없는 단계는 마지막 단계
+                # Steps not in any other step's dependencies are the last steps
                 is_last = True
                 for other_step in workflow_plan.steps:
                     if step.step_id in other_step.depends_on:
@@ -214,13 +214,13 @@ class QueryProcessor:
                 if is_last:
                     last_steps.append(step.step_id)
             
-            # END 노드 추가
-            mermaid_lines.append('    END["완료"]')
+            # Add END node
+            mermaid_lines.append('    END["Complete"]')
             for last_step in last_steps:
                 mermaid_lines.append(f'    {last_step} --> END')
             
             return "\n".join(mermaid_lines)
             
         except Exception as e:
-            logger.error(f"Mermaid 다이어그램 생성 실패: {e}")
-            return f'graph TD\n    A["오류"] --> B["{str(e)[:50]}..."]' 
+            logger.error(f"Mermaid diagram generation failed: {e}")
+            return f'graph TD\n    A["Error"] --> B["{str(e)[:50]}..."]' 

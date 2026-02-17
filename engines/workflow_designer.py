@@ -1,8 +1,7 @@
 """
 🎯 Workflow Designer
-워크플로우 설계자
 
-SemanticQuery를 기반으로 최적의 워크플로우를 설계합니다.
+Designs optimal workflows based on SemanticQuery.
 """
 
 import networkx as nx
@@ -19,14 +18,14 @@ from ..core.interfaces import WorkflowDesigner as IWorkflowDesigner
 
 
 class SmartWorkflowDesigner(IWorkflowDesigner):
-    """🎯 스마트 워크플로우 설계자"""
-    
+    """🎯 Smart Workflow Designer"""
+
     def __init__(self, installed_agents_info: List[Dict[str, Any]] = None):
-        # 실제 설치된 에이전트 정보 저장
+        # Store information about actually installed agents
         self.installed_agents_info = installed_agents_info or []
-        self.agents_capabilities_cache = {}  # 에이전트 능력 캐시
-        
-        # 기본 에이전트 능력 템플릿 (폴백용)
+        self.agents_capabilities_cache = {}  # Agent capability cache
+
+        # Default agent capability templates (fallback)
         self.agent_capability_templates = {
             "internet_agent": {
                 "domains": ["web", "search", "information"],
@@ -72,7 +71,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             }
         }
         
-        # 에이전트 간 의존성 규칙 (기본 템플릿)
+        # Inter-agent dependency rules (default templates)
         self.dependency_rules = {
             "chart_agent": ["internet_agent", "finance_agent", "calculate_agent"],
             "analysis_agent": ["internet_agent", "finance_agent"],
@@ -80,50 +79,50 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             "calculate_agent": ["internet_agent", "finance_agent"]
         }
         
-        # 설치된 에이전트 정보를 기반으로 능력 캐시 구축
+        # Build capability cache based on installed agent information
         self._build_capabilities_cache()
-        
-        logger.info(f"🎯 SmartWorkflowDesigner 초기화 완료 - 설치된 에이전트: {len(self.installed_agents_info)}개")
+
+        logger.info(f"🎯 SmartWorkflowDesigner initialized - installed agents: {len(self.installed_agents_info)}")
     
     def _build_capabilities_cache(self):
-        """설치된 에이전트 정보를 기반으로 능력 캐시 구축"""
+        """Build capability cache based on installed agent information"""
         try:
-            logger.info(f"🔧 에이전트 능력 캐시 구축 시작 - 총 {len(self.installed_agents_info)}개 에이전트")
-            
+            logger.info(f"🔧 Agent capability cache build started - total {len(self.installed_agents_info)} agents")
+
             for i, agent_info in enumerate(self.installed_agents_info):
                 agent_id = agent_info.get('agent_id', '')
                 if not agent_id:
-                    logger.warning(f"에이전트 {i+1}: agent_id가 없습니다.")
+                    logger.warning(f"Agent {i+1}: agent_id is missing.")
                     continue
-                
-                # 에이전트 데이터에서 능력 정보 추출
+
+                # Extract capability information from agent data
                 agent_data = agent_info.get('agent_data', {})
                 capabilities_info = self._extract_capabilities_from_agent_data(agent_id, agent_data)
-                
+
                 self.agents_capabilities_cache[agent_id] = capabilities_info
-                
-                # 상세 로깅
-                logger.info(f"  🤖 에이전트 {i+1}: {agent_id}")
-                logger.info(f"    - 이름: {capabilities_info.get('name', agent_id)}")
-                logger.info(f"    - 도메인: {capabilities_info.get('domains', [])}")
-                logger.info(f"    - 능력: {len(capabilities_info.get('capabilities', []))}개")
-                logger.info(f"    - 복잡도: {capabilities_info.get('complexity', 'UNKNOWN')}")
-                logger.info(f"    - 예상 시간: {capabilities_info.get('estimated_time', 0)}초")
-                
-                logger.debug(f"에이전트 {agent_id} 능력 정보 캐시됨: {capabilities_info}")
-            
-            logger.info(f"✅ 에이전트 능력 캐시 구축 완료 - {len(self.agents_capabilities_cache)}개 에이전트")
-                
+
+                # Detailed logging
+                logger.info(f"  🤖 Agent {i+1}: {agent_id}")
+                logger.info(f"    - Name: {capabilities_info.get('name', agent_id)}")
+                logger.info(f"    - Domains: {capabilities_info.get('domains', [])}")
+                logger.info(f"    - Capabilities: {len(capabilities_info.get('capabilities', []))}")
+                logger.info(f"    - Complexity: {capabilities_info.get('complexity', 'UNKNOWN')}")
+                logger.info(f"    - Estimated time: {capabilities_info.get('estimated_time', 0)}s")
+
+                logger.debug(f"Agent {agent_id} capability info cached: {capabilities_info}")
+
+            logger.info(f"✅ Agent capability cache built - {len(self.agents_capabilities_cache)} agents")
+
         except Exception as e:
-            logger.error(f"능력 캐시 구축 실패: {e}")
-            logger.error(f"설치된 에이전트 정보: {self.installed_agents_info}")
+            logger.error(f"Capability cache build failed: {e}")
+            logger.error(f"Installed agent information: {self.installed_agents_info}")
     
     def _extract_capabilities_from_agent_data(self, agent_id: str, agent_data: Dict[str, Any]) -> Dict[str, Any]:
-        """에이전트 데이터에서 능력 정보 추출"""
+        """Extract capability information from agent data"""
         try:
-            logger.debug(f"🔍 에이전트 {agent_id} 능력 정보 추출 시작")
-            
-            # 기본 정보
+            logger.debug(f"🔍 Agent {agent_id} capability extraction started")
+
+            # Base information
             capabilities_info = {
                 "domains": [],
                 "capabilities": [],
@@ -133,63 +132,63 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                 "name": agent_data.get('name', agent_id)
             }
             
-            # capabilities에서 정보 추출
+            # Extract information from capabilities
             if 'capabilities' in agent_data:
-                logger.debug(f"  능력 정보 추출: {len(agent_data['capabilities'])}개")
+                logger.debug(f"  Capability extraction: {len(agent_data['capabilities'])} entries")
                 for capability in agent_data['capabilities']:
                     cap_id = capability.get('id', '')
                     cap_name = capability.get('name', '')
                     cap_desc = capability.get('description', '')
-                    
+
                     capabilities_info["capabilities"].append(cap_id)
-                    
-                    # 도메인 추론
+
+                    # Infer domain
                     domain = self._infer_domain_from_capability(cap_id, cap_name, cap_desc)
                     if domain and domain not in capabilities_info["domains"]:
                         capabilities_info["domains"].append(domain)
-                        logger.debug(f"    도메인 추가: {domain} (from {cap_id})")
-            
-            # 태그에서 도메인 정보 추출
+                        logger.debug(f"    Domain added: {domain} (from {cap_id})")
+
+            # Extract domain information from tags
             if 'tags' in agent_data:
-                logger.debug(f"  태그 정보 추출: {len(agent_data['tags'])}개")
+                logger.debug(f"  Tag extraction: {len(agent_data['tags'])} entries")
                 for tag in agent_data['tags']:
                     domain = self._infer_domain_from_tag(tag)
                     if domain and domain not in capabilities_info["domains"]:
                         capabilities_info["domains"].append(domain)
-                        logger.debug(f"    도메인 추가: {domain} (from tag: {tag})")
-            
-            # 메타데이터에서 에이전트 타입 추출
+                        logger.debug(f"    Domain added: {domain} (from tag: {tag})")
+
+            # Extract agent type from metadata
             metadata = agent_data.get('metadata', {})
             agent_type = metadata.get('agent_type', '')
             if agent_type:
                 type_info = self._get_type_based_info(agent_type)
                 capabilities_info.update(type_info)
-                logger.debug(f"  타입 기반 정보 적용: {agent_type}")
-            
-            # 복잡도 및 시간 추정
+                logger.debug(f"  Type-based info applied: {agent_type}")
+
+            # Estimate complexity and time
             complexity, estimated_time = self._estimate_complexity_and_time(agent_id, agent_data)
             capabilities_info["complexity"] = complexity
             capabilities_info["estimated_time"] = estimated_time
-            
-            # 도메인이 비어있으면 에이전트 ID로부터 추론
+
+            # Infer domains from agent ID if domains are empty
             if not capabilities_info["domains"]:
                 capabilities_info["domains"] = self._infer_domains_from_agent_id(agent_id)
-                logger.debug(f"  ID 기반 도메인 추론: {capabilities_info['domains']}")
-            
-            # 능력이 비어있으면 기본값 설정
+                logger.debug(f"  ID-based domain inference: {capabilities_info['domains']}")
+
+            # Set default capability if capabilities are empty
             if not capabilities_info["capabilities"]:
                 capabilities_info["capabilities"] = ["general_processing"]
-                logger.debug(f"  기본 능력 설정: general_processing")
-            
-            logger.debug(f"✅ 에이전트 {agent_id} 능력 정보 추출 완료")
+                logger.debug(f"  Default capability set: general_processing")
+
+            logger.debug(f"✅ Agent {agent_id} capability extraction completed")
             return capabilities_info
-            
+
         except Exception as e:
-            logger.error(f"에이전트 {agent_id} 능력 정보 추출 실패: {e}")
+            logger.error(f"Agent {agent_id} capability extraction failed: {e}")
             return self._get_fallback_capabilities(agent_id)
     
     def _infer_domain_from_capability(self, cap_id: str, cap_name: str, cap_desc: str) -> str:
-        """능력 정보로부터 도메인 추론"""
+        """Infer domain from capability information"""
         text = f"{cap_id} {cap_name} {cap_desc}".lower()
         
         if any(keyword in text for keyword in ["search", "internet", "web", "scraping"]):
@@ -212,9 +211,9 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return "general"
     
     def _infer_domain_from_tag(self, tag: str) -> str:
-        """태그로부터 도메인 추론"""
+        """Infer domain from tag"""
         tag_lower = tag.lower()
-        
+
         if any(keyword in tag_lower for keyword in ["인터넷", "검색", "웹", "internet", "search", "web"]):
             return "web"
         elif any(keyword in tag_lower for keyword in ["메모", "노트", "저장", "memo", "note", "storage"]):
@@ -235,7 +234,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return "general"
     
     def _get_type_based_info(self, agent_type: str) -> Dict[str, Any]:
-        """에이전트 타입 기반 정보 반환"""
+        """Return information based on agent type"""
         type_mapping = {
             "INTERNET_SEARCH": {
                 "complexity": WorkflowComplexity.SIMPLE,
@@ -273,17 +272,17 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         })
     
     def _estimate_complexity_and_time(self, agent_id: str, agent_data: Dict[str, Any]) -> Tuple[WorkflowComplexity, float]:
-        """복잡도와 예상 시간 추정"""
+        """Estimate complexity and expected time"""
         try:
-            # 메타데이터에서 타입 확인
+            # Check type from metadata
             metadata = agent_data.get('metadata', {})
             agent_type = metadata.get('agent_type', '')
-            
+
             type_info = self._get_type_based_info(agent_type)
             complexity = type_info.get('complexity', WorkflowComplexity.MODERATE)
             estimated_time = type_info.get('estimated_time', 20.0)
-            
-            # 능력 개수에 따른 조정
+
+            # Adjust based on number of capabilities
             capabilities_count = len(agent_data.get('capabilities', []))
             if capabilities_count > 5:
                 if complexity == WorkflowComplexity.SIMPLE:
@@ -297,11 +296,11 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return complexity, estimated_time
             
         except Exception as e:
-            logger.error(f"복잡도 추정 실패: {e}")
+            logger.error(f"Complexity estimation failed: {e}")
             return WorkflowComplexity.MODERATE, 20.0
     
     def _infer_domains_from_agent_id(self, agent_id: str) -> List[str]:
-        """에이전트 ID로부터 도메인 추론"""
+        """Infer domains from agent ID"""
         agent_id_lower = agent_id.lower()
         domains = []
         
@@ -323,7 +322,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         return domains if domains else ["general"]
     
     def _get_fallback_capabilities(self, agent_id: str) -> Dict[str, Any]:
-        """폴백 능력 정보 반환"""
+        """Return fallback capability information"""
         return {
             "domains": self._infer_domains_from_agent_id(agent_id),
             "capabilities": ["general_processing"],
@@ -334,42 +333,42 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         }
     
     def _get_agent_capabilities(self, agent_id: str) -> Dict[str, Any]:
-        """에이전트 능력 정보 조회 (실제 설치된 에이전트 정보 기반)"""
+        """Look up agent capability information (based on actually installed agent data)"""
         try:
-            # 캐시에서 먼저 확인
+            # Check cache first
             if agent_id in self.agents_capabilities_cache:
                 return self.agents_capabilities_cache[agent_id].copy()
-            
-            # 설치된 에이전트 정보에서 찾기
+
+            # Look up in installed agent information
             for agent_info in self.installed_agents_info:
                 if agent_info.get('agent_id') == agent_id:
                     agent_data = agent_info.get('agent_data', {})
                     capabilities = self._extract_capabilities_from_agent_data(agent_id, agent_data)
-                    
-                    # 캐시에 저장
+
+                    # Store in cache
                     self.agents_capabilities_cache[agent_id] = capabilities
-                    logger.info(f"🔍 에이전트 {agent_id} 실제 능력 정보 조회: {capabilities}")
+                    logger.info(f"🔍 Agent {agent_id} actual capability lookup: {capabilities}")
                     return capabilities.copy()
-            
-            # 템플릿에서 찾기 (폴백)
+
+            # Look up in templates (fallback)
             if agent_id in self.agent_capability_templates:
-                logger.info(f"🔍 에이전트 {agent_id} 템플릿 능력 정보 사용")
+                logger.info(f"🔍 Agent {agent_id} using template capability info")
                 return self.agent_capability_templates[agent_id].copy()
-            
-            # 최후의 수단: ID 기반 추론
+
+            # Last resort: ID-based inference
             inferred_capabilities = self._infer_agent_capabilities(agent_id)
-            logger.info(f"🔍 에이전트 {agent_id} 능력 추론: {inferred_capabilities}")
+            logger.info(f"🔍 Agent {agent_id} capability inferred: {inferred_capabilities}")
             return inferred_capabilities
-            
+
         except Exception as e:
-            logger.error(f"에이전트 {agent_id} 능력 정보 조회 실패: {e}")
+            logger.error(f"Agent {agent_id} capability lookup failed: {e}")
             return self._get_fallback_capabilities(agent_id)
     
     def _infer_agent_capabilities(self, agent_id: str) -> Dict[str, Any]:
-        """에이전트 ID를 기반으로 능력 추론"""
+        """Infer capabilities based on agent ID"""
         agent_id_lower = agent_id.lower()
-        
-        # 키워드 기반 추론
+
+        # Keyword-based inference
         if any(keyword in agent_id_lower for keyword in ["internet", "web", "search"]):
             return {
                 "domains": ["web", "search", "information"],
@@ -420,7 +419,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                 "estimated_time": 30.0
             }
         else:
-            # 기본값
+            # Default value
             return {
                 "domains": ["general"],
                 "capabilities": ["general_processing"],
@@ -428,206 +427,206 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                 "estimated_time": 20.0
             }
     
-    async def design_workflow(self, 
+    async def design_workflow(self,
                             semantic_query: SemanticQuery,
                             available_agents: List[str]) -> WorkflowPlan:
         """
-        워크플로우 설계
-        
+        Design a workflow
+
         Args:
-            semantic_query: 의미론적 쿼리
-            available_agents: 사용 가능한 에이전트 목록 (사용자별 설치된 에이전트)
-        
+            semantic_query: Semantic query
+            available_agents: List of available agents (user-installed agents)
+
         Returns:
-            설계된 워크플로우 계획
+            Designed workflow plan
         """
         try:
-            logger.info(f"🎯 워크플로우 설계 시작 - 쿼리: {semantic_query.natural_language[:100]}...")
-            logger.info(f"🎯 사용 가능한 에이전트: {available_agents}")
-            
+            logger.info(f"🎯 Workflow design started - query: {semantic_query.natural_language[:100]}...")
+            logger.info(f"🎯 Available agents: {available_agents}")
+
             if not available_agents:
-                logger.warning("사용 가능한 에이전트가 없습니다. 기본 워크플로우를 생성합니다.")
+                logger.warning("No available agents. Creating default workflow.")
                 return self._create_fallback_workflow(semantic_query, [])
-            
-            # 1. 필요한 에이전트 선택
+
+            # 1. Select required agents
             required_agents = self._select_required_agents(semantic_query, available_agents)
-            logger.info(f"선택된 에이전트: {required_agents}")
-            
+            logger.info(f"Selected agents: {required_agents}")
+
             if not required_agents:
-                logger.warning("선택된 에이전트가 없습니다. 첫 번째 사용 가능한 에이전트를 사용합니다.")
+                logger.warning("No agents selected. Using first available agent.")
                 required_agents = [available_agents[0]]
-            
-            # 2. 워크플로우 단계 생성
+
+            # 2. Create workflow steps
             workflow_steps = self._create_workflow_steps(semantic_query, required_agents)
-            
-            # 3. 실행 그래프 구축
+
+            # 3. Build execution graph
             execution_graph = self._build_execution_graph(workflow_steps)
-            
-            # 4. 최적화 전략 결정
+
+            # 4. Determine optimization strategy
             optimization_strategy = self._determine_optimization_strategy(semantic_query, workflow_steps)
-            
-            # 5. 메트릭 추정
+
+            # 5. Estimate metrics
             estimated_quality, estimated_time = self._estimate_workflow_metrics(workflow_steps)
-            
-            # 6. 추론 체인 생성
+
+            # 6. Generate reasoning chain
             reasoning_chain = self._generate_reasoning_chain(
                 semantic_query, workflow_steps, optimization_strategy
             )
-            
-            # 7. 워크플로우 계획 생성
+
+            # 7. Create workflow plan
             workflow_plan = WorkflowPlan.create_simple(
                 plan_id=f"workflow_{int(time.time())}_{uuid.uuid4().hex[:8]}",
                 semantic_query=semantic_query,
                 steps=workflow_steps,
                 execution_graph=execution_graph,
-                strategy=optimization_strategy,  # strategy 파라미터 사용
+                strategy=optimization_strategy,  # strategy parameter
                 quality=estimated_quality,
                 time=estimated_time,
                 reasoning=reasoning_chain
             )
-            
-            logger.info(f"✅ 워크플로우 설계 완료 - {len(workflow_steps)}개 단계, 예상 시간: {estimated_time:.1f}초")
+
+            logger.info(f"✅ Workflow design completed - {len(workflow_steps)} steps, estimated time: {estimated_time:.1f}s")
             return workflow_plan
-            
+
         except Exception as e:
-            logger.error(f"❌ 워크플로우 설계 실패: {e}")
+            logger.error(f"❌ Workflow design failed: {e}")
             return self._create_fallback_workflow(semantic_query, available_agents)
     
     def optimize_workflow(self, workflow_plan: WorkflowPlan) -> WorkflowPlan:
-        """워크플로우 최적화"""
+        """Optimize workflow"""
         try:
-            logger.info("🔧 워크플로우 최적화 시작")
-            
-            # 1. 병렬 처리 가능성 분석
+            logger.info("🔧 Workflow optimization started")
+
+            # 1. Analyze parallel processing opportunities
             parallel_groups = self._identify_parallel_groups(workflow_plan.steps)
-            
-            # 2. 중복 단계 제거
+
+            # 2. Remove duplicate steps
             optimized_steps = self._remove_duplicate_steps(workflow_plan.steps)
-            
-            # 3. 의존성 최적화
+
+            # 3. Optimize dependencies
             optimized_graph = self._optimize_dependencies(workflow_plan.execution_graph)
-            
-            # 4. 실행 전략 재평가
+
+            # 4. Re-evaluate execution strategy
             optimized_strategy = self._reevaluate_strategy(optimized_steps, parallel_groups)
-            
-            # 최적화된 플랜 생성
+
+            # Create optimized plan
             optimized_plan = WorkflowPlan.create_simple(
                 semantic_query=workflow_plan.semantic_query,
                 steps=optimized_steps,
                 strategy=optimized_strategy,
-                quality=workflow_plan.estimated_quality * 1.1,  # 최적화로 품질 향상
-                time=workflow_plan.estimated_time * 0.9,  # 최적화로 시간 단축
-                reasoning=workflow_plan.reasoning_chain + ["워크플로우 최적화 적용"]
+                quality=workflow_plan.estimated_quality * 1.1,  # quality improved by optimization
+                time=workflow_plan.estimated_time * 0.9,  # time reduced by optimization
+                reasoning=workflow_plan.reasoning_chain + ["Workflow optimization applied"]
             )
-            
+
             optimized_plan.execution_graph = optimized_graph
-            
-            logger.info(f"✅ 워크플로우 최적화 완료: {len(optimized_steps)}개 단계")
+
+            logger.info(f"✅ Workflow optimization completed: {len(optimized_steps)} steps")
             return optimized_plan
-            
+
         except Exception as e:
-            logger.error(f"❌ 워크플로우 최적화 실패: {e}")
+            logger.error(f"❌ Workflow optimization failed: {e}")
             return workflow_plan
     
     def validate_workflow(self, workflow_plan: WorkflowPlan) -> bool:
-        """워크플로우 유효성 검증 (추상 메서드 구현)"""
+        """Validate workflow (abstract method implementation)"""
         try:
-            # 1. 기본 구조 검증
+            # 1. Validate basic structure
             if not workflow_plan or not workflow_plan.steps:
-                logger.warning("워크플로우 플랜이 비어있습니다.")
+                logger.warning("Workflow plan is empty.")
                 return False
-            
-            # 2. 단계별 검증
+
+            # 2. Validate each step
             for step in workflow_plan.steps:
                 if not step.step_id or not step.agent_id:
-                    logger.warning(f"단계 {step.step_id}에 필수 정보가 누락되었습니다.")
+                    logger.warning(f"Step {step.step_id} is missing required information.")
                     return False
-                
-                # 에이전트 능력 조회 가능 여부 확인 (동적 조회)
+
+                # Check whether agent capability lookup is possible (dynamic lookup)
                 try:
                     agent_info = self._get_agent_capabilities(step.agent_id)
                     if not agent_info:
-                        logger.warning(f"에이전트 {step.agent_id}의 능력 정보를 조회할 수 없습니다.")
+                        logger.warning(f"Cannot look up capability information for agent {step.agent_id}.")
                         return False
                 except Exception as e:
-                    logger.warning(f"에이전트 {step.agent_id} 능력 조회 실패: {e}")
+                    logger.warning(f"Agent {step.agent_id} capability lookup failed: {e}")
                     return False
-            
-            # 3. 의존성 검증
+
+            # 3. Validate dependencies
             if hasattr(workflow_plan, 'execution_graph') and workflow_plan.execution_graph:
-                # 순환 참조 검사
+                # Check for cyclic references
                 if not nx.is_directed_acyclic_graph(workflow_plan.execution_graph):
-                    logger.warning("워크플로우에 순환 참조가 있습니다.")
+                    logger.warning("Workflow has cyclic references.")
                     return False
-                
-                # 모든 단계가 그래프에 포함되어 있는지 확인
+
+                # Verify all steps are included in the graph
                 step_ids = {step.step_id for step in workflow_plan.steps}
                 graph_nodes = set(workflow_plan.execution_graph.nodes())
                 if step_ids != graph_nodes:
-                    logger.warning("실행 그래프와 단계 목록이 일치하지 않습니다.")
+                    logger.warning("Execution graph and step list do not match.")
                     return False
             
-            # 4. 의존성 규칙 검증 (동적으로 확인)
+            # 4. Validate dependency rules (dynamically)
             for step in workflow_plan.steps:
                 if step.agent_id in self.dependency_rules:
                     required_deps = self.dependency_rules[step.agent_id]
                     available_agents = [s.agent_id for s in workflow_plan.steps]
-                    
-                    # 필요한 의존성이 있는지 확인
+
+                    # Check if required dependencies are present
                     has_dependency = any(dep in available_agents for dep in required_deps)
                     if not has_dependency and len(workflow_plan.steps) > 1:
-                        logger.warning(f"에이전트 {step.agent_id}의 의존성이 충족되지 않았습니다.")
-                        # 경고만 하고 실패로 처리하지는 않음
-            
-            # 5. 시간 추정 검증
+                        logger.warning(f"Dependencies for agent {step.agent_id} are not satisfied.")
+                        # Only warn, do not treat as failure
+
+            # 5. Validate time estimate
             if hasattr(workflow_plan, 'estimated_time') and workflow_plan.estimated_time <= 0:
-                logger.warning("워크플로우 예상 시간이 유효하지 않습니다.")
+                logger.warning("Workflow estimated time is invalid.")
                 return False
-            
-            logger.info("✅ 워크플로우 유효성 검증 통과")
+
+            logger.info("✅ Workflow validation passed")
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ 워크플로우 유효성 검증 실패: {e}")
+            logger.error(f"❌ Workflow validation failed: {e}")
             return False
     
     def _select_required_agents(self, semantic_query: SemanticQuery, available_agents: List[str]) -> List[str]:
-        """필요한 에이전트 선택 - 멀티에이전트 지원"""
+        """Select required agents - multi-agent support"""
         required_agents = []
         query_text = semantic_query.natural_language.lower()
 
-        logger.info(f"🎯 에이전트 선택 시작 - 쿼리: '{semantic_query.natural_language}'")
-        logger.info(f"🎯 사용 가능한 에이전트: {available_agents}")
+        logger.info(f"🎯 Agent selection started - query: '{semantic_query.natural_language}'")
+        logger.info(f"🎯 Available agents: {available_agents}")
 
-        # Enhanced Query Processor 사용
+        # Use Enhanced Query Processor
         from ..core.enhanced_query_processor import get_enhanced_query_processor
         enhanced_processor = get_enhanced_query_processor()
 
-        # 설치된 에이전트 정보 설정 (이미 설정되어 있어야 하지만 안전하게)
+        # Set installed agent information (should already be set, but set safely)
         if self.installed_agents_info:
             enhanced_processor.set_installed_agents_info(self.installed_agents_info)
 
-        # Enhanced Query Processor의 멀티에이전트 선택 로직 사용
+        # Use Enhanced Query Processor's multi-agent selection logic
         selected_agents = enhanced_processor._select_agents_simple(semantic_query.natural_language, available_agents)
 
         if selected_agents:
             required_agents.extend(selected_agents)
-            logger.info(f"✅ Enhanced Processor 선택 결과: {len(selected_agents)}개 에이전트")
+            logger.info(f"✅ Enhanced Processor selection result: {len(selected_agents)} agents")
             for agent in selected_agents:
                 logger.info(f"   📍 {agent}")
         else:
-            # 폴백: 멀티에이전트 기본 선택 로직
-            logger.warning("Enhanced Processor 선택 실패, 폴백 로직 사용")
+            # Fallback: basic multi-agent selection logic
+            logger.warning("Enhanced Processor selection failed, using fallback logic")
 
-            # 구조화된 쿼리에서 명시적 에이전트 확인
+            # Check for explicit agents in structured query
             if "required_agents" in semantic_query.structured_query:
                 explicit_agents = semantic_query.structured_query["required_agents"]
                 required_agents.extend([agent for agent in explicit_agents if agent in available_agents])
-                logger.info(f"명시적 에이전트 선택: {required_agents}")
+                logger.info(f"Explicit agent selection: {required_agents}")
 
-            # 멀티에이전트 키워드 매칭 - 복합 쿼리 지원
+            # Multi-agent keyword matching - compound query support
             if not required_agents:
-                # 각 도메인별 에이전트 선택
+                # Select agents for each domain
                 domain_mappings = {
                     "INTERNET_SEARCH": ["검색", "찾아", "정보", "알아봐", "인터넷"],
                     "MEMO": ["저장", "메모", "기록", "기억"],
@@ -639,7 +638,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                     "RESTAURANT_FINDER": ["맛집", "음식점", "레스토랑"],
                 }
 
-                # 복합 쿼리 감지: 각 도메인에 해당하는 모든 에이전트 선택
+                # Detect compound query: select all agents matching each domain
                 for agent_id in available_agents:
                     agent_type = self._extract_agent_type_from_id(agent_id)
                     if agent_type in domain_mappings:
@@ -647,9 +646,9 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                         if any(kw in query_text for kw in keywords):
                             if agent_id not in required_agents:
                                 required_agents.append(agent_id)
-                                logger.info(f"📍 도메인 매칭: {agent_type} → {agent_id}")
+                                logger.info(f"📍 Domain match: {agent_type} → {agent_id}")
 
-            # 최후 폴백: 인터넷 검색 에이전트 선택
+            # Last resort fallback: select internet search agent
             if not required_agents and available_agents:
                 internet_agent = None
                 for agent_id in available_agents:
@@ -659,19 +658,19 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
 
                 if internet_agent:
                     required_agents.append(internet_agent)
-                    logger.info(f"📍 폴백 인터넷 에이전트: {internet_agent}")
+                    logger.info(f"📍 Fallback internet agent: {internet_agent}")
                 else:
                     required_agents.append(available_agents[0])
-                    logger.info(f"📍 폴백 기본 에이전트: {available_agents[0]}")
+                    logger.info(f"📍 Fallback default agent: {available_agents[0]}")
 
-        logger.info(f"🎯 최종 선택된 에이전트: {len(required_agents)}개")
+        logger.info(f"🎯 Final selected agents: {len(required_agents)}")
         for i, agent in enumerate(required_agents):
             logger.info(f"   [{i+1}] {agent}")
         return required_agents
     
     def _extract_agent_type_from_id(self, agent_id: str) -> str:
-        """에이전트 ID에서 타입 추출"""
-        # 설치된 에이전트 정보에서 타입 확인
+        """Extract type from agent ID"""
+        # Check type in installed agent information
         for agent_info in self.installed_agents_info:
             if agent_info.get('agent_id') == agent_id:
                 agent_data = agent_info.get('agent_data', {})
@@ -679,7 +678,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                 if agent_type:
                     return agent_type
         
-        # 폴백: ID에서 패턴 매칭으로 추출
+        # Fallback: extract via pattern matching from ID
         agent_id_lower = agent_id.lower()
         if 'memo' in agent_id_lower:
             return 'MEMO'
@@ -699,19 +698,19 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return 'CUSTOM'
     
     def _create_workflow_steps(self, semantic_query: SemanticQuery, required_agents: List[str]) -> List[WorkflowStep]:
-        """워크플로우 단계 생성"""
+        """Create workflow steps"""
         steps = []
-        
+
         for i, agent_id in enumerate(required_agents):
             agent_info = self._get_agent_capabilities(agent_id)
-            
-            # 단계 목적 생성
+
+            # Generate step purpose
             purpose = self._generate_step_purpose(semantic_query, agent_id, i)
-            
-            # 의존성 결정
+
+            # Determine dependencies
             dependencies = self._determine_dependencies(agent_id, required_agents[:i])
-            
-            # 워크플로우 단계 생성
+
+            # Create workflow step
             step = WorkflowStep.create_simple(
                 agent_id=agent_id,
                 purpose=purpose,
@@ -726,7 +725,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         return steps
     
     def _generate_step_purpose(self, semantic_query: SemanticQuery, agent_id: str, step_index: int) -> str:
-        """단계 목적 생성"""
+        """Generate step purpose"""
         agent_info = self._get_agent_capabilities(agent_id)
         primary_capability = agent_info.get("capabilities", ["processing"])[0]
         
@@ -736,18 +735,18 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return f"Secondary {primary_capability} based on previous results"
     
     def _determine_dependencies(self, agent_id: str, previous_agents: List[str]) -> List[str]:
-        """의존성 결정"""
+        """Determine dependencies"""
         dependencies = []
-        
-        # 실제 에이전트 ID에서 기본 타입 추출 (예: memo_agent_dcf1704b61d4250e8762ba41f -> memo_agent)
+
+        # Extract base type from actual agent ID (e.g., memo_agent_dcf1704b61d4250e8762ba41f -> memo_agent)
         def extract_base_agent_type(full_agent_id: str) -> str:
-            # 설치된 에이전트 정보에서 타입 확인
+            # Check type in installed agent information
             for agent_info in self.installed_agents_info:
                 if agent_info.get('agent_id') == full_agent_id:
                     agent_data = agent_info.get('agent_data', {})
                     agent_type = agent_data.get('metadata', {}).get('agent_type', '')
                     
-                    # 에이전트 타입을 기본 에이전트 이름으로 매핑
+                    # Map agent type to base agent name
                     type_mapping = {
                         'INTERNET_SEARCH': 'internet_agent',
                         'MEMO': 'memo_agent',
@@ -761,7 +760,7 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
                     if agent_type in type_mapping:
                         return type_mapping[agent_type]
             
-            # 폴백: ID에서 패턴 매칭으로 추출
+            # Fallback: extract via pattern matching from ID
             agent_id_lower = full_agent_id.lower()
             if 'memo' in agent_id_lower:
                 return 'memo_agent'
@@ -780,79 +779,79 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             else:
                 return 'general_agent'
         
-        # 현재 에이전트의 기본 타입 추출
+        # Extract base type for current agent
         base_agent_type = extract_base_agent_type(agent_id)
-        
-        # 규칙 기반 의존성 확인
+
+        # Check rule-based dependencies
         if base_agent_type in self.dependency_rules:
             required_deps = self.dependency_rules[base_agent_type]
-            
+
             for dep_type in required_deps:
-                # 이전 에이전트들 중에서 해당 타입과 매칭되는 에이전트 찾기
+                # Find matching agent among previous agents
                 for prev_agent in previous_agents:
                     prev_base_type = extract_base_agent_type(prev_agent)
                     if prev_base_type == dep_type:
-                        # 해당 에이전트의 단계 ID 생성
+                        # Generate step ID for this agent
                         dep_index = previous_agents.index(prev_agent)
                         dep_step_id = f"step_{dep_index:06d}"
                         dependencies.append(dep_step_id)
-                        logger.debug(f"의존성 추가: {agent_id} -> {prev_agent} (단계: {dep_step_id})")
+                        logger.debug(f"Dependency added: {agent_id} -> {prev_agent} (step: {dep_step_id})")
                         break
         
         return dependencies
     
     def _build_execution_graph(self, workflow_steps: List[WorkflowStep]) -> nx.DiGraph:
-        """실행 그래프 구성"""
+        """Build execution graph"""
         graph = nx.DiGraph()
-        
-        # 노드 추가
+
+        # Add nodes
         for step in workflow_steps:
             graph.add_node(step.step_id, step=step)
-        
-        # 의존성 엣지 추가
+
+        # Add dependency edges
         for step in workflow_steps:
             for dependency in step.depends_on:
                 if dependency in [s.step_id for s in workflow_steps]:
                     graph.add_edge(dependency, step.step_id)
-        
-        # 순환 참조 확인 및 제거
+
+        # Check and remove cyclic references
         if not nx.is_directed_acyclic_graph(graph):
-            logger.warning("순환 참조 감지, 제거 중...")
+            logger.warning("Cyclic reference detected, removing...")
             self._remove_cycles(graph)
         
         return graph
     
     def _remove_cycles(self, graph: nx.DiGraph):
-        """순환 참조 제거"""
+        """Remove cyclic references"""
         try:
             cycles = list(nx.simple_cycles(graph))
             for cycle in cycles:
                 if len(cycle) > 1:
-                    # 마지막 엣지 제거
+                    # Remove last edge
                     graph.remove_edge(cycle[-1], cycle[0])
-                    logger.info(f"순환 제거: {cycle[-1]} -> {cycle[0]}")
+                    logger.info(f"Cycle removed: {cycle[-1]} -> {cycle[0]}")
         except Exception as e:
-            logger.error(f"순환 제거 실패: {e}")
+            logger.error(f"Cycle removal failed: {e}")
     
-    def _determine_optimization_strategy(self, 
-                                       semantic_query: SemanticQuery, 
+    def _determine_optimization_strategy(self,
+                                       semantic_query: SemanticQuery,
                                        workflow_steps: List[WorkflowStep]) -> OptimizationStrategy:
-        """최적화 전략 결정"""
+        """Determine optimization strategy"""
         query_text = semantic_query.natural_language.lower()
-        
-        # 속도 우선 키워드
+
+        # Speed-first keywords
         if any(word in query_text for word in ["빠르게", "즉시", "급하게", "신속"]):
             return OptimizationStrategy.SPEED_FIRST
-        
-        # 품질 우선 키워드
+
+        # Quality-first keywords
         if any(word in query_text for word in ["정확하게", "자세히", "완벽하게", "정밀"]):
             return OptimizationStrategy.QUALITY_FIRST
-        
-        # 자원 효율 키워드
+
+        # Resource-efficient keywords
         if any(word in query_text for word in ["효율적", "절약", "최소"]):
             return OptimizationStrategy.RESOURCE_EFFICIENT
-        
-        # 단계 수에 따른 기본 전략
+
+        # Default strategy based on step count
         if len(workflow_steps) <= 2:
             return OptimizationStrategy.SPEED_FIRST
         elif len(workflow_steps) >= 5:
@@ -861,8 +860,8 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             return OptimizationStrategy.BALANCED
     
     def _estimate_workflow_metrics(self, workflow_steps: List[WorkflowStep]) -> Tuple[float, float]:
-        """워크플로우 메트릭스 추정"""
-        # 품질 추정 (에이전트 복잡도 기반)
+        """Estimate workflow metrics"""
+        # Quality estimation (based on agent complexity)
         complexity_scores = {
             WorkflowComplexity.SIMPLE: 0.7,
             WorkflowComplexity.MODERATE: 0.8,
@@ -873,54 +872,54 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         quality_scores = [complexity_scores.get(step.estimated_complexity, 0.8) for step in workflow_steps]
         estimated_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.8
         
-        # 시간 추정 (병렬 처리 고려)
+        # Time estimation (considering parallel processing)
         total_time = sum(step.estimated_time for step in workflow_steps)
-        
-        # 병렬 처리 가능성 고려
+
+        # Consider parallel processing opportunities
         independent_steps = [step for step in workflow_steps if not step.depends_on]
         if len(independent_steps) > 1:
-            # 병렬 처리로 시간 단축
+            # Time reduced by parallel processing
             estimated_time = total_time * 0.7
         else:
             estimated_time = total_time
         
         return estimated_quality, estimated_time
     
-    def _generate_reasoning_chain(self, 
+    def _generate_reasoning_chain(self,
                                 semantic_query: SemanticQuery,
                                 workflow_steps: List[WorkflowStep],
                                 optimization_strategy: OptimizationStrategy) -> List[str]:
-        """추론 체인 생성"""
+        """Generate reasoning chain"""
         reasoning = []
-        
-        # 쿼리 분석
-        reasoning.append(f"쿼리 의도 분석: {semantic_query.intent}")
-        reasoning.append(f"필요한 개념: {', '.join(semantic_query.concepts[:3])}")
-        
-        # 에이전트 선택
+
+        # Query analysis
+        reasoning.append(f"Query intent analysis: {semantic_query.intent}")
+        reasoning.append(f"Required concepts: {', '.join(semantic_query.concepts[:3])}")
+
+        # Agent selection
         agent_names = [step.agent_id for step in workflow_steps]
-        reasoning.append(f"선택된 에이전트: {', '.join(agent_names)}")
-        
-        # 실행 전략
-        reasoning.append(f"최적화 전략: {optimization_strategy.value}")
-        
-        # 의존성 분석
+        reasoning.append(f"Selected agents: {', '.join(agent_names)}")
+
+        # Execution strategy
+        reasoning.append(f"Optimization strategy: {optimization_strategy.value}")
+
+        # Dependency analysis
         dependent_steps = [step for step in workflow_steps if step.depends_on]
         if dependent_steps:
-            reasoning.append(f"의존성 단계: {len(dependent_steps)}개")
+            reasoning.append(f"Dependent steps: {len(dependent_steps)}")
         else:
-            reasoning.append("모든 단계가 독립적으로 실행 가능")
+            reasoning.append("All steps can execute independently")
         
         return reasoning
     
     def _create_fallback_workflow(self, semantic_query: SemanticQuery, available_agents: List[str]) -> WorkflowPlan:
-        """폴백 워크플로우 생성"""
-        logger.warning("폴백 워크플로우 생성")
-        
-        # 기본 에이전트 선택
+        """Create fallback workflow"""
+        logger.warning("Creating fallback workflow")
+
+        # Select default agent
         fallback_agent = "internet_agent" if "internet_agent" in available_agents else available_agents[0]
         
-        # 단순한 단계 생성
+        # Create simple step
         fallback_step = WorkflowStep.create_simple(
             agent_id=fallback_agent,
             purpose=f"Fallback processing for: {semantic_query.natural_language}",
@@ -935,19 +934,19 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
             strategy=OptimizationStrategy.BALANCED,
             quality=0.6,
             time=30.0,
-            reasoning=["폴백 워크플로우로 생성됨"]
+            reasoning=["Created as fallback workflow"]
         )
     
     def _identify_parallel_groups(self, workflow_steps: List[WorkflowStep]) -> List[List[WorkflowStep]]:
-        """병렬 그룹 식별"""
+        """Identify parallel groups"""
         parallel_groups = []
-        
-        # 독립적인 단계들 그룹화
+
+        # Group independent steps
         independent_steps = [step for step in workflow_steps if not step.depends_on]
         if len(independent_steps) > 1:
             parallel_groups.append(independent_steps)
-        
-        # 같은 의존성을 가진 단계들 그룹화
+
+        # Group steps with the same dependencies
         dependency_groups = {}
         for step in workflow_steps:
             if step.depends_on:
@@ -963,70 +962,70 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         return parallel_groups
     
     def _remove_duplicate_steps(self, workflow_steps: List[WorkflowStep]) -> List[WorkflowStep]:
-        """중복 단계 제거 - 연속된 동일 에이전트 호출 병합"""
+        """Remove duplicate steps - merge consecutive calls to the same agent"""
         if not workflow_steps:
             return []
-            
+
         optimized_steps = []
         i = 0
-        
+
         while i < len(workflow_steps):
             current_step = workflow_steps[i]
-            
-            # 다음 단계들 중에서 연속된 동일 에이전트 찾기
+
+            # Look for consecutive same-agent steps
             j = i + 1
             merged_purposes = [current_step.purpose]
-            
+
             while j < len(workflow_steps):
                 next_step = workflow_steps[j]
-                
-                # 같은 에이전트인지 확인
+
+                # Check if same agent
                 if next_step.agent_id == current_step.agent_id:
-                    # 의존성이 있는 경우, 연속성이 깨지므로 병합하지 않음
-                    # (다른 에이전트에 의존하는 경우)
-                    other_dependencies = [dep for dep in next_step.depends_on 
+                    # If there are dependencies, continuity is broken, so don't merge
+                    # (when dependent on a different agent)
+                    other_dependencies = [dep for dep in next_step.depends_on
                                         if dep != current_step.step_id]
                     if other_dependencies:
                         break
-                    
-                    # 병합 가능한 단계
-                    logger.info(f"🔀 연속된 동일 에이전트 호출 감지: {current_step.agent_id}")
-                    logger.info(f"   단계 {i+1}와 단계 {j+1} 병합")
+
+                    # Mergeable step
+                    logger.info(f"🔀 Consecutive same-agent call detected: {current_step.agent_id}")
+                    logger.info(f"   Merging step {i+1} and step {j+1}")
                     merged_purposes.append(next_step.purpose)
-                    
-                    # 개념 병합
+
+                    # Merge concepts
                     for concept in next_step.required_concepts:
                         if concept not in current_step.required_concepts:
                             current_step.required_concepts.append(concept)
-                    
-                    # 추정 시간은 더 긴 것으로 설정 (병렬 처리 가능)
+
+                    # Use longer estimated time (can run in parallel)
                     current_step.estimated_time = max(
-                        current_step.estimated_time, 
+                        current_step.estimated_time,
                         next_step.estimated_time
                     )
-                    
+
                     j += 1
                 else:
-                    # 다른 에이전트면 중단
+                    # Different agent, stop
                     break
-            
-            # 병합된 목적 업데이트
+
+            # Update merged purpose
             if len(merged_purposes) > 1:
-                current_step.purpose = f"병합된 작업 ({len(merged_purposes)}개): " + "; ".join(merged_purposes[:2])
+                current_step.purpose = f"Merged task ({len(merged_purposes)}): " + "; ".join(merged_purposes[:2])
                 if len(merged_purposes) > 2:
-                    current_step.purpose += f" 외 {len(merged_purposes)-2}개"
-            
+                    current_step.purpose += f" and {len(merged_purposes)-2} more"
+
             optimized_steps.append(current_step)
-            i = j  # 병합된 단계들을 건너뛰기
-        
-        logger.info(f"✅ 중복 제거 완료: {len(workflow_steps)}개 → {len(optimized_steps)}개 단계")
+            i = j  # Skip merged steps
+
+        logger.info(f"✅ Deduplication completed: {len(workflow_steps)} → {len(optimized_steps)} steps")
         return optimized_steps
     
     def _optimize_dependencies(self, execution_graph: nx.DiGraph) -> nx.DiGraph:
-        """의존성 최적화"""
+        """Optimize dependencies"""
         optimized_graph = execution_graph.copy()
-        
-        # 불필요한 의존성 제거 (전이적 의존성)
+
+        # Remove unnecessary dependencies (transitive dependencies)
         transitive_edges = []
         for node in optimized_graph.nodes():
             for successor in optimized_graph.successors(node):
@@ -1036,24 +1035,24 @@ class SmartWorkflowDesigner(IWorkflowDesigner):
         
         for edge in transitive_edges:
             optimized_graph.remove_edge(*edge)
-            logger.info(f"전이적 의존성 제거: {edge[0]} -> {edge[1]}")
+            logger.info(f"Transitive dependency removed: {edge[0]} -> {edge[1]}")
         
         return optimized_graph
     
-    def _reevaluate_strategy(self, 
+    def _reevaluate_strategy(self,
                            optimized_steps: List[WorkflowStep],
                            parallel_groups: List[List[WorkflowStep]]) -> OptimizationStrategy:
-        """실행 전략 재평가"""
-        # 병렬 그룹이 많으면 병렬 처리 우선
+        """Re-evaluate execution strategy"""
+        # Prioritize parallel processing when many parallel groups exist
         if len(parallel_groups) >= 2:
             return OptimizationStrategy.SPEED_FIRST
-        
-        # 복잡한 단계가 많으면 품질 우선
-        complex_steps = [step for step in optimized_steps 
+
+        # Prioritize quality when many complex steps exist
+        complex_steps = [step for step in optimized_steps
                         if step.estimated_complexity in [WorkflowComplexity.COMPLEX, WorkflowComplexity.SOPHISTICATED]]
-        
+
         if len(complex_steps) >= len(optimized_steps) * 0.5:
             return OptimizationStrategy.QUALITY_FIRST
-        
-        # 기본적으로 균형 전략
-        return OptimizationStrategy.BALANCED 
+
+        # Default: balanced strategy
+        return OptimizationStrategy.BALANCED

@@ -1,6 +1,5 @@
 """
-🧠 Core Package
-핵심 패키지 - 모델과 인터페이스
+Core Package — Models and Interfaces
 """
 
 from .models import *

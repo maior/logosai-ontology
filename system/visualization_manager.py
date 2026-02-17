@@ -1,8 +1,8 @@
 """
 🎨 Visualization Manager
-시각화 관리자
+Visualization Manager
 
-온톨로지 지식 그래프 시각화 생성 및 관리
+Creates and manages ontology knowledge graph visualization
 """
 
 from datetime import datetime
@@ -13,48 +13,48 @@ from ..engines.knowledge_graph_clean import KnowledgeGraphEngine
 
 
 class VisualizationManager:
-    """🎨 시각화 관리자"""
+    """🎨 Visualization Manager"""
     
     def __init__(self, knowledge_graph: KnowledgeGraphEngine):
         self.knowledge_graph = knowledge_graph
     
     def get_knowledge_graph_visualization(self, max_nodes: int = 50) -> Dict[str, Any]:
-        """지식 그래프 시각화 데이터 조회"""
+        """Get knowledge graph visualization data"""
         try:
-            logger.info(f"🎨 온톨로지 지식 그래프 시각화 요청 - 최대 노드: {max_nodes}")
+            logger.info(f"🎨 Ontology knowledge graph visualization requested - max nodes: {max_nodes}")
             
-            # 그래프가 비어있으면 기본 시각화 데이터 반환
+            # Return default visualization data if graph is empty
             current_nodes = self.knowledge_graph.graph.number_of_nodes()
             if current_nodes == 0:
-                logger.info("📦 빈 그래프 감지, 하드코딩된 시각화 데이터 반환")
+                logger.info("📦 Empty graph detected, returning hardcoded visualization data")
                 return self._create_hardcoded_visualization_data()
             
-            logger.info(f"📊 현재 그래프 노드 수: {current_nodes}")
+            logger.info(f"📊 Current graph node count: {current_nodes}")
             
-            # 지식 그래프 엔진에서 시각화 데이터 생성
+            # Generate visualization data from knowledge graph engine
             knowledge_graph_visualization = self.knowledge_graph.generate_visualization(max_nodes=max_nodes)
             
-            # 그래프가 여전히 비어있으면 하드코딩된 시각화 데이터 반환
+            # Return hardcoded visualization data if graph is still empty
             if not knowledge_graph_visualization.get("nodes") and not knowledge_graph_visualization.get("edges"):
-                logger.warning("⚠️ 시각화 데이터가 비어있음, 하드코딩된 데이터 반환")
+                logger.warning("⚠️ Visualization data is empty, returning hardcoded data")
                 return self._create_hardcoded_visualization_data()
             
-            logger.info(f"✅ 온톨로지 그래프 시각화 완료")
+            logger.info(f"✅ Ontology graph visualization complete")
             return knowledge_graph_visualization
             
         except Exception as e:
-            logger.error(f"지식 그래프 시각화 생성 실패: {e}")
+            logger.error(f"Knowledge graph visualization generation failed: {e}")
             return self._create_fallback_visualization(str(e))
     
     def _create_hardcoded_visualization_data(self) -> Dict[str, Any]:
-        """하드코딩된 시각화 데이터 생성 (폴백용)"""
-        logger.info("🎨 하드코딩된 시각화 데이터 생성")
+        """Generate hardcoded visualization data (for fallback)"""
+        logger.info("🎨 Generating hardcoded visualization data")
         
-        # 샘플 노드들
+        # Sample nodes
         nodes = [
             {
                 "id": "workflow_main",
-                "label": "🔄 메인 워크플로우",
+                "label": "🔄 Main Workflow",
                 "type": "workflow",
                 "size": 25,
                 "color": "#fdcb6e",
@@ -66,7 +66,7 @@ class VisualizationManager:
             },
             {
                 "id": "agent_internet",
-                "label": "🌐 인터넷 에이전트",
+                "label": "🌐 Internet Agent",
                 "type": "agent",
                 "size": 20,
                 "color": "#fd79a8",
@@ -78,7 +78,7 @@ class VisualizationManager:
             },
             {
                 "id": "agent_calculator",
-                "label": "🔢 계산 에이전트",
+                "label": "🔢 Calculator Agent",
                 "type": "agent",
                 "size": 18,
                 "color": "#fd79a8",
@@ -90,7 +90,7 @@ class VisualizationManager:
             },
             {
                 "id": "agent_analysis",
-                "label": "📊 분석 에이전트",
+                "label": "📊 Analysis Agent",
                 "type": "agent",
                 "size": 19,
                 "color": "#fd79a8",
@@ -102,7 +102,7 @@ class VisualizationManager:
             },
             {
                 "id": "domain_information",
-                "label": "📚 정보 도메인",
+                "label": "📚 Information Domain",
                 "type": "domain",
                 "size": 16,
                 "color": "#a29bfe",
@@ -114,7 +114,7 @@ class VisualizationManager:
             },
             {
                 "id": "capability_search",
-                "label": "🔍 검색 능력",
+                "label": "🔍 Search Capability",
                 "type": "capability",
                 "size": 14,
                 "color": "#00cec9",
@@ -126,7 +126,7 @@ class VisualizationManager:
             },
             {
                 "id": "task_data_collection",
-                "label": "📋 데이터 수집",
+                "label": "📋 Data Collection",
                 "type": "task",
                 "size": 17,
                 "color": "#74b9ff",
@@ -138,7 +138,7 @@ class VisualizationManager:
             },
             {
                 "id": "result_analysis",
-                "label": "📈 분석 결과",
+                "label": "📈 Analysis Result",
                 "type": "result",
                 "size": 15,
                 "color": "#00b894",
@@ -150,13 +150,13 @@ class VisualizationManager:
             }
         ]
         
-        # 샘플 엣지들
+        # Sample edges
         edges = [
             {
                 "id": "edge_1",
                 "source": "workflow_main",
                 "target": "agent_internet",
-                "label": "실행",
+                "label": "Execute",
                 "type": "execution",
                 "relationship_type": "executes_with",
                 "color": "#5fd2c9",
@@ -170,7 +170,7 @@ class VisualizationManager:
                 "id": "edge_2",
                 "source": "workflow_main",
                 "target": "agent_calculator",
-                "label": "실행",
+                "label": "Execute",
                 "type": "execution",
                 "relationship_type": "executes_with",
                 "color": "#74b9ff",
@@ -184,7 +184,7 @@ class VisualizationManager:
                 "id": "edge_3",
                 "source": "workflow_main",
                 "target": "agent_analysis",
-                "label": "실행",
+                "label": "Execute",
                 "type": "execution",
                 "relationship_type": "executes_with",
                 "color": "#fd79a8",
@@ -198,7 +198,7 @@ class VisualizationManager:
                 "id": "edge_4",
                 "source": "agent_internet",
                 "target": "domain_information",
-                "label": "전문화",
+                "label": "Specialization",
                 "type": "specialization",
                 "relationship_type": "specializes_in",
                 "color": "#96CEB4",
@@ -212,7 +212,7 @@ class VisualizationManager:
                 "id": "edge_5",
                 "source": "agent_internet",
                 "target": "capability_search",
-                "label": "능력",
+                "label": "Capability",
                 "type": "capability",
                 "relationship_type": "has_capability",
                 "color": "#00cec9",
@@ -226,7 +226,7 @@ class VisualizationManager:
                 "id": "edge_6",
                 "source": "agent_internet",
                 "target": "task_data_collection",
-                "label": "생성",
+                "label": "Produce",
                 "type": "production",
                 "relationship_type": "produces",
                 "color": "#e17055",
@@ -240,7 +240,7 @@ class VisualizationManager:
                 "id": "edge_7",
                 "source": "agent_analysis",
                 "target": "result_analysis",
-                "label": "생성",
+                "label": "Produce",
                 "type": "production",
                 "relationship_type": "produces",
                 "color": "#00b894",
@@ -254,7 +254,7 @@ class VisualizationManager:
                 "id": "edge_8",
                 "source": "agent_internet",
                 "target": "agent_analysis",
-                "label": "협력",
+                "label": "Collaborate",
                 "type": "collaboration",
                 "relationship_type": "collaborated_with",
                 "color": "#a29bfe",
@@ -266,7 +266,7 @@ class VisualizationManager:
             }
         ]
         
-        # 메타데이터
+        # Metadata
         metadata = {
             "total_nodes": len(nodes),
             "total_edges": len(edges),
@@ -335,7 +335,7 @@ class VisualizationManager:
             "generated_at": datetime.now().isoformat(),
             "version": "2.0",
             "graph_type": "hardcoded_demo",
-            "description": "온톨로지 시스템 데모 그래프"
+            "description": "Ontology system demo graph"
         }
         
         return {
@@ -345,12 +345,12 @@ class VisualizationManager:
         }
 
     def _create_fallback_visualization(self, error_message: str) -> Dict[str, Any]:
-        """폴백 시각화 생성"""
+        """Generate fallback visualization"""
         return {
             "nodes": [
                 {
                     "id": "error_node",
-                    "label": "⚠️ 오류 발생",
+                    "label": "⚠️ Error Occurred",
                     "type": "error",
                     "size": 20,
                     "color": "#E74C3C",
@@ -359,7 +359,7 @@ class VisualizationManager:
             ],
             "edges": [],
             "metadata": {
-                "description": f"온톨로지 그래프 생성 오류: {error_message}",
+                "description": f"Ontology graph generation error: {error_message}",
                 "error": True,
                 "generated_at": datetime.now().isoformat(),
                 "graph_type": "error_fallback",

@@ -1,8 +1,8 @@
 """
 🧠 Ontology System
-통합 온톨로지 시스템
+Integrated Ontology System
 
-모든 컴포넌트를 통합하는 메인 시스템
+Main system that integrates all components
 """
 
 import os
@@ -31,35 +31,35 @@ from .complexity_analyzer import ComplexityAnalyzer
 
 
 class OntologySystem:
-    """🧠 통합 온톨로지 시스템"""
+    """🧠 Integrated Ontology System"""
     
     def __init__(self, 
                  email: str = "system@ontology.ai",
                  session_id: str = None,
                  project_id: str = None):
         
-        # 세션 정보
+        # Session information
         self.email = email
         self.session_id = session_id or f"session_{int(time.time())}"
         self.project_id = project_id or "default_project"
         
-        # 핵심 엔진들 초기화
+        # Initialize core engines
         self.semantic_query_manager = SemanticQueryManager()
         self.execution_engine = AdvancedExecutionEngine()
         self.knowledge_graph = KnowledgeGraphEngine()
         self.result_integrator = ResultIntegrator()
         
-        # 워크플로우 설계자는 나중에 설치된 에이전트 정보와 함께 초기화
+        # Workflow designer is initialized later with installed agent information
         self.workflow_designer = None
-        self.installed_agents_info = []  # 설치된 에이전트 정보 저장
+        self.installed_agents_info = []  # Store installed agent information
         
-        # 복잡도 분석기
+        # Complexity analyzer
         self.complexity_analyzer = QueryComplexityAnalyzer()
         
-        # 전략 관리자
+        # Strategy manager
         self.strategy_manager = StrategyManager()
         
-        # 분할된 관리자들 초기화
+        # Initialize split managers
         self.knowledge_graph_manager = KnowledgeGraphManager(self.knowledge_graph, self.session_id)
         self.visualization_manager = VisualizationManager(self.knowledge_graph)
         self.result_processor = ResultProcessor()
@@ -67,68 +67,68 @@ class OntologySystem:
         self.workflow_utils = WorkflowUtils()
         self.complexity_analyzer = ComplexityAnalyzer()
         
-        # 기본 에이전트 목록 (폴백용)
+        # Default agent list (for fallback)
         self.available_agents = [
             "internet_agent", "finance_agent", "weather_agent",
             "calculate_agent", "chart_agent", "memo_agent", "analysis_agent"
         ]
         
-        # 시스템 상태
+        # System state
         self.is_initialized = False
         self.execution_history = []
         
-        logger.info(f"🧠 온톨로지 시스템 초기화: {self.session_id}")
+        logger.info(f"🧠 Ontology system initialized: {self.session_id}")
     
     def _initialize_workflow_designer(self, installed_agents_info: List[Dict[str, Any]] = None):
-        """워크플로우 설계자 초기화 (설치된 에이전트 정보와 함께)"""
+        """Initialize workflow designer with installed agent information"""
         try:
             if installed_agents_info:
                 self.installed_agents_info = installed_agents_info
-                logger.info(f"🎯 설치된 에이전트 정보 업데이트: {len(installed_agents_info)}개")
+                logger.info(f"🎯 Updated installed agent information: {len(installed_agents_info)} agents")
             
-            # SmartWorkflowDesigner를 설치된 에이전트 정보와 함께 초기화
+            # Initialize SmartWorkflowDesigner with installed agent information
             self.workflow_designer = SmartWorkflowDesigner(self.installed_agents_info)
-            logger.info(f"🎯 워크플로우 설계자 초기화 완료 - 에이전트 정보: {len(self.installed_agents_info)}개")
+            logger.info(f"🎯 Workflow designer initialized - agent count: {len(self.installed_agents_info)}")
             
         except Exception as e:
-            logger.error(f"워크플로우 설계자 초기화 실패: {e}")
-            # 폴백: 기본 워크플로우 설계자 사용
+            logger.error(f"Failed to initialize workflow designer: {e}")
+            # Fallback: use default workflow designer
             self.workflow_designer = SmartWorkflowDesigner()
 
     async def initialize(self):
-        """시스템 초기화"""
+        """Initialize the system"""
         try:
-            logger.info("🚀 온톨로지 시스템 초기화 시작")
+            logger.info("🚀 Starting ontology system initialization")
             
-            # 각 컴포넌트 초기화 (필요한 경우)
-            # 현재는 생성자에서 이미 초기화됨
+            # Initialize each component (if needed)
+            # Currently already initialized in constructor
             
             self.is_initialized = True
-            logger.info("✅ 온톨로지 시스템 초기화 완료")
+            logger.info("✅ Ontology system initialization complete")
             
         except Exception as e:
-            logger.error(f"❌ 온톨로지 시스템 초기화 실패: {e}")
+            logger.error(f"❌ Ontology system initialization failed: {e}")
             raise
     
     async def process_query(self, query_text: str, execution_context: ExecutionContext) -> Dict[str, Any]:
-        """쿼리 처리 - 메인 진입점"""
+        """Query processing - main entry point"""
         try:
-            logger.info(f"🚀 온톨로지 시스템 쿼리 처리 시작: '{query_text[:50]}...'")
+            logger.info(f"🚀 Ontology system query processing started: '{query_text[:50]}...'")
             
-            # 설치된 에이전트 정보 추출 및 워크플로우 설계자 초기화
+            # Extract installed agent information and initialize workflow designer
             installed_agents_info = self.workflow_utils.extract_installed_agents_info(execution_context)
             available_agents = self.workflow_utils.extract_available_agents(execution_context)
             
-            logger.info(f"🤖 사용 가능한 에이전트: {len(available_agents)}개 - {available_agents}")
+            logger.info(f"🤖 Available agents: {len(available_agents)} - {available_agents}")
             
-            # 통합 쿼리 프로세서 사용 (NEW!)
+            # Use unified query processor (NEW!)
             unified_processor = get_unified_query_processor()
             
             if installed_agents_info:
                 unified_processor.set_installed_agents_info(installed_agents_info)
             
-            # 통합 처리 실행 - 한 번의 LLM 호출로 모든 분석 완료
-            logger.info("🚀 통합 LLM 처리 시작...")
+            # Execute unified processing - complete all analysis in one LLM call
+            logger.info("🚀 Starting unified LLM processing...")
             start_time = datetime.now()
             
             unified_result = await unified_processor.process_unified_query(
@@ -138,41 +138,41 @@ class OntologySystem:
             
             end_time = datetime.now()
             processing_time = (end_time - start_time).total_seconds()
-            logger.info(f"⏱️ 통합 LLM 처리 완료: {processing_time:.2f}초")
+            logger.info(f"⏱️ Unified LLM processing complete: {processing_time:.2f}s")
             
-            # 통합 결과를 기존 형식으로 변환
+            # Convert unified result to existing format
             if installed_agents_info:
                 self.workflow_utils.update_installed_agents_info(installed_agents_info)
             workflow_plan = self.workflow_utils.convert_unified_result_to_workflow(unified_result, query_text, execution_context)
             
-            # 🔍 쿼리 분석 결과 로깅
+            # 🔍 Log query analysis results
             logger.warning("="*80)
-            logger.warning("🔍 쿼리 분석 결과")
-            logger.warning(f"📝 원본 쿼리: {query_text}")
-            logger.warning(f"🎯 쿼리 의도: {unified_result.get('intent', 'unknown')}")
-            logger.warning(f"📊 복잡도: {unified_result.get('complexity', {}).get('level', 'unknown')} (점수: {unified_result.get('complexity', {}).get('score', 0)})")
+            logger.warning("🔍 Query Analysis Results")
+            logger.warning(f"📝 Original query: {query_text}")
+            logger.warning(f"🎯 Query intent: {unified_result.get('intent', 'unknown')}")
+            logger.warning(f"📊 Complexity: {unified_result.get('complexity', {}).get('level', 'unknown')} (score: {unified_result.get('complexity', {}).get('score', 0)})")
             
-            # 실행 전략 정보
+            # Execution strategy information
             execution_plan = unified_result.get('execution_plan', {})
             strategy = execution_plan.get('strategy', 'unknown')
             strategy_reasoning = execution_plan.get('reasoning', 'N/A')
             
-            # 전략 한국어 매핑
+            # Strategy name mapping
             strategy_kr = {
-                'SINGLE_AGENT': '단일 에이전트',
-                'SEQUENTIAL': '순차 실행', 
-                'PARALLEL': '병렬 실행',
-                'HYBRID': '하이브리드'
+                'SINGLE_AGENT': 'Single Agent',
+                'SEQUENTIAL': 'Sequential', 
+                'PARALLEL': 'Parallel',
+                'HYBRID': 'Hybrid'
             }.get(strategy, strategy)
             
-            logger.warning(f"⚡ 실행 전략: {strategy_kr} ({strategy})")
-            logger.warning(f"🤔 전략 선택 이유: {strategy_reasoning}")
-            logger.warning(f"⏱️  예상 시간: {execution_plan.get('estimated_time', 0)}초")
-            logger.warning(f"🔄 워크플로우 타입: {workflow_plan.optimization_strategy if workflow_plan else 'unknown'}")
+            logger.warning(f"⚡ Execution strategy: {strategy_kr} ({strategy})")
+            logger.warning(f"🤔 Strategy reasoning: {strategy_reasoning}")
+            logger.warning(f"⏱️  Estimated time: {execution_plan.get('estimated_time', 0)}s")
+            logger.warning(f"🔄 Workflow type: {workflow_plan.optimization_strategy if workflow_plan else 'unknown'}")
             
-            logger.warning(f"\n🤖 선택된 에이전트 및 개별 쿼리:")
+            logger.warning(f"\n🤖 Selected agents and individual queries:")
             agent_mappings = unified_result.get('agent_mappings', [])
-            logger.warning(f"📊 총 {len(agent_mappings)}개 작업")
+            logger.warning(f"📊 Total {len(agent_mappings)} tasks")
             
             for i, mapping in enumerate(agent_mappings):
                 agent_id = mapping.get('selected_agent', 'unknown')
@@ -180,67 +180,67 @@ class OntologySystem:
                 individual_query = mapping.get('individual_query', 'N/A')
                 confidence = mapping.get('confidence', 0)
                 
-                logger.warning(f"\n   작업 {i+1}: {agent_id}")
-                logger.warning(f"      📋 작업 유형: {task_type}")
-                logger.warning(f"      🔍 개별 쿼리: '{individual_query}'")
-                logger.warning(f"      📈 신뢰도: {confidence}")
+                logger.warning(f"\n   Task {i+1}: {agent_id}")
+                logger.warning(f"      📋 Task type: {task_type}")
+                logger.warning(f"      🔍 Individual query: '{individual_query}'")
+                logger.warning(f"      📈 Confidence: {confidence}")
                 
-                # 작업 분할 이유 (있는 경우)
+                # Task decomposition reason (if present)
                 task_reasoning = mapping.get('reasoning', '')
                 if task_reasoning:
-                    logger.warning(f"      💭 작업 분할 이유: {task_reasoning}")
+                    logger.warning(f"      💭 Task decomposition reason: {task_reasoning}")
             
-            # 전체 추론 및 분석 이유
+            # Overall reasoning and analysis
             overall_reasoning = unified_result.get('reasoning', 'N/A')
             if overall_reasoning and overall_reasoning != 'N/A':
-                logger.warning(f"\n📝 전체 분석 추론: {overall_reasoning}")
+                logger.warning(f"\n📝 Overall analysis reasoning: {overall_reasoning}")
             
-            # 분할 또는 통합 결정 이유
+            # Decomposition or integration decision reason
             query_analysis = unified_result.get('query_analysis', {})
             if query_analysis:
                 decomposition = query_analysis.get('task_decomposition', {})
                 if decomposition:
-                    logger.warning(f"\n🔬 작업 분해 분석:")
-                    logger.warning(f"   - 분해 필요성: {decomposition.get('needs_decomposition', 'unknown')}")
-                    logger.warning(f"   - 분해 이유: {decomposition.get('reasoning', 'N/A')}")
+                    logger.warning(f"\n🔬 Task decomposition analysis:")
+                    logger.warning(f"   - Needs decomposition: {decomposition.get('needs_decomposition', 'unknown')}")
+                    logger.warning(f"   - Decomposition reason: {decomposition.get('reasoning', 'N/A')}")
                     
             logger.warning("="*80)
             
-            # 워크플로우 실행
-            logger.info(f"🔧 워크플로우 실행 시작: {len(workflow_plan.steps)}개 단계")
+            # Execute workflow
+            logger.info(f"🔧 Starting workflow execution: {len(workflow_plan.steps)} steps")
             execution_results = await self.execution_engine.execute_workflow(
                 workflow_plan.query, workflow_plan, execution_context
             )
             
-            # 🔍 실행 결과 로깅
+            # 🔍 Log execution results
             logger.warning("="*80)
-            logger.warning("📊 에이전트 실행 결과")
-            logger.warning(f"📝 원본 쿼리: {query_text}")
-            logger.warning(f"⚡ 실행 전략: {strategy_kr} ({strategy})")
-            logger.warning(f"✅ 성공한 에이전트: {len([r for r in execution_results if r.success])}개")
-            logger.warning(f"❌ 실패한 에이전트: {len([r for r in execution_results if not r.success])}개")
+            logger.warning("📊 Agent Execution Results")
+            logger.warning(f"📝 Original query: {query_text}")
+            logger.warning(f"⚡ Execution strategy: {strategy_kr} ({strategy})")
+            logger.warning(f"✅ Successful agents: {len([r for r in execution_results if r.success])}")
+            logger.warning(f"❌ Failed agents: {len([r for r in execution_results if not r.success])}")
             
-            # 에이전트 보다 구체적인 실행 결과
+            # More detailed execution results per agent
             for i, result in enumerate(execution_results):
-                # 해당 에이전트의 원래 쿼리 찾기
+                # Find the original query for this agent
                 original_query = "N/A"
                 if i < len(agent_mappings):
                     original_query = agent_mappings[i].get('individual_query', 'N/A')
                 elif len(agent_mappings) == 1:
-                    # 단일 에이전트인 경우 원본 쿼리 사용
+                    # Use original query for single agent case
                     original_query = query_text
                 
                 logger.warning(f"\n🤖 [{i+1}] {result.agent_id}")
-                logger.warning(f"   🔍 개별 쿼리: '{original_query}'")
-                logger.warning(f"   📊 상태: {'✅ 성공' if result.success else '❌ 실패'}")
-                logger.warning(f"   ⏱️  실행 시간: {result.execution_time:.2f}초")
-                logger.warning(f"   📈 신뢰도: {result.confidence}")
+                logger.warning(f"   🔍 Individual query: '{original_query}'")
+                logger.warning(f"   📊 Status: {'✅ Success' if result.success else '❌ Failed'}")
+                logger.warning(f"   ⏱️  Execution time: {result.execution_time:.2f}s")
+                logger.warning(f"   📈 Confidence: {result.confidence}")
                 
-                # 결과 데이터에서 metadata 확인
+                # Check metadata from result data
                 if isinstance(result.result_data, dict):
                     metadata = result.result_data.get('metadata', {})
                     if metadata:
-                        # Category 추출 - Samsung agent에 대한 특별 처리
+                        # Extract category - special handling for Samsung agent
                         category = metadata.get('category')
                         if not category:
                             agent_type_check = metadata.get('agent', '')
@@ -255,7 +255,7 @@ class OntologySystem:
                         logger.warning(f"   🤖 Agent Type: {agent_type}")
                         logger.warning(f"   📋 Query Type: {query_type}")
                 
-                # 결과 미리보기
+                # Result preview
                 if result.result_data:
                     if isinstance(result.result_data, dict) and 'content' in result.result_data:
                         content = result.result_data['content']
@@ -265,13 +265,13 @@ class OntologySystem:
                             preview = str(content)[:100]
                     else:
                         preview = str(result.result_data)[:100]
-                    logger.warning(f"   - 결과 미리보기: {preview}...")
+                    logger.warning(f"   - Result preview: {preview}...")
             
             logger.warning("="*80)
             
-            # 결과 통합
-            logger.info(f"🔗 실행 결과 통합 중...")
-            # SemanticQuery 생성 (결과 통합에 필요)
+            # Integrate results
+            logger.info(f"🔗 Integrating execution results...")
+            # Create SemanticQuery (needed for result integration)
             semantic_query = workflow_plan.query if workflow_plan and workflow_plan.query else SemanticQuery(
                 query_id=f'semantic_{uuid.uuid4().hex[:8]}',
                 query_text=query_text,
@@ -285,57 +285,57 @@ class OntologySystem:
                 metadata={}
             )
             
-            # 분할된 결과 처리자 사용
+            # Use split result processor
             integrated_result = await self.result_processor.integrate_results(
                 execution_results, workflow_plan, semantic_query
             )
             
-            # 🔍 통합 결과 로깅
+            # 🔍 Log integrated result
             logger.warning("="*80)
-            logger.warning("🎯 최종 통합 결과")
+            logger.warning("🎯 Final Integrated Result")
             
             if isinstance(integrated_result, dict):
-                # content 확인
+                # Check content
                 content = integrated_result.get('content', '')
                 if content:
-                    logger.warning(f"📝 콘텐츠 타입: {type(content).__name__}")
+                    logger.warning(f"📝 Content type: {type(content).__name__}")
                     if isinstance(content, str):
-                        logger.warning(f"📝 콘텐츠 길이: {len(content)} 문자")
-                        logger.warning(f"📝 콘텐츠 미리보기: {content[:200]}...")
+                        logger.warning(f"📝 Content length: {len(content)} chars")
+                        logger.warning(f"📝 Content preview: {content[:200]}...")
                 
-                # metadata 확인
+                # Check metadata
                 metadata = integrated_result.get('metadata', {})
                 if metadata:
-                    logger.warning(f"📊 메타데이터:")
-                    logger.warning(f"   - 사용된 에이전트 수: {metadata.get('agent_count', 0)}")
-                    logger.warning(f"   - 통합 전략: {metadata.get('integration_strategy', 'unknown')}")
+                    logger.warning(f"📊 Metadata:")
+                    logger.warning(f"   - Agents used: {metadata.get('agent_count', 0)}")
+                    logger.warning(f"   - Integration strategy: {metadata.get('integration_strategy', 'unknown')}")
                     logger.warning(f"   - Category: {metadata.get('category', 'NOT_SET')}")
                 
-                # category 특별 확인
+                # Special check for category
                 if 'category' in integrated_result:
-                    logger.warning(f"🏷️  최종 Category: {integrated_result.get('category', 'NOT_SET')}")
+                    logger.warning(f"🏷️  Final Category: {integrated_result.get('category', 'NOT_SET')}")
                 
-                # reasoning 확인
+                # Check reasoning
                 if 'reasoning' in integrated_result:
                     reasoning = integrated_result.get('reasoning', '')
-                    logger.warning(f"🧠 추론: {reasoning[:200]}...")
+                    logger.warning(f"🧠 Reasoning: {reasoning[:200]}...")
             
             logger.warning("="*80)
             
             total_time = (datetime.now() - start_time).total_seconds()
             
-            # 성능 메트릭 기록 - 안전한 타입 변환
+            # Record performance metrics - safe type conversion
             raw_quality_score = unified_result.get('quality_assessment', {}).get('overall_confidence', 0.8)
             try:
-                # quality_score를 안전하게 float로 변환
+                # Safely convert quality_score to float
                 if isinstance(raw_quality_score, str):
                     quality_score = float(raw_quality_score)
                 elif isinstance(raw_quality_score, (int, float)):
                     quality_score = float(raw_quality_score)
                 else:
-                    quality_score = 0.8  # 기본값
+                    quality_score = 0.8  # default value
             except (ValueError, TypeError):
-                quality_score = 0.8  # 기본값
+                quality_score = 0.8  # default value
             
             performance_metrics = {
                 "total_processing_time": total_time,
@@ -343,63 +343,63 @@ class OntologySystem:
                 "execution_time": total_time - processing_time,
                 "agents_used": len(workflow_plan.steps),
                 "execution_strategy": workflow_plan.optimization_strategy.value if hasattr(workflow_plan.optimization_strategy, 'value') else str(workflow_plan.optimization_strategy),
-                "unified_processing": True,  # 통합 처리 표시
+                "unified_processing": True,  # indicates unified processing
                 "quality_score": quality_score
             }
             
-            # 지식그래프 시각화 데이터 생성
+            # Generate knowledge graph visualization data
             knowledge_graph_data = {}
             try:
-                # 지식그래프 업데이트
+                # Update knowledge graph
                 await self._update_knowledge_graph(semantic_query, workflow_plan, execution_results, integrated_result)
                 
-                # 시각화 데이터 가져오기
+                # Retrieve visualization data
                 knowledge_graph_data = self.get_knowledge_graph_visualization(max_nodes=100)
-                logger.info(f"📊 지식그래프 생성 완료: 노드 {len(knowledge_graph_data.get('nodes', []))}개, 엣지 {len(knowledge_graph_data.get('edges', []))}개")
+                logger.info(f"📊 Knowledge graph generated: {len(knowledge_graph_data.get('nodes', []))} nodes, {len(knowledge_graph_data.get('edges', []))} edges")
             except Exception as kg_error:
-                logger.error(f"지식그래프 생성 실패: {kg_error}")
-                # 실패시 기본 구조
+                logger.error(f"Knowledge graph generation failed: {kg_error}")
+                # Fallback to empty structure on failure
                 knowledge_graph_data = {
                     "nodes": [],
                     "edges": [],
                     "metadata": {"error": str(kg_error)}
                 }
             
-            # 최종 응답 구성 - 구조화된 응답 처리
-            logger.info("📦 [구조화 응답] 최종 응답 구성 시작")
-            logger.info(f"  - integrated_result 타입: {type(integrated_result)}")
+            # Build final response - structured response processing
+            logger.info("📦 [Structured Response] Building final response")
+            logger.info(f"  - integrated_result type: {type(integrated_result)}")
             if isinstance(integrated_result, dict):
-                logger.info(f"  - integrated_result 키: {list(integrated_result.keys())}")
+                logger.info(f"  - integrated_result keys: {list(integrated_result.keys())}")
             
-            # integrated_result가 이미 구조화된 응답인지 확인
-            # 주의: ontology_enhanced_multi_agent_system에서 오는 경우 'result' 키 사용
-            # result_processor에서 오는 경우 'content' 키 사용
+            # Check if integrated_result is already a structured response
+            # Note: uses 'result' key when coming from ontology_enhanced_multi_agent_system
+            # uses 'content' key when coming from result_processor
             if isinstance(integrated_result, dict) and (
                 ('result' in integrated_result and 'reasoning' in integrated_result) or
                 ('content' in integrated_result and 'reasoning' in integrated_result and 'agent_results' in integrated_result)
             ):
-                logger.info("✅ [구조화 응답] 구조화된 응답 형식 감지")
+                logger.info("✅ [Structured Response] Structured response format detected")
                 
-                # result_processor에서 온 경우 content를 result로 변환
+                # Convert content to result when coming from result_processor
                 if 'content' in integrated_result and 'result' not in integrated_result:
-                    logger.info(f"  - content를 result로 변환")
+                    logger.info(f"  - Converting content to result")
                     
-                    # Category 추출 - Samsung agent에 대한 특별 처리
+                    # Category extraction - Special handling for Samsung agent
                     category = "general"
                     agent_results = integrated_result.get("agent_results", [])
-                    logger.warning(f"🔍 [Category Fix] agent_results 개수: {len(agent_results)}")
+                    logger.warning(f"🔍 [Category Fix] agent_results count: {len(agent_results)}")
                     for ar in agent_results:
                         agent_id = ar.get("agent_id", "")
-                        logger.warning(f"🔍 [Category Fix] 검사 중인 agent_id: '{agent_id}'")
+                        logger.warning(f"🔍 [Category Fix] Checking agent_id: '{agent_id}'")
                         if "samsung" in agent_id.lower():
                             category = "samsung"
-                            logger.warning(f"✅ [Category Fix] agent_id 기반으로 category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Category Fix] Setting category to 'samsung' based on agent_id!")
                             break
-                        # metadata에서도 확인
+                        # Also check in metadata
                         metadata = ar.get("metadata", {})
                         if metadata.get("category") == "samsung":
                             category = "samsung"
-                            logger.warning(f"✅ [Category Fix] metadata 기반으로 category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Category Fix] Setting category to 'samsung' based on metadata!")
                             break
                     
                     final_response = {
@@ -426,14 +426,14 @@ class OntologySystem:
                         }
                     }
                 else:
-                    # 기존 형식 그대로 사용
+                    # Use existing format as-is
                     logger.info(f"  - result: {integrated_result.get('result', '')[:100]}...")
                     logger.info(f"  - reasoning: {integrated_result.get('reasoning', '')}")
-                    logger.info(f"  - agent_results 개수: {len(integrated_result.get('agent_results', []))}")
+                    logger.info(f"  - agent_results count: {len(integrated_result.get('agent_results', []))}")
                     logger.info(f"  - single_purpose: {integrated_result.get('single_purpose', False)}")
                     
                     final_response = integrated_result.copy()
-                    # 추가 필드 병합
+                    # Merge additional fields
                     final_response.update({
                         "query": query_text,
                         "knowledge_graph_visualization": knowledge_graph_data,
@@ -446,37 +446,37 @@ class OntologySystem:
                         }
                     })
             else:
-                logger.info("⚠️ [구조화 응답] 기본 응답 형식 사용")
+                logger.info("⚠️ [Structured Response] Using basic response format")
                 logger.info(f"  - content: {integrated_result.get('content', '')[:100]}...")
                 
-                # ResultProcessor가 반환한 구조화된 결과 처리
+                # Process structured result returned by ResultProcessor
                 if isinstance(integrated_result, dict) and 'reasoning' in integrated_result and 'agent_results' in integrated_result:
-                    logger.info("✅ [구조화 응답] ResultProcessor 구조화 응답 감지")
+                    logger.info("✅ [Structured Response] ResultProcessor structured response detected")
                     logger.info(f"  - reasoning: {integrated_result.get('reasoning', '')[:100]}...")
-                    logger.info(f"  - agent_results 개수: {len(integrated_result.get('agent_results', []))}")
+                    logger.info(f"  - agent_results count: {len(integrated_result.get('agent_results', []))}")
                     
-                    # 구조화된 응답으로 변환
+                    # Convert to structured response
                     
-                    # Category 추출 - Samsung agent에 대한 특별 처리
+                    # Category extraction - Special handling for Samsung agent
                     category = "general"
                     agent_results = integrated_result.get("agent_results", [])
-                    logger.warning(f"🔍 [Category Fix] agent_results 개수: {len(agent_results)}")
+                    logger.warning(f"🔍 [Category Fix] agent_results count: {len(agent_results)}")
                     for ar in agent_results:
                         agent_id = ar.get("agent_id", "")
-                        logger.warning(f"🔍 [Category Fix] 검사 중인 agent_id: '{agent_id}'")
+                        logger.warning(f"🔍 [Category Fix] Checking agent_id: '{agent_id}'")
                         if "samsung" in agent_id.lower():
                             category = "samsung"
-                            logger.warning(f"✅ [Category Fix] agent_id 기반으로 category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Category Fix] Setting category to 'samsung' based on agent_id!")
                             break
-                        # metadata에서도 확인
+                        # Also check in metadata
                         metadata = ar.get("metadata", {})
                         if metadata.get("category") == "samsung":
                             category = "samsung"
-                            logger.warning(f"✅ [Category Fix] metadata 기반으로 category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Category Fix] Set category to 'samsung' based on metadata!")
                             break
                     
                     final_response = {
-                        "result": integrated_result.get("content", "응답을 생성할 수 없습니다."),
+                        "result": integrated_result.get("content", "Unable to generate a response."),
                         "reasoning": integrated_result.get("reasoning", ""),
                         "success": True,
                         "category": category,
@@ -499,29 +499,29 @@ class OntologySystem:
                         }
                     }
                 else:
-                    # 기본 형식
+                    # Default format
                     
-                    # Category 추출 - Samsung agent에 대한 특별 처리
+                    # Category extraction - Special handling for Samsung agent
                     category = "general"
                     agent_results = integrated_result.get("agent_results", [])
-                    logger.warning(f"🔍 [Category Fix] agent_results 개수: {len(agent_results)}")
+                    logger.warning(f"🔍 [Category Fix] Number of agent_results: {len(agent_results)}")
                     for ar in agent_results:
                         agent_id = ar.get("agent_id", "")
-                        logger.warning(f"🔍 [Category Fix] 검사 중인 agent_id: '{agent_id}'")
+                        logger.warning(f"🔍 [Category Fix] Checking agent_id: '{agent_id}'")
                         if "samsung" in agent_id.lower():
                             category = "samsung"
-                            logger.warning(f"✅ [Category Fix] agent_id 기반으로 category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Category Fix] Set category to 'samsung' based on agent_id!")
                             break
-                        # metadata에서도 확인
+                        # Also check in metadata
                         metadata = ar.get("metadata", {})
                         if metadata.get("category") == "samsung":
                             category = "samsung"
-                            logger.warning(f"✅ [Category Fix] metadata 기반으로 category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Category Fix] Set category to 'samsung' based on metadata!")
                             break
                     
                     final_response = {
-                        "result": integrated_result.get("content", "응답을 생성할 수 없습니다."),
-                        "reasoning": integrated_result.get("reasoning", ""),  # reasoning도 확인
+                        "result": integrated_result.get("content", "Unable to generate a response."),
+                        "reasoning": integrated_result.get("reasoning", ""),  # also check reasoning
                         "success": integrated_result.get("status") == "success",
                         "category": category,
                         "source_agent": None,
@@ -543,166 +543,166 @@ class OntologySystem:
                         }
                     }
             
-            logger.info(f"✅ 온톨로지 쿼리 처리 완료 (총 {total_time:.2f}초, 품질: {performance_metrics['quality_score']:.2f})")
+            logger.info(f"✅ Ontology query processing complete (total {total_time:.2f}s, quality: {performance_metrics['quality_score']:.2f})")
             
-            # 🔍 최종 반환 값 로깅
+            # 🔍 Log final return value
             logger.warning("="*80)
-            logger.warning("📦 최종 반환 값")
+            logger.warning("📦 Final return value")
             
             if isinstance(final_response, dict):
-                # 기본 정보
-                logger.warning(f"🎯 성공 여부: {'✅' if final_response.get('success', False) else '❌'}")
+                # Basic info
+                logger.warning(f"🎯 Success: {'✅' if final_response.get('success', False) else '❌'}")
                 logger.warning(f"🏷️  Category: {final_response.get('category', 'NOT_SET')}")
                 logger.warning(f"🤖 Source Agent: {final_response.get('source_agent', 'None')}")
-                logger.warning(f"⏱️  실행 시간: {final_response.get('execution_time', 0):.2f}초")
-                logger.warning(f"💯 신뢰도: {final_response.get('confidence_score', 0):.2f}")
+                logger.warning(f"⏱️  Execution time: {final_response.get('execution_time', 0):.2f}s")
+                logger.warning(f"💯 Confidence: {final_response.get('confidence_score', 0):.2f}")
                 
-                # result 내용
+                # result content
                 result = final_response.get('result', '')
                 if result:
-                    logger.warning(f"📝 Result 타입: {type(result).__name__}")
+                    logger.warning(f"📝 Result type: {type(result).__name__}")
                     if isinstance(result, str):
-                        logger.warning(f"📝 Result 길이: {len(result)} 문자")
+                        logger.warning(f"📝 Result length: {len(result)} chars")
                         if result.startswith('<!DOCTYPE') or result.startswith('<html'):
-                            logger.warning(f"📝 Result: HTML 콘텐츠")
+                            logger.warning(f"📝 Result: HTML content")
                         else:
-                            logger.warning(f"📝 Result 미리보기: {result[:200]}...")
+                            logger.warning(f"📝 Result preview: {result[:200]}...")
                 
-                # agent_results 요약
+                # agent_results summary
                 agent_results = final_response.get('agent_results', [])
                 if agent_results:
-                    logger.warning(f"🤖 에이전트 결과 수: {len(agent_results)}개")
+                    logger.warning(f"🤖 Number of agent results: {len(agent_results)}")
                     for i, ar in enumerate(agent_results):
                         agent_id = ar.get('agent_id', 'unknown')
                         execution_time = ar.get('execution_time', 0)
                         
-                        # Category 추출 - Samsung agent에 대한 특별 처리
+                        # Category extraction - Special handling for Samsung agent
                         category = ar.get('category')
-                        logger.warning(f"🔍 [Category Fix] agent_id '{agent_id}' 직접 category: '{category}'")
+                        logger.warning(f"🔍 [Category Fix] agent_id '{agent_id}' direct category: '{category}'")
                         if not category:
-                            # result.metadata에서 category 찾기
+                            # Find category in result.metadata
                             result_data = ar.get('result', {})
                             if isinstance(result_data, dict):
                                 metadata = result_data.get('metadata', {})
                                 category = metadata.get('category')
-                                logger.warning(f"🔍 [Category Fix] result.metadata에서 category: '{category}'")
+                                logger.warning(f"🔍 [Category Fix] category from result.metadata: '{category}'")
                             
-                            # 여전히 없으면 agent_id 기반 추론
+                            # If still not found, infer from agent_id
                             if not category:
                                 if 'samsung' in agent_id.lower():
                                     category = 'samsung'
-                                    logger.warning(f"✅ [Category Fix] agent_id 기반 추론으로 'samsung' 설정!")
+                                    logger.warning(f"✅ [Category Fix] Set 'samsung' via agent_id inference!")
                                 else:
                                     category = 'general'
                         else:
-                            logger.warning(f"✅ [Category Fix] 기존 category '{category}' 유지")
+                            logger.warning(f"✅ [Category Fix] Keeping existing category '{category}'")
                         
                         agent_type = ar.get('agentType', 'unknown')
                         confidence = ar.get('confidence', 0)
                         
                         logger.warning(f"   [{i+1}] {agent_id}")
-                        logger.warning(f"       ⏱️  실행 시간: {execution_time:.2f}초")
+                        logger.warning(f"       ⏱️  Execution time: {execution_time:.2f}s")
                         logger.warning(f"       📊 Category: {category}")
                         logger.warning(f"       🤖 Type: {agent_type}")
-                        logger.warning(f"       📈 신뢰도: {confidence}")
+                        logger.warning(f"       📈 Confidence: {confidence}")
                         
-                        # 개별 쿼리 정보 (있는 경우)
+                        # Individual query info (if present)
                         if i < len(agent_mappings):
                             individual_query = agent_mappings[i].get('individual_query', 'N/A')
-                            logger.warning(f"       🔍 개별 쿼리: '{individual_query}'")
+                            logger.warning(f"       🔍 Individual query: '{individual_query}'")
                 
-                # processing_metadata 정보 추가
+                # Add processing_metadata info
                 processing_metadata = final_response.get('processing_metadata', {})
                 if processing_metadata:
-                    logger.warning(f"\n🔍 처리 메타데이터:")
+                    logger.warning(f"\n🔍 Processing metadata:")
                     
-                    # execution_plan 정보
+                    # execution_plan info
                     execution_plan = processing_metadata.get('execution_plan', {})
                     if execution_plan:
                         strategy = execution_plan.get('strategy', 'unknown')
                         reasoning = execution_plan.get('reasoning', 'N/A')
-                        logger.warning(f"   ⚡ 최종 실행 전략: {strategy}")
-                        logger.warning(f"   🤔 전략 선택 이유: {reasoning}")
+                        logger.warning(f"   ⚡ Final execution strategy: {strategy}")
+                        logger.warning(f"   🤔 Strategy selection reason: {reasoning}")
                     
-                    # agent_mappings 정보
+                    # agent_mappings info
                     agent_mappings_meta = processing_metadata.get('agent_mappings', [])
                     if agent_mappings_meta:
-                        logger.warning(f"   📊 총 {len(agent_mappings_meta)}개 작업 매핑")
+                        logger.warning(f"   📊 Total {len(agent_mappings_meta)} task mappings")
                 
-                # metadata 요약
+                # metadata summary
                 exec_summary = final_response.get('execution_summary', {})
                 if exec_summary:
-                    logger.warning(f"\n📊 실행 요약:")
-                    logger.warning(f"   - 총 에이전트: {exec_summary.get('total_agents', 0)}")
-                    logger.warning(f"   - 성공 에이전트: {exec_summary.get('successful_agents', 0)}")
-                    logger.warning(f"   - 평균 신뢰도: {exec_summary.get('average_confidence', 0):.2f}")
+                    logger.warning(f"\n📊 Execution summary:")
+                    logger.warning(f"   - Total agents: {exec_summary.get('total_agents', 0)}")
+                    logger.warning(f"   - Successful agents: {exec_summary.get('successful_agents', 0)}")
+                    logger.warning(f"   - Average confidence: {exec_summary.get('average_confidence', 0):.2f}")
                     
-                # 최종 category 확인 - Samsung agent에 대한 특별 처리
+                # Final category check - Special handling for Samsung agent
                 final_category = final_response.get('category')
-                logger.warning(f"🔍 [Final Category] final_response에서 기본 category: '{final_category}'")
+                logger.warning(f"🔍 [Final Category] Base category from final_response: '{final_category}'")
                 if not final_category:
-                    # agent_results에서 Samsung agent가 있는지 확인
+                    # Check if Samsung agent exists in agent_results
                     agent_results = final_response.get('agent_results', [])
-                    logger.warning(f"🔍 [Final Category] agent_results 개수: {len(agent_results)}")
+                    logger.warning(f"🔍 [Final Category] Number of agent_results: {len(agent_results)}")
                     for ar in agent_results:
                         agent_id = ar.get('agent_id', '')
-                        logger.warning(f"🔍 [Final Category] 검사 중인 agent_id: '{agent_id}'")
+                        logger.warning(f"🔍 [Final Category] Checking agent_id: '{agent_id}'")
                         if 'samsung' in agent_id.lower():
                             final_category = 'samsung'
-                            logger.warning(f"✅ [Final Category] Samsung agent 발견! category를 'samsung'으로 설정!")
+                            logger.warning(f"✅ [Final Category] Samsung agent found! Set category to 'samsung'!")
                             break
-                        # agent result의 metadata에서도 확인
+                        # Also check in agent result metadata
                         result_data = ar.get('result', {})
                         if isinstance(result_data, dict):
                             metadata = result_data.get('metadata', {})
                             if metadata.get('category') == 'samsung':
                                 final_category = 'samsung'
-                                logger.warning(f"✅ [Final Category] metadata에서 Samsung category 발견! 'samsung'으로 설정!")
+                                logger.warning(f"✅ [Final Category] Samsung category found in metadata! Set to 'samsung'!")
                                 break
                     
-                    # 여전히 없으면 기본값
+                    # If still not found, use default value
                     if not final_category:
                         final_category = 'general'
-                        logger.warning(f"⚠️ [Final Category] Samsung agent를 찾을 수 없어 'general'로 설정")
+                        logger.warning(f"⚠️ [Final Category] Samsung agent not found, set to 'general'")
                 else:
-                    logger.warning(f"✅ [Final Category] 기존 category '{final_category}' 유지")
+                    logger.warning(f"✅ [Final Category] Keeping existing category '{final_category}'")
                 
-                logger.warning(f"\n📊 최종 Category: {final_category}")
+                logger.warning(f"\n📊 Final Category: {final_category}")
             
-            # 전체 처리 요약
+            # Overall processing summary
             total_time = (datetime.now() - start_time).total_seconds()
-            logger.warning(f"\n⏱️  전체 처리 시간: {total_time:.2f}초")
-            logger.warning(f"🎯 쿼리 처리 전략: {strategy_kr} ({strategy})")
-            logger.warning(f"📊 에이전트 수: {len(agent_mappings)}개")
-            logger.warning(f"📈 전체 성공률: {len([r for r in execution_results if r.success]) / len(execution_results) * 100:.1f}%")
+            logger.warning(f"\n⏱️  Total processing time: {total_time:.2f}s")
+            logger.warning(f"🎯 Query processing strategy: {strategy_kr} ({strategy})")
+            logger.warning(f"📊 Agent count: {len(agent_mappings)}")
+            logger.warning(f"📈 Overall success rate: {len([r for r in execution_results if r.success]) / len(execution_results) * 100:.1f}%")
             
             logger.warning("="*80)
             
             return final_response
             
         except Exception as e:
-            logger.error(f"온톨로지 쿼리 처리 실패: {e}")
+            logger.error(f"Ontology query processing failed: {e}")
             import traceback
             traceback.print_exc()
             
-            # 폴백: 기존 방식으로 처리
+            # Fallback: process using legacy method
             return await self._fallback_query_processing(query_text, execution_context)
 
 
 
     async def _fallback_query_processing(self, query_text: str, execution_context: ExecutionContext) -> Dict[str, Any]:
-        """폴백 쿼리 처리"""
-        logger.warning("🔄 폴백 모드로 쿼리 처리")
+        """Fallback query processing"""
+        logger.warning("🔄 Processing query in fallback mode")
         
         try:
-            # 기존 방식으로 처리 시도
+            # Try processing using legacy method
             workflow_plan = self.workflow_utils.create_minimal_workflow(query_text, execution_context)
             
             execution_results = await self.execution_engine.execute_workflow(
                 workflow_plan.query, workflow_plan, execution_context
             )
             
-            # SemanticQuery 생성 (폴백용)
+            # Create SemanticQuery (for fallback)
             semantic_query = workflow_plan.query if workflow_plan and workflow_plan.query else SemanticQuery(
                 query_id=f'fallback_{uuid.uuid4().hex[:8]}',
                 query_text=query_text,
@@ -720,12 +720,12 @@ class OntologySystem:
                 execution_results, workflow_plan, semantic_query
             )
             
-            # 폴백 모드에서도 지식그래프 생성
+            # Also generate knowledge graph in fallback mode
             knowledge_graph_data = self.get_knowledge_graph_visualization(max_nodes=50)
             
             return {
                 "query": query_text,
-                "response": integrated_result.get("content", "죄송합니다. 처리 중 오류가 발생했습니다."),
+                "response": integrated_result.get("content", "Sorry, an error occurred during processing."),
                 "execution_summary": integrated_result.get("metadata", {}),
                 "performance_metrics": {
                     "total_processing_time": 30,
@@ -733,19 +733,19 @@ class OntologySystem:
                 },
                 "confidence_score": 0.5,
                 "sources": [],
-                "knowledge_graph": knowledge_graph_data,  # 지식그래프 추가
+                "knowledge_graph": knowledge_graph_data,  # Add knowledge graph
                 "processing_metadata": {"fallback_processing": True}
             }
             
         except Exception as e:
-            logger.error(f"폴백 처리도 실패: {e}")
+            logger.error(f"Fallback processing also failed: {e}")
             
-            # 최소한의 지식그래프 구조
+            # Minimal knowledge graph structure
             minimal_knowledge_graph = {
                 "nodes": [
                     {
                         "id": f"error_{uuid.uuid4().hex[:8]}",
-                        "label": "처리 실패",
+                        "label": "Processing failed",
                         "type": "error",
                         "properties": {"error": str(e)[:100]}
                     }
@@ -759,12 +759,12 @@ class OntologySystem:
             
             return {
                 "query": query_text,
-                "response": "시스템 오류로 인해 요청을 처리할 수 없습니다. 나중에 다시 시도해주세요.",
+                "response": "Unable to process the request due to a system error. Please try again later.",
                 "execution_summary": {},
                 "performance_metrics": {"error": True},
                 "confidence_score": 0.0,
                 "sources": [],
-                "knowledge_graph": minimal_knowledge_graph,  # 에러 시에도 지식그래프 포함
+                "knowledge_graph": minimal_knowledge_graph,  # Include knowledge graph even on error
                 "processing_metadata": {"system_error": True, "error_message": str(e)}
             }
     
@@ -776,54 +776,54 @@ class OntologySystem:
         complexity_analysis: Dict[str, Any],
         integrated_result: Dict[str, Any]
     ) -> str:
-        """상세한 reasoning 생성 - 분할된 관리자 사용"""
+        """Generate detailed reasoning - using split managers"""
         return await self.reasoning_generator.generate_detailed_reasoning(
             execution_results, workflow_plan, semantic_query, complexity_analysis, integrated_result
         )
     
     def _generate_workflow_mermaid(self, workflow_plan: WorkflowPlan) -> str:
-        """워크플로우 계획을 Mermaid 다이어그램으로 생성"""
+        """Generate Mermaid diagram from workflow plan"""
         try:
             mermaid_lines = ["graph TD"]
             
-            # 시작 노드
-            mermaid_lines.append('    Start(["🚀 시작"]) --> Query["📝 쿼리 분석"]')
+            # Start node
+            mermaid_lines.append('    Start(["🚀 Start"]) --> Query["📝 Query Analysis"]')
             
-            # 각 단계를 노드로 추가
+            # Add each step as a node
             for i, step in enumerate(workflow_plan.steps):
                 step_id = f"Step{i+1}"
                 agent_name = step.agent_id.replace('_', ' ').title()
                 purpose = step.semantic_purpose[:30] + "..." if len(step.semantic_purpose) > 30 else step.semantic_purpose
                 
-                # 노드 정의
+                # Node definition
                 mermaid_lines.append(f'    {step_id}["🤖 {agent_name}<br/>{purpose}"]')
                 
-                # 연결 관계
+                # Connection relationships
                 if i == 0:
                     mermaid_lines.append(f'    Query --> {step_id}')
                 else:
                     prev_step_id = f"Step{i}"
                     mermaid_lines.append(f'    {prev_step_id} --> {step_id}')
                 
-                # 의존성이 있는 경우
+                # If there are dependencies
                 if hasattr(step, 'depends_on') and step.depends_on:
                     for dep in step.depends_on:
-                        # 의존성 단계 찾기
+                        # Find dependency steps
                         for j, dep_step in enumerate(workflow_plan.steps):
                             if dep_step.step_id == dep:
                                 dep_step_id = f"Step{j+1}"
                                 mermaid_lines.append(f'    {dep_step_id} -.-> {step_id}')
                                 break
             
-            # 마지막 단계에서 결과로 연결
+            # Connect from last step to result
             if workflow_plan.steps:
                 last_step_id = f"Step{len(workflow_plan.steps)}"
-                mermaid_lines.append(f'    {last_step_id} --> Result[["✅ 결과 통합"]]')
-                mermaid_lines.append('    Result --> End(["🎉 완료"])')
+                mermaid_lines.append(f'    {last_step_id} --> Result[["✅ Result Integration"]]')
+                mermaid_lines.append('    Result --> End(["🎉 Complete"])')
             else:
-                mermaid_lines.append('    Query --> End(["🎉 완료"])')
+                mermaid_lines.append('    Query --> End(["🎉 Complete"])')
             
-            # 스타일 추가
+            # Add styles
             mermaid_lines.extend([
                 "",
                 "    classDef startEnd fill:#e1f5fe,stroke:#01579b,stroke-width:2px",
@@ -835,64 +835,64 @@ class OntologySystem:
                 "    class Query,Result result"
             ])
             
-            # 에이전트 노드들에 스타일 적용
+            # Apply style to agent nodes
             for i in range(len(workflow_plan.steps)):
                 mermaid_lines.append(f"    class Step{i+1} agent")
             
             return "\n".join(mermaid_lines)
             
         except Exception as e:
-            logger.error(f"Mermaid 다이어그램 생성 실패: {e}")
-            return f'graph TD\n    Start(["시작"]) --> Error["다이어그램 생성 실패: {str(e)}"]\n    Error --> End(["종료"])'
+            logger.error(f"Mermaid diagram generation failed: {e}")
+            return f'graph TD\n    Start(["Start"]) --> Error["Diagram generation failed: {str(e)}"]\n    Error --> End(["End"])'
     
     def _safe_analyze_complexity(self, semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """안전한 복잡도 분석 - 분할된 관리자 사용"""
+        """Safe complexity analysis - using split managers"""
         return self.complexity_analyzer.safe_analyze_complexity(semantic_query)
     
     async def _integrate_results(self, 
                                execution_results: List[AgentExecutionResult],
                                workflow_plan: WorkflowPlan,
                                semantic_query: SemanticQuery) -> Dict[str, Any]:
-        """결과 통합"""
+        """Result integration"""
         try:
-            logger.info(f"🔄 결과 통합 시작 - 총 {len(execution_results)}개 결과")
+            logger.info(f"🔄 Starting result integration - total {len(execution_results)} results")
             
-            # 모든 결과 상세 로깅
+            # Detailed logging of all results
             for i, result in enumerate(execution_results):
-                logger.info(f"  결과 {i+1}: {result.agent_id}")
-                logger.info(f"    성공: {result.success}")
-                logger.info(f"    실행시간: {result.execution_time:.2f}초")
-                logger.info(f"    신뢰도: {result.confidence}")
+                logger.info(f"  Result {i+1}: {result.agent_id}")
+                logger.info(f"    Success: {result.success}")
+                logger.info(f"    Execution time: {result.execution_time:.2f}s")
+                logger.info(f"    Confidence: {result.confidence}")
                 
                 if result.data:
-                    logger.info(f"    데이터 타입: {type(result.data)}")
+                    logger.info(f"    Data type: {type(result.data)}")
                     if isinstance(result.data, dict):
-                        logger.info(f"    데이터 키: {list(result.data.keys())}")
-                        # 실제 데이터 내용 일부 로깅
+                        logger.info(f"    Data keys: {list(result.data.keys())}")
+                        # Log a portion of the actual data content
                         for key, value in result.data.items():
                             if isinstance(value, str) and len(value) > 100:
                                 logger.info(f"      {key}: {value[:100]}...")
                             else:
                                 logger.info(f"      {key}: {value}")
                     else:
-                        logger.info(f"    데이터 내용: {str(result.data)[:200]}...")
+                        logger.info(f"    Data content: {str(result.data)[:200]}...")
                 
                 if result.error_message:
-                    logger.warning(f"    오류: {result.error_message}")
+                    logger.warning(f"    Error: {result.error_message}")
             
-            # 성공한 결과들만 추출
+            # Extract only successful results
             successful_results = [r for r in execution_results if r.success]
-            logger.info(f"📊 성공한 결과: {len(successful_results)}개")
+            logger.info(f"📊 Successful results: {len(successful_results)}")
             
             if not successful_results:
-                logger.warning("⚠️ 모든 에이전트 실행이 실패했습니다.")
+                logger.warning("⚠️ All agent executions failed.")
                 return {
                     "status": "failed",
-                    "message": "모든 에이전트 실행이 실패했습니다.",
+                    "message": "All agent executions failed.",
                     "error_details": [r.error_message for r in execution_results if r.error_message]
                 }
             
-            # 결과 데이터 수집
+            # Collect result data
             result_data = []
             for result in successful_results:
                 if result.data:
@@ -903,13 +903,13 @@ class OntologySystem:
                         "execution_time": result.execution_time
                     }
                     result_data.append(processed_data)
-                    logger.info(f"✅ 결과 데이터 추가: {result.agent_id}")
+                    logger.info(f"✅ Result data added: {result.agent_id}")
             
-            logger.info(f"📋 처리할 결과 데이터: {len(result_data)}개")
+            logger.info(f"📋 Result data to process: {len(result_data)}")
             
-            # 의도별 결과 통합
+            # Integrate results by intent
             intent = getattr(semantic_query, 'intent', 'general')
-            logger.info(f"🎯 의도별 통합 시작: {intent}")
+            logger.info(f"🎯 Starting intent-based integration: {intent}")
             
             if intent == "information_retrieval":
                 integrated_content = self._integrate_information_results(result_data)
@@ -920,7 +920,7 @@ class OntologySystem:
             else:
                 integrated_content = self._integrate_general_results(result_data)
             
-            logger.info(f"✅ 통합 완료 - 내용 길이: {len(integrated_content)}자")
+            logger.info(f"✅ Integration complete - content length: {len(integrated_content)} chars")
             
             return {
                 "status": "success",
@@ -935,99 +935,99 @@ class OntologySystem:
             }
             
         except Exception as e:
-            logger.error(f"결과 통합 실패: {e}")
+            logger.error(f"Result integration failed: {e}")
             return {
                 "status": "error",
-                "message": f"결과 통합 중 오류 발생: {str(e)}",
+                "message": f"Error during result integration: {str(e)}",
                 "partial_results": [r.to_dict() if hasattr(r, 'to_dict') else str(r) for r in execution_results]
             }
     
     def _integrate_information_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """정보 검색 결과 통합"""
-        logger.info(f"🔍 정보 검색 결과 통합 시작 - {len(result_data)}개 결과")
+        """Integrate information search results"""
+        logger.info(f"🔍 Starting information search result integration - {len(result_data)} results")
         
         contents = []
         for result in result_data:
             agent_id = result["agent_id"]
             data = result["data"]
             
-            logger.info(f"  처리 중: {agent_id}")
-            logger.info(f"  데이터 타입: {type(data)}")
+            logger.info(f"  Processing: {agent_id}")
+            logger.info(f"  Data type: {type(data)}")
             
             content = None
             
             if isinstance(data, dict):
-                logger.info(f"  데이터 키들: {list(data.keys())}")
+                logger.info(f"  Data keys: {list(data.keys())}")
                 
-                # answer 키가 있으면 우선적으로 사용
+                # Use answer key preferentially if present
                 if "answer" in data:
                     content = data["answer"]
-                    logger.info(f"  📝 answer 키에서 내용 추출: {len(str(content))}자")
-                # 다양한 형태의 검색 결과 처리
+                    logger.info(f"  📝 Extracting content from answer key: {len(str(content))} chars")
+                # Handle various forms of search results
                 elif "search_results" in data:
                     search_results = data["search_results"]
                     if isinstance(search_results, list) and search_results:
-                        content = f"검색 결과 {len(search_results)}개 항목:\n"
-                        for i, item in enumerate(search_results[:5], 1):  # 상위 5개만
-                            title = item.get("title", "제목 없음")
+                        content = f"Search results {len(search_results)} items:\n"
+                        for i, item in enumerate(search_results[:5], 1):  # top 5 only
+                            title = item.get("title", "No title")
                             snippet = item.get("snippet", item.get("description", ""))
                             content += f"{i}. {title}\n   {snippet}\n"
                     else:
-                        content = "검색 결과가 없습니다."
+                        content = "No search results found."
                 elif "items" in data:
                     items = data["items"]
                     if isinstance(items, list) and items:
-                        content = f"검색 항목 {len(items)}개:\n"
+                        content = f"Search items {len(items)}:\n"
                         for i, item in enumerate(items[:5], 1):
-                            title = item.get("title", item.get("name", "제목 없음"))
+                            title = item.get("title", item.get("name", "No title"))
                             content += f"{i}. {title}\n"
                     else:
-                        content = "검색 항목이 없습니다."
+                        content = "No search items found."
                 elif "content" in data:
                     content = data["content"]
                 elif "text" in data:
                     content = data["text"]
                 elif "result" in data:
-                    # result가 딕셔너리이고 answer가 있는지 확인
+                    # Check if result is a dict and has answer key
                     result_value = data["result"]
                     if isinstance(result_value, dict) and "answer" in result_value:
                         content = result_value["answer"]
-                        logger.info(f"  📝 result.answer에서 내용 추출: {len(str(content))}자")
+                        logger.info(f"  📝 Extracting content from result.answer: {len(str(content))} chars")
                     else:
                         content = str(result_value)
                 else:
-                    # 다른 키가 없으면 전체 딕셔너리를 문자열로 변환하지 말고 주요 내용만 추출
-                    logger.warning(f"  ⚠️ 알려진 키가 없음, 전체 구조: {data}")
-                    # 딕셔너리에서 가장 중요해 보이는 텍스트 내용을 찾아서 추출
+                    # If no known key, extract main content without converting entire dict to string
+                    logger.warning(f"  ⚠️ No known key found, full structure: {data}")
+                    # Find and extract the most important text content from the dictionary
                     for key in ['response', 'message', 'output', 'data']:
                         if key in data:
                             potential_content = data[key]
                             if isinstance(potential_content, str) and len(potential_content.strip()) > 0:
                                 content = potential_content
-                                logger.info(f"  📝 {key} 키에서 내용 추출")
+                                logger.info(f"  📝 Extracting content from {key} key")
                                 break
                     
-                    # 여전히 content가 없으면 전체를 문자열로 변환
+                    # If still no content, convert entire dict to string
                     if content is None:
                         content = str(data)
-                        logger.warning(f"  ⚠️ 폴백: 전체 딕셔너리를 문자열로 변환")
+                        logger.warning(f"  ⚠️ Fallback: converting entire dictionary to string")
             else:
                 content = str(data)
-                logger.info(f"  📝 문자열/기타 타입에서 직접 변환")
+                logger.info(f"  📝 Direct conversion from string/other type")
             
             if content and str(content).strip():
-                contents.append(content)  # agent_id 제거
-                logger.info(f"  ✅ 내용 추가: {len(str(content))}자 (agent_id 제외)")
+                contents.append(content)  # exclude agent_id
+                logger.info(f"  ✅ Content added: {len(str(content))} chars (agent_id excluded)")
             else:
-                logger.warning(f"  ⚠️ 빈 내용: {agent_id}")
+                logger.warning(f"  ⚠️ Empty content: {agent_id}")
         
-        final_content = "\n\n".join(contents) if contents else "검색 결과를 찾을 수 없습니다."
-        logger.info(f"🔍 정보 검색 결과 통합 완료 - 최종 길이: {len(final_content)}자")
+        final_content = "\n\n".join(contents) if contents else "No search results found."
+        logger.info(f"🔍 Information search result integration complete - final length: {len(final_content)} chars")
         
         return final_content
     
     def _integrate_analysis_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """분석 결과 통합"""
+        """Integrate analysis results"""
         analysis_parts = []
         
         for result in result_data:
@@ -1038,38 +1038,38 @@ class OntologySystem:
             if isinstance(data, dict):
                 insights = data.get("insights", [])
                 if insights:
-                    analysis_parts.append(f"**분석 결과 (신뢰도: {confidence:.2f})**")  # agent_id 제거
+                    analysis_parts.append(f"**Analysis Result (confidence: {confidence:.2f})**")  # exclude agent_id
                     for insight in insights:
                         analysis_parts.append(f"- {insight}")
                 else:
-                    analysis_parts.append(str(data))  # agent_id 제거
+                    analysis_parts.append(str(data))  # exclude agent_id
             else:
-                analysis_parts.append(str(data))  # agent_id 제거
+                analysis_parts.append(str(data))  # exclude agent_id
         
         return "\n".join(analysis_parts)
     
     def _integrate_comparison_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """비교 결과 통합"""
-        comparison_parts = ["## 비교 분석 결과"]
+        """Integrate comparison results"""
+        comparison_parts = ["## Comparison Analysis Results"]
         
         for i, result in enumerate(result_data, 1):
             agent_id = result["agent_id"]
             data = result["data"]
             
-            comparison_parts.append(f"\n### {i}. 결과")  # agent_id 제거
+            comparison_parts.append(f"\n### {i}. Result")  # exclude agent_id
             comparison_parts.append(str(data))
         
         return "\n".join(comparison_parts)
     
     def _integrate_general_results(self, result_data: List[Dict[str, Any]]) -> str:
-        """일반 결과 통합"""
+        """Integrate general results"""
         general_parts = []
         
         for result in result_data:
             agent_id = result["agent_id"]
             data = result["data"]
             
-            general_parts.append(str(data))  # agent_id 제거
+            general_parts.append(str(data))  # exclude agent_id
         
         return "\n".join(general_parts)
     
@@ -1078,13 +1078,13 @@ class OntologySystem:
                                     workflow_plan: WorkflowPlan,
                                     execution_results: List[AgentExecutionResult],
                                     integrated_result: Dict[str, Any]):
-        """온톨로지 지식 그래프 업데이트 - 이미지 참고하여 풍부한 그래프 생성"""
+        """Update ontology knowledge graph - generate rich graph based on image reference"""
         try:
-            logger.info("🔗 풍부한 온톨로지 지식 그래프 업데이트 시작")
+            logger.info("🔗 Starting rich ontology knowledge graph update")
             
             workflow_id = workflow_plan.plan_id
             
-            # 1. 핵심 쿼리 노드 생성 (중앙 허브)
+            # 1. Create core query node (central hub)
             query_id = f"query_{semantic_query.query_id}"
             await self.knowledge_graph.add_concept(query_id, "query", {
                 "natural_language": semantic_query.natural_language,
@@ -1094,7 +1094,7 @@ class OntologySystem:
                 "session_id": self.session_id
             })
             
-            # 2. 워크플로우 계획 노드 생성
+            # 2. Create workflow plan node
             workflow_node = f"workflow_{workflow_id}"
             await self.knowledge_graph.add_concept(workflow_node, "workflow", {
                 "plan_id": workflow_id,
@@ -1106,18 +1106,18 @@ class OntologySystem:
                 "reasoning_chain": workflow_plan.reasoning_chain[:3] if workflow_plan.reasoning_chain else []
             })
             
-            # 3. 쿼리 → 워크플로우 관계
+            # 3. Query → workflow relationship
             await self.knowledge_graph.add_relation(query_id, "triggers", workflow_node, {
                 "trigger_type": "user_request",
                 "confidence": 0.9
             })
             
-            # 4. 에이전트 노드들과 실행 결과 생성
+            # 4. Create agent nodes and execution results
             for i, result in enumerate(execution_results):
                 agent_node = f"agent_{result.agent_id}"
                 result_node = f"result_{workflow_id}_{i}"
                 
-                # 에이전트 노드
+                # Agent node
                 await self.knowledge_graph.add_concept(agent_node, "agent", {
                     "agent_id": result.agent_id,
                     "agent_type": str(result.agent_type) if hasattr(result, 'agent_type') else "unknown",
@@ -1129,7 +1129,7 @@ class OntologySystem:
                     }
                 })
                 
-                # 실행 결과 노드
+                # Execution result node
                 await self.knowledge_graph.add_concept(result_node, "execution_result", {
                     "agent_id": result.agent_id,
                     "execution_time": result.execution_time,
@@ -1139,7 +1139,7 @@ class OntologySystem:
                     "result_type": self._classify_result_type(result.result_data)
                 })
                 
-                # 관계들 생성
+                # Create relationships
                 await self.knowledge_graph.add_relation(workflow_node, "executes_with", agent_node, {
                     "execution_order": i + 1,
                     "step_purpose": f"Step {i+1} execution"
@@ -1155,44 +1155,44 @@ class OntologySystem:
                     "step_number": i + 1
                 })
             
-            # 5. 도메인 및 개념 노드들 생성
+            # 5. Create domain and concept nodes
             await self._create_domain_and_concept_nodes(semantic_query, execution_results, workflow_id)
             
-            # 6. 태스크 및 능력 노드들 생성
+            # 6. Create task and capability nodes
             await self._create_task_and_capability_nodes(semantic_query, execution_results, workflow_id)
             
-            # 7. 성능 및 품질 메트릭 노드들 생성
+            # 7. Create performance and quality metric nodes
             await self._create_performance_metric_nodes(execution_results, workflow_id)
             
-            # 8. 에이전트 간 협업 관계 생성
+            # 8. Create inter-agent collaboration relationships
             await self._create_agent_collaboration_network(execution_results, workflow_id)
             
-            # 9. 시간적 순서 관계 생성
+            # 9. Create temporal ordering relationships
             await self._create_temporal_sequence_relations(execution_results, workflow_id)
             
-            # 10. 지식 패턴 및 학습 노드 생성
+            # 10. Create knowledge pattern and learning nodes
             await self._create_knowledge_pattern_nodes(semantic_query, execution_results, integrated_result, workflow_id)
             
-            # 11. 컨텍스트 및 환경 노드 생성
+            # 11. Create context and environment nodes
             await self._create_context_environment_nodes(semantic_query, workflow_id)
             
-            logger.info(f"✅ 풍부한 온톨로지 지식 그래프 업데이트 완료 - 워크플로우: {workflow_id}")
+            logger.info(f"✅ Rich ontology knowledge graph update complete - workflow: {workflow_id}")
             
         except Exception as e:
-            logger.error(f"지식 그래프 업데이트 실패: {e}")
+            logger.error(f"Knowledge graph update failed: {e}")
     
     def _infer_agent_capabilities(self, agent_id: str) -> List[str]:
-        """에이전트 ID로부터 능력 추론 - 분할된 관리자 사용"""
+        """Infer capabilities from agent ID - using split managers"""
         return self.complexity_analyzer.infer_agent_capabilities(agent_id)
     
     def _classify_result_type(self, result_data: Any) -> str:
-        """결과 데이터 타입 분류 - 분할된 관리자 사용"""
+        """Classify result data type - using split managers"""
         return self.complexity_analyzer.classify_result_type(result_data)
     
     async def _create_domain_and_concept_nodes(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """도메인 및 개념 노드들 생성"""
+        """Create domain and concept nodes"""
         try:
-            # 쿼리에서 도메인 추출
+            # Extract domain from query
             query_text = semantic_query.natural_language.lower()
             domains = []
             
@@ -1210,7 +1210,7 @@ class OntologySystem:
             if not domains:
                 domains = ['general']
             
-            # 도메인 노드들 생성
+            # Create domain nodes
             for domain in domains:
                 domain_node = f"domain_{domain}"
                 await self.knowledge_graph.add_concept(domain_node, "domain", {
@@ -1220,13 +1220,13 @@ class OntologySystem:
                     "workflow_id": workflow_id
                 })
                 
-                # 쿼리-도메인 관계
+                # Query-domain relationship
                 query_id = f"query_{semantic_query.query_id}"
                 await self.knowledge_graph.add_relation(query_id, "belongs_to_domain", domain_node, {
                     "relevance_score": 0.8
                 })
                 
-                # 에이전트-도메인 관계
+                # Agent-domain relationship
                 for result in execution_results:
                     if result.is_successful():
                         agent_node = f"agent_{result.agent_id}"
@@ -1235,9 +1235,9 @@ class OntologySystem:
                             "execution_time": result.execution_time
                         })
             
-            # 개념 엔티티들 생성
+            # Create concept entities
             entities = getattr(semantic_query, 'entities', [])
-            for entity in entities[:5]:  # 최대 5개
+            for entity in entities[:5]:  # max 5
                 entity_node = f"entity_{entity}"
                 await self.knowledge_graph.add_concept(entity_node, "entity", {
                     "entity_name": entity,
@@ -1245,18 +1245,18 @@ class OntologySystem:
                     "extraction_confidence": 0.7
                 })
                 
-                # 쿼리-엔티티 관계
+                # Query-entity relationship
                 await self.knowledge_graph.add_relation(f"query_{semantic_query.query_id}", "contains_entity", entity_node, {
                     "entity_importance": 0.7
                 })
                 
         except Exception as e:
-            logger.warning(f"도메인 및 개념 노드 생성 실패: {e}")
+            logger.warning(f"Domain and concept node creation failed: {e}")
     
     async def _create_task_and_capability_nodes(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """태스크 및 능력 노드들 생성"""
+        """Create task and capability nodes"""
         try:
-            # 태스크 노드 생성
+            # Create task node
             task_node = f"task_{workflow_id}"
             await self.knowledge_graph.add_concept(task_node, "task", {
                 "task_description": semantic_query.natural_language,
@@ -1265,12 +1265,12 @@ class OntologySystem:
                 "workflow_id": workflow_id
             })
             
-            # 쿼리-태스크 관계
+            # Query-task relationship
             await self.knowledge_graph.add_relation(f"query_{semantic_query.query_id}", "defines_task", task_node, {
                 "task_clarity": 0.8
             })
             
-            # 각 에이전트의 능력 노드들 생성
+            # Create capability nodes for each agent
             for result in execution_results:
                 capabilities = self._infer_agent_capabilities(result.agent_id)
                 
@@ -1282,25 +1282,25 @@ class OntologySystem:
                         "last_used": datetime.now().isoformat()
                     })
                     
-                    # 에이전트-능력 관계
+                    # Agent-capability relationship
                     agent_node = f"agent_{result.agent_id}"
                     await self.knowledge_graph.add_relation(agent_node, "has_capability", capability_node, {
                         "proficiency_level": result.confidence,
                         "usage_frequency": 1
                     })
                     
-                    # 태스크-능력 관계
+                    # Task-capability relationship
                     await self.knowledge_graph.add_relation(task_node, "requires_capability", capability_node, {
                         "requirement_strength": 0.6
                     })
                     
         except Exception as e:
-            logger.warning(f"태스크 및 능력 노드 생성 실패: {e}")
+            logger.warning(f"Task and capability node creation failed: {e}")
     
     async def _create_performance_metric_nodes(self, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """성능 및 품질 메트릭 노드들 생성"""
+        """Create performance and quality metric nodes"""
         try:
-            # 전체 워크플로우 성능 메트릭
+            # Overall workflow performance metrics
             total_time = sum(r.execution_time for r in execution_results)
             avg_confidence = sum(r.confidence for r in execution_results) / len(execution_results) if execution_results else 0
             success_rate = sum(1 for r in execution_results if r.is_successful()) / len(execution_results) if execution_results else 0
@@ -1315,7 +1315,7 @@ class OntologySystem:
                 "workflow_id": workflow_id
             })
             
-            # 개별 에이전트 성능 메트릭
+            # Individual agent performance metrics
             for i, result in enumerate(execution_results):
                 agent_performance_node = f"performance_{result.agent_id}_{workflow_id}"
                 await self.knowledge_graph.add_concept(agent_performance_node, "performance_metric", {
@@ -1327,33 +1327,33 @@ class OntologySystem:
                     "performance_tier": "high" if result.confidence > 0.8 else "medium" if result.confidence > 0.5 else "low"
                 })
                 
-                # 에이전트-성능 관계
+                # Agent-performance relationship
                 agent_node = f"agent_{result.agent_id}"
                 await self.knowledge_graph.add_relation(agent_node, "has_performance", agent_performance_node, {
                     "measurement_timestamp": datetime.now().isoformat()
                 })
                 
-                # 워크플로우-성능 관계
+                # Workflow-performance relationship
                 workflow_node = f"workflow_{workflow_id}"
                 await self.knowledge_graph.add_relation(workflow_node, "measured_by", agent_performance_node, {
                     "step_number": i + 1
                 })
                 
         except Exception as e:
-            logger.warning(f"성능 메트릭 노드 생성 실패: {e}")
+            logger.warning(f"Performance metric node creation failed: {e}")
     
     async def _create_agent_collaboration_network(self, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """에이전트 간 협업 관계 생성"""
+        """Create inter-agent collaboration relationships"""
         try:
             successful_results = [r for r in execution_results if r.is_successful()]
             
-            # 성공한 에이전트들 간의 협업 관계
+            # Collaboration relationships between successful agents
             for i, result1 in enumerate(successful_results):
                 for result2 in successful_results[i+1:]:
                     agent1_node = f"agent_{result1.agent_id}"
                     agent2_node = f"agent_{result2.agent_id}"
                     
-                    # 협업 관계
+                    # Collaboration relationship
                     await self.knowledge_graph.add_relation(agent1_node, "collaborated_with", agent2_node, {
                         "workflow_id": workflow_id,
                         "collaboration_success": True,
@@ -1361,23 +1361,23 @@ class OntologySystem:
                         "collaboration_type": "sequential" if abs(i - successful_results.index(result2)) == 1 else "parallel"
                     })
                     
-                    # 상호 보완 관계 (능력이 다른 경우)
+                    # Complementary relationship (when capabilities differ)
                     cap1 = self._infer_agent_capabilities(result1.agent_id)
                     cap2 = self._infer_agent_capabilities(result2.agent_id)
                     
-                    if set(cap1) != set(cap2):  # 다른 능력을 가진 경우
+                    if set(cap1) != set(cap2):  # When capabilities differ
                         await self.knowledge_graph.add_relation(agent1_node, "complements", agent2_node, {
                             "complementarity_score": 0.8,
                             "capability_overlap": len(set(cap1) & set(cap2)) / max(len(cap1), len(cap2))
                         })
                         
         except Exception as e:
-            logger.warning(f"에이전트 협업 네트워크 생성 실패: {e}")
+            logger.warning(f"Agent collaboration network creation failed: {e}")
     
     async def _create_temporal_sequence_relations(self, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """시간적 순서 관계 생성"""
+        """Create temporal ordering relationships"""
         try:
-            # 실행 순서에 따른 선후 관계
+            # Predecessor/successor relationships by execution order
             for i in range(len(execution_results) - 1):
                 current_result = execution_results[i]
                 next_result = execution_results[i + 1]
@@ -1385,14 +1385,14 @@ class OntologySystem:
                 current_agent = f"agent_{current_result.agent_id}"
                 next_agent = f"agent_{next_result.agent_id}"
                 
-                # 선행 관계
+                # Predecessor relationship
                 await self.knowledge_graph.add_relation(current_agent, "precedes", next_agent, {
                     "sequence_order": i + 1,
-                    "time_gap": 0.1,  # 가정된 시간 간격
+                    "time_gap": 0.1,  # assumed time gap
                     "workflow_id": workflow_id
                 })
                 
-                # 결과 간 의존성
+                # Dependencies between results
                 current_result_node = f"result_{workflow_id}_{i}"
                 next_result_node = f"result_{workflow_id}_{i+1}"
                 
@@ -1402,12 +1402,12 @@ class OntologySystem:
                 })
                 
         except Exception as e:
-            logger.warning(f"시간적 순서 관계 생성 실패: {e}")
+            logger.warning(f"Temporal ordering relationship creation failed: {e}")
     
     async def _create_knowledge_pattern_nodes(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult], integrated_result: Dict[str, Any], workflow_id: str):
-        """지식 패턴 및 학습 노드 생성"""
+        """Create knowledge pattern and learning nodes"""
         try:
-            # 학습 패턴 노드
+            # Learning pattern node
             pattern_node = f"pattern_{workflow_id}"
             await self.knowledge_graph.add_concept(pattern_node, "knowledge_pattern", {
                 "pattern_type": "workflow_execution",
@@ -1418,12 +1418,12 @@ class OntologySystem:
                 "learned_at": datetime.now().isoformat()
             })
             
-            # 쿼리-패턴 관계
+            # Query-pattern relationship
             await self.knowledge_graph.add_relation(f"query_{semantic_query.query_id}", "generates_pattern", pattern_node, {
                 "pattern_strength": integrated_result.get('confidence', 0.7)
             })
             
-            # 인사이트 노드 (성공적인 실행에서)
+            # Insight node (from successful executions)
             successful_results = [r for r in execution_results if r.is_successful()]
             if successful_results:
                 insight_node = f"insight_{workflow_id}"
@@ -1435,32 +1435,32 @@ class OntologySystem:
                     "discovered_at": datetime.now().isoformat()
                 })
                 
-                # 패턴-인사이트 관계
+                # Pattern-insight relationship
                 await self.knowledge_graph.add_relation(pattern_node, "reveals", insight_node, {
                     "revelation_confidence": 0.8
                 })
                 
         except Exception as e:
-            logger.warning(f"지식 패턴 노드 생성 실패: {e}")
+            logger.warning(f"Knowledge pattern node creation failed: {e}")
     
     async def _create_context_environment_nodes(self, semantic_query: SemanticQuery, workflow_id: str):
-        """컨텍스트 및 환경 노드 생성"""
+        """Create context and environment nodes"""
         try:
-            # 세션 컨텍스트 노드
+            # Session context node
             session_node = f"session_{self.session_id}"
             await self.knowledge_graph.add_concept(session_node, "session_context", {
                 "session_id": self.session_id,
                 "user_email": self.email,
                 "session_start": datetime.now().isoformat(),
-                "query_count": 1  # 현재 쿼리 기준
+                "query_count": 1  # based on current query
             })
             
-            # 쿼리-세션 관계
+            # Query-session relationship
             await self.knowledge_graph.add_relation(f"query_{semantic_query.query_id}", "occurs_in_session", session_node, {
                 "query_sequence": 1
             })
             
-            # 환경 노드 (시스템 환경)
+            # Environment node (system environment)
             environment_node = f"environment_{workflow_id}"
             await self.knowledge_graph.add_concept(environment_node, "execution_environment", {
                 "system_type": "ontology_multi_agent",
@@ -1469,18 +1469,18 @@ class OntologySystem:
                 "workflow_id": workflow_id
             })
             
-            # 워크플로우-환경 관계
+            # Workflow-environment relationship
             await self.knowledge_graph.add_relation(f"workflow_{workflow_id}", "executes_in", environment_node, {
                 "environment_suitability": 0.9
             })
             
         except Exception as e:
-            logger.warning(f"컨텍스트 및 환경 노드 생성 실패: {e}")
+            logger.warning(f"Context and environment node creation failed: {e}")
     
     async def _add_domain_concept_relations(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult]):
-        """도메인별 개념 관계 추가"""
+        """Add domain-specific concept relationships"""
         try:
-            # 쿼리 의도에 따른 도메인 분류
+            # Domain classification by query intent
             intent = semantic_query.intent.lower()
             domain = "general"
             
@@ -1493,7 +1493,7 @@ class OntologySystem:
             elif any(keyword in intent for keyword in ["search", "검색", "정보"]):
                 domain = "information"
             
-            # 도메인 노드 추가
+            # Add domain node
             domain_id = f"domain_{domain}"
             await self.knowledge_graph.add_concept(domain_id, "domain", {
                 "domain_name": domain,
@@ -1501,14 +1501,14 @@ class OntologySystem:
                 "last_accessed": datetime.now().isoformat()
             })
             
-            # 쿼리-도메인 관계
+            # Query-domain relationship
             query_id = f"query_{semantic_query.query_id}"
             await self.knowledge_graph.add_relation(
                 query_id, "belongs_to_domain", domain_id,
                 {"confidence": 0.8}
             )
             
-            # 에이전트-도메인 관계
+            # Agent-domain relationship
             for result in execution_results:
                 if result.is_successful():
                     agent_id = f"agent_{result.agent_id}"
@@ -1521,18 +1521,18 @@ class OntologySystem:
                     )
             
         except Exception as e:
-            logger.warning(f"도메인 개념 관계 추가 실패: {e}")
+            logger.warning(f"Domain concept relationship addition failed: {e}")
     
     async def _add_performance_based_relations(self, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """성능 기반 관계 추가"""
+        """Add performance-based relationships"""
         try:
-            # 고성능 에이전트들 식별 (신뢰도 0.8 이상)
+            # Identify high-performance agents (confidence >= 0.8)
             high_performance_agents = [
                 r for r in execution_results 
                 if r.is_successful() and r.confidence >= 0.8
             ]
             
-            # 고성능 에이전트들 간의 "high_performance_collaboration" 관계
+            # "high_performance_collaboration" relationship between high-performance agents
             for i, agent1 in enumerate(high_performance_agents):
                 for agent2 in high_performance_agents[i+1:]:
                     await self.knowledge_graph.add_relation(
@@ -1546,7 +1546,7 @@ class OntologySystem:
                         }
                     )
             
-            # 빠른 실행 에이전트들 식별 (5초 이하)
+            # Identify fast execution agents (under 5s)
             fast_agents = [
                 r for r in execution_results 
                 if r.is_successful() and r.execution_time <= 5.0
@@ -1565,22 +1565,22 @@ class OntologySystem:
                 )
             
         except Exception as e:
-            logger.warning(f"성능 기반 관계 추가 실패: {e}")
+            logger.warning(f"Performance-based relationship addition failed: {e}")
     
     async def _ensure_basic_ontology_concepts(self):
-        """기본 온톨로지 개념들 추가 (그래프가 비어있을 때)"""
+        """Add basic ontology concepts (when graph is empty)"""
         try:
-            # 그래프가 비어있거나 노드가 적으면 기본 개념들 추가
+            # Add basic concepts when graph is empty or has few nodes
             if self.knowledge_graph.graph.number_of_nodes() < 5:
-                logger.info("🏗️ 기본 온톨로지 개념들 추가 중...")
+                logger.info("🏗️ Adding basic ontology concepts...")
                 
-                # 기본 에이전트 타입들
+                # Basic agent types
                 basic_agents = [
-                    ("internet_agent", "인터넷 검색"),
-                    ("calculator_agent", "계산 처리"),
-                    ("weather_agent", "날씨 정보"),
-                    ("memo_agent", "메모 관리"),
-                    ("calendar_agent", "일정 관리")
+                    ("internet_agent", "Internet Search"),
+                    ("calculator_agent", "Calculation Processing"),
+                    ("weather_agent", "Weather Information"),
+                    ("memo_agent", "Memo Management"),
+                    ("calendar_agent", "Calendar Management")
                 ]
                 
                 for agent_id, description in basic_agents:
@@ -1590,13 +1590,13 @@ class OntologySystem:
                         "type": "basic_agent"
                     })
                 
-                # 기본 도메인들
+                # Basic domains
                 basic_domains = [
-                    ("information", "정보 검색"),
-                    ("calculation", "계산 처리"),
-                    ("weather", "날씨 정보"),
-                    ("productivity", "생산성 도구"),
-                    ("general", "일반 처리")
+                    ("information", "Information Search"),
+                    ("calculation", "Calculation Processing"),
+                    ("weather", "Weather Information"),
+                    ("productivity", "Productivity Tools"),
+                    ("general", "General Processing")
                 ]
                 
                 for domain_id, description in basic_domains:
@@ -1606,13 +1606,13 @@ class OntologySystem:
                         "type": "basic_domain"
                     })
                 
-                # 기본 능력들
+                # Basic capabilities
                 basic_capabilities = [
-                    ("search", "검색 능력"),
-                    ("calculate", "계산 능력"),
-                    ("analyze", "분석 능력"),
-                    ("generate", "생성 능력"),
-                    ("process", "처리 능력")
+                    ("search", "Search Capability"),
+                    ("calculate", "Calculation Capability"),
+                    ("analyze", "Analysis Capability"),
+                    ("generate", "Generation Capability"),
+                    ("process", "Processing Capability")
                 ]
                 
                 for capability_id, description in basic_capabilities:
@@ -1622,18 +1622,18 @@ class OntologySystem:
                         "type": "basic_capability"
                     })
                 
-                # 기본 관계들 추가
+                # Add basic relationships
                 await self._add_basic_ontology_relations()
                 
-                logger.info("✅ 기본 온톨로지 개념들 추가 완료")
+                logger.info("✅ Basic ontology concepts added")
                 
         except Exception as e:
-            logger.warning(f"기본 온톨로지 개념 추가 실패: {e}")
+            logger.warning(f"Basic ontology concept addition failed: {e}")
     
     async def _add_basic_ontology_relations(self):
-        """기본 온톨로지 관계들 추가"""
+        """Add basic ontology relationships"""
         try:
-            # 에이전트-능력 관계
+            # Agent-capability relationship
             agent_capability_map = {
                 "internet_agent": ["search", "analyze"],
                 "calculator_agent": ["calculate", "process"],
@@ -1651,7 +1651,7 @@ class OntologySystem:
                         {"type": "basic_relation", "confidence": 0.9}
                     )
             
-            # 에이전트-도메인 관계
+            # Agent-domain relationship
             agent_domain_map = {
                 "internet_agent": "information",
                 "calculator_agent": "calculation",
@@ -1668,7 +1668,7 @@ class OntologySystem:
                     {"type": "basic_relation", "confidence": 0.8}
                 )
             
-            # 도메인-능력 관계
+            # Domain-capability relationship
             domain_capability_map = {
                 "information": ["search", "analyze"],
                 "calculation": ["calculate", "process"],
@@ -1686,15 +1686,15 @@ class OntologySystem:
                     )
             
         except Exception as e:
-            logger.warning(f"기본 온톨로지 관계 추가 실패: {e}")
+            logger.warning(f"Basic ontology relationship addition failed: {e}")
     
     async def _add_domain_specific_relations(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult]):
-        """도메인별 특화 관계 추가"""
+        """Add domain-specific specialized relationships"""
         try:
-            # 쿼리에서 도메인 추출
+            # Extract domain from query
             query_text = semantic_query.natural_language.lower()
             
-            # 도메인별 키워드 매핑
+            # Domain keyword mapping
             domain_keywords = {
                 "weather": ["날씨", "기상", "온도", "습도", "비", "눈", "바람"],
                 "finance": ["환율", "주식", "투자", "금융", "돈", "가격", "시세"],
@@ -1704,13 +1704,13 @@ class OntologySystem:
                 "entertainment": ["게임", "영화", "음악", "스포츠", "오락"]
             }
             
-            # 도메인 감지
+            # Domain detection
             detected_domains = []
             for domain, keywords in domain_keywords.items():
                 if any(keyword in query_text for keyword in keywords):
                     detected_domains.append(domain)
             
-            # 도메인별 관계 생성
+            # Create domain-specific relationships
             for domain in detected_domains:
                 domain_id = f"domain_{domain}"
                 await self.knowledge_graph.add_concept(domain_id, "domain", {
@@ -1719,14 +1719,14 @@ class OntologySystem:
                     "detected_in_query": True
                 })
                 
-                # 쿼리와 도메인 관계
+                # Query-domain relationship
                 query_id = f"query_{semantic_query.query_id}"
                 await self.knowledge_graph.add_relation(query_id, "belongs_to_domain", domain_id, {
                     "confidence": 0.8,
                     "detection_method": "keyword_matching"
                 })
                 
-                # 성공한 에이전트들과 도메인 관계
+                # Relationship between successful agents and domain
                 for result in execution_results:
                     if result.success:
                         agent_id = f"agent_{result.agent_id}"
@@ -1735,18 +1735,18 @@ class OntologySystem:
                             "execution_time": result.execution_time
                         })
             
-            logger.info(f"🏷️ 도메인별 관계 추가 완료: {detected_domains}")
+            logger.info(f"🏷️ Domain-specific relationship addition complete: {detected_domains}")
             
         except Exception as e:
-            logger.warning(f"도메인별 관계 추가 실패: {e}")
+            logger.warning(f"Domain-specific relationship addition failed: {e}")
     
     async def _add_temporal_relations(self, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """시간 기반 관계 추가"""
+        """Add time-based relationships"""
         try:
-            # 실행 시간 순서대로 정렬
+            # Sort by execution time order
             sorted_results = sorted(execution_results, key=lambda x: x.created_at)
             
-            # 시간 기반 순서 관계 추가
+            # Add time-based ordering relationships
             for i in range(len(sorted_results) - 1):
                 current_result = sorted_results[i]
                 next_result = sorted_results[i + 1]
@@ -1754,18 +1754,18 @@ class OntologySystem:
                 current_agent = f"agent_{current_result.agent_id}"
                 next_agent = f"agent_{next_result.agent_id}"
                 
-                # 시간적 선행 관계
+                # Temporal predecessor relationship
                 await self.knowledge_graph.add_relation(current_agent, "precedes_in_time", next_agent, {
                     "time_gap": (next_result.created_at - current_result.created_at).total_seconds(),
                     "workflow_id": workflow_id,
                     "sequence_order": i + 1
                 })
             
-            # 성능 기반 시간 관계
+            # Performance-based time relationship
             fast_agents = [r for r in execution_results if r.execution_time < 5.0]
             slow_agents = [r for r in execution_results if r.execution_time > 10.0]
             
-            # 빠른 에이전트들 간의 관계
+            # Relationship between fast agents
             for agent in fast_agents:
                 agent_id = f"agent_{agent.agent_id}"
                 performance_id = f"performance_fast"
@@ -1778,13 +1778,13 @@ class OntologySystem:
                     "category": "fast"
                 })
             
-            logger.info(f"⏰ 시간 기반 관계 추가 완료: {len(execution_results)}개 에이전트")
+            logger.info(f"⏰ Time-based relationship addition complete: {len(execution_results)} agents")
             
         except Exception as e:
-            logger.warning(f"시간 기반 관계 추가 실패: {e}")
+            logger.warning(f"Time-based relationship addition failed: {e}")
     
     def get_system_metrics(self) -> Dict[str, Any]:
-        """시스템 메트릭스 조회"""
+        """Retrieve system metrics"""
         try:
             return {
                 "session_info": {
@@ -1805,52 +1805,52 @@ class OntologySystem:
                 }
             }
         except Exception as e:
-            logger.error(f"시스템 메트릭스 조회 실패: {e}")
+            logger.error(f"System metrics retrieval failed: {e}")
             return {"error": str(e)}
     
     def get_knowledge_graph_visualization(self, max_nodes: int = 50) -> Dict[str, Any]:
-        """지식 그래프 시각화 데이터 조회 (첫 번째 이미지 스타일)"""
+        """Retrieve knowledge graph visualization data (first image style)"""
         try:
-            logger.info(f"🎨 온톨로지 지식 그래프 시각화 요청 - 최대 노드: {max_nodes}")
+            logger.info(f"🎨 Ontology knowledge graph visualization requested - max nodes: {max_nodes}")
             
-            # 그래프가 비어있으면 기본 온톨로지 데이터 생성
+            # Generate default ontology data if graph is empty
             current_nodes = self.knowledge_graph.graph.number_of_nodes()
             if current_nodes == 0:
-                logger.info("📦 빈 그래프 감지, 기본 온톨로지 데이터 생성 중...")
+                logger.info("📦 Empty graph detected, generating basic ontology data...")
                 asyncio.create_task(self._create_default_ontology_data())
-                # 기본 데이터 생성 후 다시 확인
+                # Verify again after generating basic data
                 current_nodes = self.knowledge_graph.graph.number_of_nodes()
             
-            logger.info(f"📊 현재 그래프 노드 수: {current_nodes}")
+            logger.info(f"📊 Current graph node count: {current_nodes}")
             
-            # 새로운 지식 그래프 엔진에서 직접 풍부한 시각화 데이터 생성
+            # Generate rich visualization data directly from new knowledge graph engine
             knowledge_graph_visualization = self.knowledge_graph.generate_visualization(max_nodes=max_nodes)
             
-            # 그래프가 여전히 비어있으면 하드코딩된 시각화 데이터 반환
+            # Return hardcoded visualization data if graph is still empty
             if not knowledge_graph_visualization.get("nodes") and not knowledge_graph_visualization.get("edges"):
-                logger.warning("⚠️ 시각화 데이터가 비어있음, 하드코딩된 데이터 반환")
+                logger.warning("⚠️ Visualization data is empty, returning hardcoded data")
                 return self._create_hardcoded_visualization_data()
             
-            logger.info(f"✅ 풍부한 온톨로지 그래프 시각화 완료")
+            logger.info(f"✅ Rich ontology graph visualization complete")
             return knowledge_graph_visualization
             
         except Exception as e:
-            logger.error(f"지식 그래프 시각화 생성 실패: {e}")
+            logger.error(f"Knowledge graph visualization generation failed: {e}")
             return self._create_fallback_visualization(str(e))
     
     def _create_rich_ontology_visualization(self, base_data: Dict[str, Any], max_nodes: int) -> Dict[str, Any]:
-        """첫 번째 이미지 스타일의 풍부한 온톨로지 시각화 생성 (동적 데이터 기반)"""
+        """Generate rich ontology visualization in first image style (based on dynamic data)"""
         try:
-            # 기본 데이터에서 실제 노드와 엣지 추출
+            # Extract actual nodes and edges from base data
             base_nodes = base_data.get("nodes", [])
             base_edges = base_data.get("edges", [])
             
-            # 실제 워크플로우 ID 및 에이전트 정보 추출
+            # Extract actual workflow ID and agent info
             workflow_nodes = [node for node in base_nodes if node.get("type") == "workflow"]
             agent_nodes = [node for node in base_nodes if node.get("type") == "agent"]
             task_nodes = [node for node in base_nodes if node.get("type") == "task"]
             
-            # 중앙 워크플로우 전략 ID 생성 (실제 데이터 기반)
+            # Generate central workflow strategy ID (based on actual data)
             if workflow_nodes:
                 main_workflow_id = workflow_nodes[0]["id"]
                 workflow_strategy = workflow_nodes[0].get("attributes", {}).get("optimization_strategy", "resource_efficiency")
@@ -1858,18 +1858,18 @@ class OntologySystem:
                 main_workflow_id = "workflow_llm_owp_727c54cc5c4243988a66c0b15fd4ccdf"
                 workflow_strategy = "resource_efficiency"
             
-            # Edges 배열 생성 (실제 데이터 기반)
+            # Build Edges array (based on actual data)
             edges = []
             edge_id = 0
             
-            # 실제 에이전트들과 워크플로우 연결
-            for i, agent_node in enumerate(agent_nodes[:9]):  # 최대 9개 에이전트
+            # Connect actual agents with workflow
+            for i, agent_node in enumerate(agent_nodes[:9]):  # max 9 agents
                 edge = {
                     "id": f"edge_{edge_id}",
                     "source": main_workflow_id,
                     "target": agent_node["id"],
                     "color": "#5fd2c9" if i % 2 == 0 else "#fd79a8",
-                    "label": f"에이전트 연결",
+                    "label": f"Agent connection",
                     "type": "Task",
                     "size": 12,
                     "weight": 1,
@@ -1894,14 +1894,14 @@ class OntologySystem:
                 edges.append(edge)
                 edge_id += 1
             
-            # 실제 태스크들과 워크플로우 연결
-            for i, task_node in enumerate(task_nodes[:9]):  # 최대 9개 태스크
+            # Connect actual tasks with workflow
+            for i, task_node in enumerate(task_nodes[:9]):  # max 9 tasks
                 edge = {
                     "id": f"edge_{edge_id}",
                     "source": main_workflow_id,
                     "target": task_node["id"],
                     "color": "#74b9ff",
-                    "label": f"태스크 연결",
+                    "label": f"Task connection",
                     "type": "TaskExecution",
                     "size": 10,
                     "weight": 0.9,
@@ -1916,14 +1916,14 @@ class OntologySystem:
                 edges.append(edge)
                 edge_id += 1
             
-            # 실제 기본 엣지들을 변환하여 추가
-            for base_edge in base_edges[:10]:  # 최대 10개 추가 엣지
+            # Convert and add actual base edges
+            for base_edge in base_edges[:10]:  # max 10 additional edges
                 edge = {
                     "id": f"edge_{edge_id}",
                     "source": base_edge["source"],
                     "target": base_edge["target"],
                     "color": base_edge.get("color", "#96CEB4"),
-                    "label": base_edge.get("label", "관계"),
+                    "label": base_edge.get("label", "relationship"),
                     "type": base_edge.get("metadata", {}).get("relationship_type", "relation"),
                     "size": int(base_edge.get("weight", 1) * 8),
                     "weight": base_edge.get("weight", 1),
@@ -1937,10 +1937,10 @@ class OntologySystem:
                 edges.append(edge)
                 edge_id += 1
             
-            # 에이전트 간 협력 관계 추가 (실제 데이터 기반)
+            # Add inter-agent collaboration relationships (based on actual data)
             collaboration_pairs = []
             for i in range(min(len(agent_nodes), 8)):
-                for j in range(i+1, min(len(agent_nodes), i+3)):  # 각 에이전트가 최대 2개와 협력
+                for j in range(i+1, min(len(agent_nodes), i+3)):  # each agent collaborates with up to 2 others
                     if j < len(agent_nodes):
                         collaboration_pairs.append((agent_nodes[i]["id"], agent_nodes[j]["id"]))
             
@@ -1952,7 +1952,7 @@ class OntologySystem:
                     "source": source,
                     "target": target,
                     "color": "#96CEB4",
-                    "label": f"{collab_type} 관계",
+                    "label": f"{collab_type} relationship",
                     "type": collab_type,
                     "size": 8,
                     "weight": 0.7,
@@ -1966,7 +1966,7 @@ class OntologySystem:
                 edges.append(edge)
                 edge_id += 1
             
-            # 실제 데이터를 기반으로 한 통계 계산
+            # Calculate statistics based on actual data
             actual_edge_types = {}
             for edge in edges:
                 edge_type = edge.get("type", "unknown")
@@ -1977,9 +1977,9 @@ class OntologySystem:
                 node_type = node.get("type", "unknown")
                 actual_node_types[node_type] = actual_node_types.get(node_type, 0) + 1
             
-            # Metadata 생성 (실제 데이터 반영)
+            # Generate Metadata (reflecting actual data)
             metadata = {
-                "description": f"{workflow_strategy} workflow 온톨로지 지식 그래프",
+                "description": f"{workflow_strategy} workflow ontology knowledge graph",
                 "edge_types": actual_edge_types,
                 "graph_type": "query_focused_workflow",
                 "layer_suggestions": {
@@ -2040,7 +2040,7 @@ class OntologySystem:
                 }
             }
             
-            # Workflow Stats 생성 (실제 데이터 기반)
+            # Generate Workflow Stats (based on actual data)
             workflow_stats = {
                 "avg_workflow_relevance": metadata["relevance_states"]["avg_node_relevance"],
                 "task_nodes": len(task_nodes),
@@ -2055,7 +2055,7 @@ class OntologySystem:
                 }
             }
             
-            # 최종 구조 (첫 번째 이미지와 동일하되 실제 데이터 반영)
+            # Final structure (same as first image but reflecting actual data)
             knowledge_graph_visualization = {
                 "edges": edges,
                 "metadata": metadata,
@@ -2067,28 +2067,28 @@ class OntologySystem:
                 "total_relations": len(edges)
             }
             
-            logger.info(f"🎨 동적 온톨로지 시각화 생성: {len(edges)}개 엣지, {len(base_nodes)}개 노드 기반")
-            logger.info(f"📊 에이전트: {len(agent_nodes)}개, 태스크: {len(task_nodes)}개, 워크플로우: {len(workflow_nodes)}개")
+            logger.info(f"🎨 Dynamic ontology visualization generated: {len(edges)} edges, {len(base_nodes)} base nodes")
+            logger.info(f"📊 Agents: {len(agent_nodes)}, Tasks: {len(task_nodes)}, Workflows: {len(workflow_nodes)}")
             
             return knowledge_graph_visualization
             
         except Exception as e:
-            logger.error(f"풍부한 온톨로지 시각화 생성 실패: {e}")
+            logger.error(f"Rich ontology visualization generation failed: {e}")
             return self._create_fallback_visualization(str(e))
     
     async def _create_default_ontology_data(self):
-        """기본 온톨로지 데이터 생성"""
+        """Generate basic ontology data"""
         try:
-            logger.info("🏗️ 기본 온톨로지 데이터 생성 시작")
+            logger.info("🏗️ Starting basic ontology data generation")
             
-            # 1. 기본 에이전트들 추가
+            # 1. Add basic agents
             agents = [
-                ("internet_agent", "인터넷 검색 에이전트", ["search", "information_retrieval"]),
-                ("calculator_agent", "계산 에이전트", ["calculation", "mathematical_operations"]),
-                ("weather_agent", "날씨 에이전트", ["weather_data", "location_services"]),
-                ("memo_agent", "메모 에이전트", ["text_storage", "note_management"]),
-                ("analysis_agent", "분석 에이전트", ["data_analysis", "pattern_recognition"]),
-                ("chart_agent", "차트 에이전트", ["data_visualization", "chart_generation"])
+                ("internet_agent", "Internet Search Agent", ["search", "information_retrieval"]),
+                ("calculator_agent", "Calculator Agent", ["calculation", "mathematical_operations"]),
+                ("weather_agent", "Weather Agent", ["weather_data", "location_services"]),
+                ("memo_agent", "Memo Agent", ["text_storage", "note_management"]),
+                ("analysis_agent", "Analysis Agent", ["data_analysis", "pattern_recognition"]),
+                ("chart_agent", "Chart Agent", ["data_visualization", "chart_generation"])
             ]
             
             for agent_id, description, capabilities in agents:
@@ -2101,14 +2101,14 @@ class OntologySystem:
                     "success": True
                 })
             
-            # 2. 기본 도메인들 추가
+            # 2. Add basic domains
             domains = [
-                ("information", "정보 검색 도메인"),
-                ("calculation", "계산 처리 도메인"),
-                ("weather", "날씨 정보 도메인"),
-                ("productivity", "생산성 도구 도메인"),
-                ("analysis", "데이터 분석 도메인"),
-                ("visualization", "시각화 도메인")
+                ("information", "Information Search Domain"),
+                ("calculation", "Calculation Processing Domain"),
+                ("weather", "Weather Information Domain"),
+                ("productivity", "Productivity Tools Domain"),
+                ("analysis", "Data Analysis Domain"),
+                ("visualization", "Visualization Domain")
             ]
             
             for domain_id, description in domains:
@@ -2118,14 +2118,14 @@ class OntologySystem:
                     "domain_type": "system_domain"
                 })
             
-            # 3. 기본 능력들 추가
+            # 3. Add basic capabilities
             capabilities = [
-                ("search", "검색 능력"),
-                ("calculate", "계산 능력"),
-                ("analyze", "분석 능력"),
-                ("generate", "생성 능력"),
-                ("visualize", "시각화 능력"),
-                ("store", "저장 능력")
+                ("search", "Search Capability"),
+                ("calculate", "Calculation Capability"),
+                ("analyze", "Analysis Capability"),
+                ("generate", "Generation Capability"),
+                ("visualize", "Visualization Capability"),
+                ("store", "Storage Capability")
             ]
             
             for capability_id, description in capabilities:
@@ -2135,15 +2135,15 @@ class OntologySystem:
                     "capability_type": "system_capability"
                 })
             
-            # 4. 샘플 워크플로우 추가
+            # 4. Add sample workflow
             await self.knowledge_graph.add_concept("workflow_sample", "workflow", {
                 "workflow_id": "sample_workflow",
-                "description": "샘플 워크플로우",
+                "description": "Sample workflow",
                 "workflow_type": "demo",
                 "optimization_strategy": "balanced"
             })
             
-            # 5. 관계들 추가
+            # 5. Add relationships
             relationships = [
                 ("agent_internet_agent", "specializes_in_domain", "domain_information"),
                 ("agent_calculator_agent", "specializes_in_domain", "domain_calculation"),
@@ -2170,20 +2170,20 @@ class OntologySystem:
                     "context": "default_ontology"
                 })
             
-            logger.info(f"✅ 기본 온톨로지 데이터 생성 완료 - 노드: {self.knowledge_graph.graph.number_of_nodes()}개")
+            logger.info(f"✅ Basic ontology data generation complete - nodes: {self.knowledge_graph.graph.number_of_nodes()}")
             
         except Exception as e:
-            logger.error(f"기본 온톨로지 데이터 생성 실패: {e}")
+            logger.error(f"Basic ontology data generation failed: {e}")
 
     def _create_hardcoded_visualization_data(self) -> Dict[str, Any]:
-        """하드코딩된 시각화 데이터 생성 (폴백용)"""
-        logger.info("🎨 하드코딩된 시각화 데이터 생성")
+        """Generate hardcoded visualization data (for fallback)"""
+        logger.info("🎨 Generating hardcoded visualization data")
         
-        # 샘플 노드들
+        # Sample nodes
         nodes = [
             {
                 "id": "workflow_main",
-                "label": "🔄 메인 워크플로우",
+                "label": "🔄 Main Workflow",
                 "type": "workflow",
                 "size": 25,
                 "color": "#fdcb6e",
@@ -2195,7 +2195,7 @@ class OntologySystem:
             },
             {
                 "id": "agent_internet",
-                "label": "🌐 인터넷 에이전트",
+                "label": "🌐 Internet Agent",
                 "type": "agent",
                 "size": 20,
                 "color": "#fd79a8",
@@ -2207,7 +2207,7 @@ class OntologySystem:
             },
             {
                 "id": "agent_calculator",
-                "label": "🔢 계산 에이전트",
+                "label": "🔢 Calculator Agent",
                 "type": "agent",
                 "size": 18,
                 "color": "#fd79a8",
@@ -2219,7 +2219,7 @@ class OntologySystem:
             },
             {
                 "id": "agent_analysis",
-                "label": "📊 분석 에이전트",
+                "label": "📊 Analysis Agent",
                 "type": "agent",
                 "size": 19,
                 "color": "#fd79a8",
@@ -2231,7 +2231,7 @@ class OntologySystem:
             },
             {
                 "id": "domain_information",
-                "label": "📚 정보 도메인",
+                "label": "📚 Information Domain",
                 "type": "domain",
                 "size": 16,
                 "color": "#a29bfe",
@@ -2243,7 +2243,7 @@ class OntologySystem:
             },
             {
                 "id": "capability_search",
-                "label": "🔍 검색 능력",
+                "label": "🔍 Search Capability",
                 "type": "capability",
                 "size": 14,
                 "color": "#00cec9",
@@ -2255,7 +2255,7 @@ class OntologySystem:
             },
             {
                 "id": "task_data_collection",
-                "label": "📋 데이터 수집",
+                "label": "📋 Data Collection",
                 "type": "task",
                 "size": 17,
                 "color": "#74b9ff",
@@ -2267,7 +2267,7 @@ class OntologySystem:
             },
             {
                 "id": "result_analysis",
-                "label": "📈 분석 결과",
+                "label": "📈 Analysis Result",
                 "type": "result",
                 "size": 15,
                 "color": "#00b894",
@@ -2279,13 +2279,13 @@ class OntologySystem:
             }
         ]
         
-        # 샘플 엣지들
+        # Sample edges
         edges = [
             {
                 "id": "edge_1",
                 "source": "workflow_main",
                 "target": "agent_internet",
-                "label": "실행",
+                "label": "Execute",
                 "type": "execution",
                 "relationship_type": "executes_with",
                 "color": "#5fd2c9",
@@ -2299,7 +2299,7 @@ class OntologySystem:
                 "id": "edge_2",
                 "source": "workflow_main",
                 "target": "agent_calculator",
-                "label": "실행",
+                "label": "Execute",
                 "type": "execution",
                 "relationship_type": "executes_with",
                 "color": "#74b9ff",
@@ -2313,7 +2313,7 @@ class OntologySystem:
                 "id": "edge_3",
                 "source": "workflow_main",
                 "target": "agent_analysis",
-                "label": "실행",
+                "label": "Execute",
                 "type": "execution",
                 "relationship_type": "executes_with",
                 "color": "#fd79a8",
@@ -2327,7 +2327,7 @@ class OntologySystem:
                 "id": "edge_4",
                 "source": "agent_internet",
                 "target": "domain_information",
-                "label": "전문화",
+                "label": "Specialization",
                 "type": "specialization",
                 "relationship_type": "specializes_in",
                 "color": "#96CEB4",
@@ -2341,7 +2341,7 @@ class OntologySystem:
                 "id": "edge_5",
                 "source": "agent_internet",
                 "target": "capability_search",
-                "label": "능력",
+                "label": "Capability",
                 "type": "capability",
                 "relationship_type": "has_capability",
                 "color": "#00cec9",
@@ -2355,7 +2355,7 @@ class OntologySystem:
                 "id": "edge_6",
                 "source": "agent_internet",
                 "target": "task_data_collection",
-                "label": "생성",
+                "label": "Produce",
                 "type": "production",
                 "relationship_type": "produces",
                 "color": "#e17055",
@@ -2369,7 +2369,7 @@ class OntologySystem:
                 "id": "edge_7",
                 "source": "agent_analysis",
                 "target": "result_analysis",
-                "label": "생성",
+                "label": "Produce",
                 "type": "production",
                 "relationship_type": "produces",
                 "color": "#00b894",
@@ -2383,7 +2383,7 @@ class OntologySystem:
                 "id": "edge_8",
                 "source": "agent_internet",
                 "target": "agent_analysis",
-                "label": "협력",
+                "label": "Collaborate",
                 "type": "collaboration",
                 "relationship_type": "collaborated_with",
                 "color": "#a29bfe",
@@ -2395,7 +2395,7 @@ class OntologySystem:
             }
         ]
         
-        # 메타데이터
+        # Metadata
         metadata = {
             "total_nodes": len(nodes),
             "total_edges": len(edges),
@@ -2464,7 +2464,7 @@ class OntologySystem:
             "generated_at": datetime.now().isoformat(),
             "version": "2.0",
             "graph_type": "hardcoded_demo",
-            "description": "온톨로지 시스템 데모 그래프"
+            "description": "Ontology system demo graph"
         }
         
         return {
@@ -2474,12 +2474,12 @@ class OntologySystem:
         }
 
     def _create_fallback_visualization(self, error_message: str) -> Dict[str, Any]:
-        """폴백 시각화 생성"""
+        """Generate fallback visualization"""
         return {
             "nodes": [
                 {
                     "id": "error_node",
-                    "label": "⚠️ 오류 발생",
+                    "label": "⚠️ Error Occurred",
                     "type": "error",
                     "size": 20,
                     "color": "#E74C3C",
@@ -2488,7 +2488,7 @@ class OntologySystem:
             ],
             "edges": [],
             "metadata": {
-                "description": f"온톨로지 그래프 생성 오류: {error_message}",
+                "description": f"Ontology graph generation error: {error_message}",
                 "error": True,
                 "generated_at": datetime.now().isoformat(),
                 "graph_type": "error_fallback",
@@ -2498,67 +2498,67 @@ class OntologySystem:
         }
     
     async def close(self):
-        """시스템 종료"""
+        """System shutdown"""
         try:
-            logger.info("🔄 온톨로지 시스템 종료 중...")
+            logger.info("🔄 Shutting down ontology system...")
             
-            # 캐시 정리
+            # Clear cache
             await self.semantic_query_manager.invalidate_cache()
             
-            # 실행 기록 정리 (필요한 경우)
+            # Clear execution history (if needed)
             self.execution_history.clear()
             
-            logger.info("✅ 온톨로지 시스템 종료 완료")
+            logger.info("✅ Ontology system shutdown complete")
             
         except Exception as e:
-            logger.error(f"❌ 시스템 종료 실패: {e}")
+            logger.error(f"❌ System shutdown failed: {e}")
             raise
     
     def _extract_available_agents(self, execution_context: ExecutionContext = None) -> List[str]:
-        """실행 컨텍스트에서 사용 가능한 에이전트 목록 추출"""
+        """Extract available agent list from execution context"""
         try:
             if execution_context and hasattr(execution_context, 'custom_config'):
                 installed_agents = execution_context.custom_config.get('installed_agents', [])
                 
                 if installed_agents:
-                    # TaskAgent에서 전달된 설치된 에이전트 정보를 agent_id 목록으로 변환
+                    # Convert installed agent info passed from TaskAgent to agent_id list
                     agent_ids = []
                     for agent_info in installed_agents:
                         if isinstance(agent_info, dict):
                             agent_id = agent_info.get('agent_id')
                             if agent_id:
                                 agent_ids.append(agent_id)
-                                logger.debug(f"설치된 에이전트 추가: {agent_id}")
+                                logger.debug(f"Installed agent added: {agent_id}")
                     
                     if agent_ids:
-                        logger.info(f"🎯 사용자별 설치된 에이전트 {len(agent_ids)}개 발견: {agent_ids}")
+                        logger.info(f"🎯 Found {len(agent_ids)} user-installed agents: {agent_ids}")
                         return agent_ids
                     else:
-                        logger.warning("설치된 에이전트 정보가 있지만 agent_id를 추출할 수 없습니다.")
+                        logger.warning("Installed agent info exists but agent_id could not be extracted.")
                 else:
-                    logger.warning("execution_context에 installed_agents 정보가 없습니다.")
+                    logger.warning("No installed_agents info in execution_context.")
             else:
-                logger.warning("execution_context 또는 custom_config가 없습니다.")
+                logger.warning("execution_context or custom_config is missing.")
             
-            # 폴백: 기본 에이전트 목록 사용
-            logger.info("🔄 기본 에이전트 목록으로 폴백")
+            # Fallback: use default agent list
+            logger.info("🔄 Falling back to default agent list")
             return self.available_agents
             
         except Exception as e:
-            logger.error(f"설치된 에이전트 추출 실패: {e}")
-            # 폴백: 기본 에이전트 목록 사용
+            logger.error(f"Installed agent extraction failed: {e}")
+            # Fallback: use default agent list
             return self.available_agents
     
     def _extract_installed_agents_info(self, execution_context: ExecutionContext = None) -> List[Dict[str, Any]]:
-        """실행 컨텍스트에서 설치된 에이전트 정보 추출"""
+        """Extract installed agent info from execution context"""
         try:
             if execution_context and hasattr(execution_context, 'custom_config'):
                 installed_agents = execution_context.custom_config.get('installed_agents', [])
                 
                 if installed_agents:
-                    logger.info(f"🎯 설치된 에이전트 정보 추출: {len(installed_agents)}개")
+                    logger.info(f"🎯 Extracting installed agent info: {len(installed_agents)}")
                     
-                    # 각 에이전트 정보 상세 로깅
+                    # Detailed logging of each agent info
                     for i, agent_info in enumerate(installed_agents):
                         agent_id = agent_info.get('agent_id', 'Unknown')
                         agent_data = agent_info.get('agent_data', {})
@@ -2567,20 +2567,20 @@ class OntologySystem:
                         capabilities_count = len(agent_data.get('capabilities', []))
                         tags = agent_data.get('tags', [])
                         
-                        logger.info(f"  📋 에이전트 {i+1}: {agent_id}")
-                        logger.info(f"    - 이름: {agent_name}")
-                        logger.info(f"    - 타입: {agent_type}")
-                        logger.info(f"    - 능력 수: {capabilities_count}개")
-                        logger.info(f"    - 태그: {tags[:3]}{'...' if len(tags) > 3 else ''}")  # 처음 3개만 표시
+                        logger.info(f"  📋 Agent {i+1}: {agent_id}")
+                        logger.info(f"    - Name: {agent_name}")
+                        logger.info(f"    - Type: {agent_type}")
+                        logger.info(f"    - Capability count: {capabilities_count}")
+                        logger.info(f"    - Tags: {tags[:3]}{'...' if len(tags) > 3 else ''}")  # show only first 3
                     
                     return installed_agents
                 else:
-                    logger.warning("execution_context에 installed_agents 정보가 없습니다.")
+                    logger.warning("No installed_agents info in execution_context.")
             else:
-                logger.warning("execution_context 또는 custom_config가 없습니다.")
+                logger.warning("execution_context or custom_config is missing.")
             
             return []
             
         except Exception as e:
-            logger.error(f"설치된 에이전트 정보 추출 실패: {e}")
+            logger.error(f"Installed agent info extraction failed: {e}")
             return [] 

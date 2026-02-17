@@ -1,8 +1,8 @@
 """
 🧠 Knowledge Graph Management Module
-지식 그래프 관리 모듈
+Knowledge Graph Management Module
 
-온톨로지 지식 그래프 업데이트, 개념 추가, 관계 생성을 담당
+Responsible for ontology knowledge graph updates, concept addition, and relationship creation
 """
 
 import asyncio
@@ -16,70 +16,70 @@ from ..engines.knowledge_graph_clean import KnowledgeGraphEngine
 
 
 class KnowledgeGraphManager:
-    """🧠 지식 그래프 관리자 - 온톨로지 업데이트 및 개념 관리"""
+    """🧠 Knowledge Graph Manager - ontology updates and concept management"""
     
     def __init__(self, knowledge_graph: KnowledgeGraphEngine):
         self.knowledge_graph = knowledge_graph
         
-        logger.info("🧠 지식 그래프 관리자 초기화 완료")
+        logger.info("🧠 Knowledge graph manager initialized")
     
     async def update_knowledge_graph(self, 
                                    semantic_query: SemanticQuery,
                                    workflow_plan: WorkflowPlan,
                                    execution_results: List[AgentExecutionResult],
                                    integrated_result: Dict[str, Any]):
-        """메인 지식 그래프 업데이트 함수"""
+        """Main knowledge graph update function"""
         try:
-            logger.info("🧠 지식 그래프 업데이트 시작")
+            logger.info("🧠 Starting knowledge graph update")
             
-            # 워크플로우 ID 생성
+            # Generate workflow ID
             workflow_id = f"workflow_{workflow_plan.plan_id}"
             
-            # 1. 기본 온톨로지 개념 확보
+            # 1. Ensure basic ontology concepts
             await self._ensure_basic_ontology_concepts()
             
-            # 2. 워크플로우 개념 생성
+            # 2. Create workflow concept
             await self._create_workflow_concept(workflow_plan, workflow_id)
             
-            # 3. 도메인 및 개념 노드 생성
+            # 3. Create domain and concept nodes
             await self._create_domain_and_concept_nodes(semantic_query, execution_results, workflow_id)
             
-            # 4. 에이전트 협업 네트워크 생성
+            # 4. Create agent collaboration network
             await self._create_agent_collaboration_network(execution_results, workflow_id)
             
-            # 5. 지식 패턴 노드 생성
+            # 5. Create knowledge pattern nodes
             await self._create_knowledge_pattern_nodes(semantic_query, execution_results, integrated_result, workflow_id)
             
-            # 6. 관계 추가
+            # 6. Add relationships
             await self._add_relationships(semantic_query, execution_results, workflow_id)
             
-            logger.info("✅ 지식 그래프 업데이트 완료")
+            logger.info("✅ Knowledge graph update complete")
             
         except Exception as e:
-            logger.error(f"지식 그래프 업데이트 실패: {e}")
+            logger.error(f"Knowledge graph update failed: {e}")
     
     async def _ensure_basic_ontology_concepts(self):
-        """기본 온톨로지 개념 확보"""
+        """Ensure basic ontology concepts"""
         try:
             basic_concepts = [
-                ("concept", "concept", {"name": "개념", "description": "추상적 아이디어나 생각"}),
-                ("entity", "concept", {"name": "개체", "description": "구체적인 사물이나 객체"}),
-                ("agent", "concept", {"name": "에이전트", "description": "작업을 수행하는 주체"}),
-                ("workflow", "concept", {"name": "워크플로우", "description": "작업 흐름과 절차"}),
-                ("domain", "concept", {"name": "도메인", "description": "특정 지식 영역"}),
-                ("knowledge", "concept", {"name": "지식", "description": "축적된 정보와 경험"})
+                ("concept", "concept", {"name": "concept", "description": "Abstract ideas or thoughts"}),
+                ("entity", "concept", {"name": "entity", "description": "Concrete objects or entities"}),
+                ("agent", "concept", {"name": "agent", "description": "Entity that performs tasks"}),
+                ("workflow", "concept", {"name": "workflow", "description": "Task flow and procedures"}),
+                ("domain", "concept", {"name": "domain", "description": "Specific knowledge domain"}),
+                ("knowledge", "concept", {"name": "knowledge", "description": "Accumulated information and experience"})
             ]
             
             for concept_id, concept_type, attributes in basic_concepts:
                 await self.knowledge_graph.add_concept(concept_id, concept_type, attributes)
             
-            logger.info("✅ 기본 온톨로지 개념 확보 완료")
+            logger.info("✅ Basic ontology concepts ensured")
             
         except Exception as e:
-            logger.error(f"기본 온톨로지 개념 확보 실패: {e}")
+            logger.error(f"Failed to ensure basic ontology concepts: {e}")
     
     async def _create_workflow_concept(self, workflow_plan: WorkflowPlan, workflow_id: str):
-        """워크플로우 개념 생성"""
+        """Create workflow concept"""
         try:
             workflow_attributes = {
                 "optimization_strategy": getattr(workflow_plan.optimization_strategy, 'value', str(workflow_plan.optimization_strategy)),
@@ -92,18 +92,18 @@ class KnowledgeGraphManager:
             
             await self.knowledge_graph.add_concept(workflow_id, "workflow", workflow_attributes)
             
-            # 기본 워크플로우 개념과 연결
+            # Link to basic workflow concept
             await self.knowledge_graph.add_relationship(workflow_id, "workflow", "is_instance_of")
             
-            logger.info(f"✅ 워크플로우 개념 생성 완료: {workflow_id}")
+            logger.info(f"✅ Workflow concept created: {workflow_id}")
             
         except Exception as e:
-            logger.error(f"워크플로우 개념 생성 실패: {e}")
+            logger.error(f"Workflow concept creation failed: {e}")
     
     async def _create_domain_and_concept_nodes(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """도메인 및 개념 노드 생성"""
+        """Create domain and concept nodes"""
         try:
-            # 쿼리 의도를 기반으로 도메인 추론
+            # Infer domain based on query intent
             domain_mapping = {
                 "information_retrieval": "information_domain",
                 "data_analysis": "analysis_domain", 
@@ -114,7 +114,7 @@ class KnowledgeGraphManager:
             
             primary_domain = domain_mapping.get(semantic_query.intent, "general_domain")
             
-            # 도메인 노드 생성
+            # Create domain node
             domain_attributes = {
                 "domain_name": primary_domain.replace("_", " ").title(),
                 "query_intent": semantic_query.intent,
@@ -123,10 +123,10 @@ class KnowledgeGraphManager:
             
             await self.knowledge_graph.add_concept(primary_domain, "domain", domain_attributes)
             
-            # 워크플로우와 도메인 연결
+            # Link workflow and domain
             await self.knowledge_graph.add_relationship(workflow_id, primary_domain, "operates_in_domain")
             
-            # 엔티티들을 개념으로 추가
+            # Add entities as concepts
             for entity in semantic_query.entities:
                 entity_id = f"entity_{entity.lower().replace(' ', '_')}"
                 entity_attributes = {
@@ -139,7 +139,7 @@ class KnowledgeGraphManager:
                 await self.knowledge_graph.add_relationship(entity_id, primary_domain, "belongs_to_domain")
                 await self.knowledge_graph.add_relationship(workflow_id, entity_id, "processes_entity")
             
-            # 개념들을 추가
+            # Add concepts
             for concept in semantic_query.concepts:
                 concept_id = f"concept_{concept.lower().replace(' ', '_')}"
                 concept_attributes = {
@@ -152,15 +152,15 @@ class KnowledgeGraphManager:
                 await self.knowledge_graph.add_relationship(concept_id, primary_domain, "belongs_to_domain")
                 await self.knowledge_graph.add_relationship(workflow_id, concept_id, "involves_concept")
             
-            logger.info(f"✅ 도메인 및 개념 노드 생성 완료: {primary_domain}")
+            logger.info(f"✅ Domain and concept nodes created: {primary_domain}")
             
         except Exception as e:
-            logger.error(f"도메인 및 개념 노드 생성 실패: {e}")
+            logger.error(f"Domain and concept node creation failed: {e}")
     
     async def _create_agent_collaboration_network(self, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """에이전트 협업 네트워크 생성"""
+        """Create agent collaboration network"""
         try:
-            # 에이전트 노드들 생성
+            # Create agent nodes
             agent_ids = []
             for result in execution_results:
                 agent_attributes = {
@@ -174,7 +174,7 @@ class KnowledgeGraphManager:
                 await self.knowledge_graph.add_relationship(workflow_id, result.agent_id, "utilizes_agent")
                 agent_ids.append(result.agent_id)
             
-            # 에이전트 간 협업 관계 생성
+            # Create collaboration relationships between agents
             for i in range(len(agent_ids) - 1):
                 current_agent = agent_ids[i]
                 next_agent = agent_ids[i + 1]
@@ -184,15 +184,15 @@ class KnowledgeGraphManager:
                     {"collaboration_type": "sequential", "workflow_id": workflow_id}
                 )
             
-            logger.info(f"✅ 에이전트 협업 네트워크 생성 완료")
+            logger.info(f"✅ Agent collaboration network creation complete")
             
         except Exception as e:
-            logger.error(f"에이전트 협업 네트워크 생성 실패: {e}")
+            logger.error(f"Agent collaboration network creation failed: {e}")
     
     async def _create_knowledge_pattern_nodes(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult], integrated_result: Dict[str, Any], workflow_id: str):
-        """지식 패턴 노드 생성"""
+        """Create knowledge pattern nodes"""
         try:
-            # 실행 패턴 분석
+            # Analyze execution patterns
             agent_types = [getattr(r.agent_type, 'value', str(r.agent_type)) for r in execution_results]
             unique_agent_types = list(set(agent_types))
             
@@ -210,7 +210,7 @@ class KnowledgeGraphManager:
             await self.knowledge_graph.add_concept(pattern_id, "knowledge", pattern_attributes)
             await self.knowledge_graph.add_relationship(workflow_id, pattern_id, "generates_knowledge")
             
-            # 결과 유형별 지식 패턴
+            # Knowledge patterns by result type
             if integrated_result.get('components'):
                 for component_type, component_data in integrated_result['components'].items():
                     knowledge_id = f"knowledge_{workflow_id}_{component_type}"
@@ -223,15 +223,15 @@ class KnowledgeGraphManager:
                     await self.knowledge_graph.add_concept(knowledge_id, "knowledge", knowledge_attributes)
                     await self.knowledge_graph.add_relationship(pattern_id, knowledge_id, "contains_knowledge")
             
-            logger.info(f"✅ 지식 패턴 노드 생성 완료")
+            logger.info(f"✅ Knowledge pattern nodes creation complete")
             
         except Exception as e:
-            logger.error(f"지식 패턴 노드 생성 실패: {e}")
+            logger.error(f"Knowledge pattern node creation failed: {e}")
     
     async def _add_relationships(self, semantic_query: SemanticQuery, execution_results: List[AgentExecutionResult], workflow_id: str):
-        """추가 관계들 생성"""
+        """Create additional relationships"""
         try:
-            # 기본 관계들
+            # Basic relationships
             basic_relations = [
                 ("agent", "capability", "has"),
                 ("workflow", "task", "contains"),
@@ -242,7 +242,7 @@ class KnowledgeGraphManager:
             for subject, object_concept, predicate in basic_relations:
                 await self.knowledge_graph.add_relationship(subject, object_concept, predicate)
             
-            logger.info(f"✅ 추가 관계 생성 완료")
+            logger.info(f"✅ Additional relationship creation complete")
             
         except Exception as e:
-            logger.error(f"추가 관계 생성 실패: {e}") 
+            logger.error(f"Additional relationship creation failed: {e}") 

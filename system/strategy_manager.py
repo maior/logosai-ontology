@@ -1,6 +1,6 @@
 """
-🚀 온톨로지 시스템 전략 관리자
-실행 전략과 최적화 전략을 통합 관리하는 시스템
+🚀 Ontology System Strategy Manager
+System that integrally manages execution and optimization strategies
 """
 
 from enum import Enum
@@ -17,7 +17,7 @@ from core.models import ExecutionStrategy, OptimizationStrategy, WorkflowComplex
 
 @dataclass
 class StrategyAnalysisResult:
-    """전략 분석 결과"""
+    """Strategy analysis result"""
     execution_strategy: ExecutionStrategy
     optimization_strategy: OptimizationStrategy
     complexity_level: WorkflowComplexity
@@ -30,7 +30,7 @@ class StrategyAnalysisResult:
 
 
 class StrategyManager:
-    """전략 관리자 - 실행 및 최적화 전략 결정"""
+    """Strategy Manager - determines execution and optimization strategies"""
     
     def __init__(self):
         self.strategy_history = []
@@ -42,10 +42,10 @@ class StrategyManager:
         }
     
     def get_strategy_for_execution_plan(self, execution_plan: Dict[str, Any]) -> Tuple[ExecutionStrategy, OptimizationStrategy]:
-        """실행 계획을 바탕으로 전략 결정"""
+        """Determine strategy based on execution plan"""
         strategy_str = execution_plan.get('strategy', 'sequential')
         
-        # ExecutionStrategy 매핑
+        # ExecutionStrategy mapping
         execution_strategy_mapping = {
             'single_agent': ExecutionStrategy.SINGLE_AGENT,
             'parallel': ExecutionStrategy.PARALLEL,
@@ -55,7 +55,7 @@ class StrategyManager:
         
         execution_strategy = execution_strategy_mapping.get(strategy_str, ExecutionStrategy.SEQUENTIAL)
         
-        # OptimizationStrategy 매핑
+        # OptimizationStrategy mapping
         optimization_strategy_mapping = {
             ExecutionStrategy.SINGLE_AGENT: OptimizationStrategy.SPEED_FIRST,
             ExecutionStrategy.PARALLEL: OptimizationStrategy.BALANCED,
@@ -65,26 +65,26 @@ class StrategyManager:
         
         optimization_strategy = optimization_strategy_mapping.get(execution_strategy, OptimizationStrategy.BALANCED)
         
-        logger.info(f"🎯 전략 매핑 완료: {strategy_str} -> {execution_strategy.value} / {optimization_strategy.value}")
+        logger.info(f"🎯 Strategy mapping complete: {strategy_str} -> {execution_strategy.value} / {optimization_strategy.value}")
         
         return execution_strategy, optimization_strategy
     
     def analyze_query_complexity(self, query_text: str, agent_count: int = 1) -> Dict[str, Any]:
-        """쿼리 복잡도 분석"""
+        """Analyze query complexity"""
         query_lower = query_text.lower()
         
-        # 복잡도 지표 계산
+        # Calculate complexity indicators
         indicators = {
-            'has_multiple_tasks': any(word in query_lower for word in ['그리고', '또한', ',', '다음']),
-            'has_comparison': any(word in query_lower for word in ['비교', '차이', '대비', 'vs']),
-            'has_analysis': any(word in query_lower for word in ['분석', '평가', '검토', '조사']),
-            'has_calculation': any(word in query_lower for word in ['계산', '산출', '구하']),
-            'has_visualization': any(word in query_lower for word in ['차트', '그래프', '표', '그림']),
-            'has_time_dependency': any(word in query_lower for word in ['먼저', '다음', '그 후', '이후']),
+            'has_multiple_tasks': any(word in query_lower for word in ['그리고', '또한', ',', '다음']),  # and, also, next
+            'has_comparison': any(word in query_lower for word in ['비교', '차이', '대비', 'vs']),  # compare, difference, contrast
+            'has_analysis': any(word in query_lower for word in ['분석', '평가', '검토', '조사']),  # analysis, evaluation, review, investigation
+            'has_calculation': any(word in query_lower for word in ['계산', '산출', '구하']),  # calculate, compute, find
+            'has_visualization': any(word in query_lower for word in ['차트', '그래프', '표', '그림']),  # chart, graph, table, figure
+            'has_time_dependency': any(word in query_lower for word in ['먼저', '다음', '그 후', '이후']),  # first, next, after, then
             'word_count': len(query_text.split())
         }
         
-        # 복잡도 점수 계산
+        # Calculate complexity score
         complexity_score = 0.0
         complexity_score += 0.2 if indicators['has_multiple_tasks'] else 0.0
         complexity_score += 0.3 if indicators['has_comparison'] else 0.0
@@ -94,7 +94,7 @@ class StrategyManager:
         complexity_score += 0.2 if indicators['has_time_dependency'] else 0.0
         complexity_score += min(indicators['word_count'] / 50.0, 0.3)
         
-        # 권장 전략 결정
+        # Determine recommended strategy
         if complexity_score <= 0.3 or agent_count == 1:
             recommended_strategy = 'single_agent'
         elif indicators['has_time_dependency']:
@@ -115,7 +115,7 @@ class StrategyManager:
         }
     
     def _estimate_time_for_strategy(self, strategy: str, complexity_score: float) -> float:
-        """전략별 예상 시간 계산"""
+        """Calculate estimated time per strategy"""
         base_times = {
             'single_agent': 20.0,
             'sequential': 45.0,
@@ -129,7 +129,7 @@ class StrategyManager:
         return base_time * complexity_multiplier
     
     def get_strategy_recommendations(self, query_text: str, agent_count: int = 1) -> Dict[str, Any]:
-        """쿼리 텍스트를 기반으로 전략 추천"""
+        """Recommend strategy based on query text"""
         analysis = self.analyze_query_complexity(query_text, agent_count)
         
         strategy_str = analysis['recommended_strategy']
@@ -147,24 +147,24 @@ class StrategyManager:
         }
     
     def _generate_reasoning(self, strategy: str, indicators: Dict[str, Any]) -> str:
-        """전략 선택 이유 생성"""
+        """Generate strategy selection reasoning"""
         reasons = []
         
         if strategy == 'single_agent':
-            reasons.append("단순한 쿼리로 단일 에이전트 처리")
+            reasons.append("Simple query - single agent processing")
         elif strategy == 'parallel':
-            reasons.append("독립적인 다중 작업으로 병렬 처리")
+            reasons.append("Independent multi-tasks - parallel processing")
         elif strategy == 'sequential':
-            reasons.append("의존성 또는 복잡도로 인한 순차 처리")
+            reasons.append("Sequential processing due to dependencies or complexity")
         elif strategy == 'hybrid':
-            reasons.append("높은 복잡도로 하이브리드 전략")
+            reasons.append("High complexity - hybrid strategy")
         
         if indicators['has_comparison']:
-            reasons.append("비교 분석 필요")
+            reasons.append("Comparative analysis required")
         if indicators['has_time_dependency']:
-            reasons.append("시간적 의존성 존재")
+            reasons.append("Temporal dependency exists")
         if indicators['has_analysis']:
-            reasons.append("심층 분석 요구")
+            reasons.append("Deep analysis required")
         
         return " | ".join(reasons)
     
@@ -173,25 +173,25 @@ class StrategyManager:
                                  execution_time: float, 
                                  success: bool, 
                                  quality_score: float = None):
-        """성능 메트릭 업데이트"""
+        """Update performance metrics"""
         if strategy in self.performance_metrics:
             metrics = self.performance_metrics[strategy]
             
-            # 성공률 업데이트 (이동 평균)
+            # Update success rate (moving average)
             current_success_rate = metrics['success_rate']
             metrics['success_rate'] = (current_success_rate * 0.9 + (1.0 if success else 0.0) * 0.1)
             
-            # 평균 시간 업데이트
+            # Update average time
             current_avg_time = metrics['avg_time']
             metrics['avg_time'] = (current_avg_time * 0.9 + execution_time * 0.1)
             
-            # 품질 점수 업데이트
+            # Update quality score
             if quality_score is not None:
                 current_quality = metrics['quality']
                 metrics['quality'] = (current_quality * 0.9 + quality_score * 0.1)
     
     def get_performance_summary(self) -> Dict[str, Any]:
-        """성능 요약 정보"""
+        """Performance summary information"""
         return {
             'metrics': self.performance_metrics,
             'history_count': len(self.strategy_history),

@@ -62,79 +62,79 @@ class ProgressStreamer:
     DEFAULT_MESSAGES = {
         ProgressEventType.WORKFLOW_START: {
             "en": "Starting workflow execution",
-            "ko": "워크플로우 실행 시작"
+            "ko": "Starting workflow execution"
         },
         ProgressEventType.WORKFLOW_COMPLETE: {
             "en": "Workflow completed successfully",
-            "ko": "워크플로우 완료"
+            "ko": "Workflow completed successfully"
         },
         ProgressEventType.WORKFLOW_ERROR: {
             "en": "Workflow execution failed",
-            "ko": "워크플로우 실행 실패"
+            "ko": "Workflow execution failed"
         },
         ProgressEventType.PLANNING_START: {
             "en": "Analyzing query and creating execution plan",
-            "ko": "쿼리 분석 및 실행 계획 생성 중"
+            "ko": "Analyzing query and creating execution plan"
         },
         ProgressEventType.PLANNING_COMPLETE: {
             "en": "Execution plan created",
-            "ko": "실행 계획 생성 완료"
+            "ko": "Execution plan created"
         },
         ProgressEventType.VALIDATION_START: {
             "en": "Validating execution plan",
-            "ko": "실행 계획 검증 중"
+            "ko": "Validating execution plan"
         },
         ProgressEventType.VALIDATION_COMPLETE: {
             "en": "Execution plan validated",
-            "ko": "실행 계획 검증 완료"
+            "ko": "Execution plan validated"
         },
         ProgressEventType.STAGE_START: {
             "en": "Starting stage {stage_id}",
-            "ko": "스테이지 {stage_id} 시작"
+            "ko": "Starting stage {stage_id}"
         },
         ProgressEventType.STAGE_COMPLETE: {
             "en": "Stage {stage_id} completed",
-            "ko": "스테이지 {stage_id} 완료"
+            "ko": "Stage {stage_id} completed"
         },
         ProgressEventType.AGENT_QUEUED: {
             "en": "Agent '{agent_id}' queued for execution",
-            "ko": "에이전트 '{agent_id}' 실행 대기 중"
+            "ko": "Agent '{agent_id}' queued for execution"
         },
         ProgressEventType.AGENT_START: {
             "en": "Agent '{agent_id}' started processing",
-            "ko": "에이전트 '{agent_id}' 처리 시작"
+            "ko": "Agent '{agent_id}' started processing"
         },
         ProgressEventType.AGENT_PROGRESS: {
             "en": "Agent '{agent_id}' processing... {progress}%",
-            "ko": "에이전트 '{agent_id}' 처리 중... {progress}%"
+            "ko": "Agent '{agent_id}' processing... {progress}%"
         },
         ProgressEventType.AGENT_COMPLETE: {
             "en": "Agent '{agent_id}' completed",
-            "ko": "에이전트 '{agent_id}' 완료"
+            "ko": "Agent '{agent_id}' completed"
         },
         ProgressEventType.AGENT_ERROR: {
             "en": "Agent '{agent_id}' failed: {error}",
-            "ko": "에이전트 '{agent_id}' 실패: {error}"
+            "ko": "Agent '{agent_id}' failed: {error}"
         },
         ProgressEventType.AGENT_RETRY: {
             "en": "Retrying agent '{agent_id}' (attempt {retry})",
-            "ko": "에이전트 '{agent_id}' 재시도 중 ({retry}번째 시도)"
+            "ko": "Retrying agent '{agent_id}' (attempt {retry})"
         },
         ProgressEventType.TRANSFORM_START: {
             "en": "Transforming data from '{source}' to '{target}'",
-            "ko": "'{source}'에서 '{target}'로 데이터 변환 중"
+            "ko": "Transforming data from '{source}' to '{target}'"
         },
         ProgressEventType.TRANSFORM_COMPLETE: {
             "en": "Data transformation completed",
-            "ko": "데이터 변환 완료"
+            "ko": "Data transformation completed"
         },
         ProgressEventType.AGGREGATION_START: {
             "en": "Aggregating results",
-            "ko": "결과 통합 중"
+            "ko": "Aggregating results"
         },
         ProgressEventType.AGGREGATION_COMPLETE: {
             "en": "Results aggregated",
-            "ko": "결과 통합 완료"
+            "ko": "Results aggregated"
         },
     }
 
@@ -340,7 +340,7 @@ class ProgressStreamer:
             type=ProgressEventType.WORKFLOW_START,
             status=AgentStatus.RUNNING,
             message="Starting workflow execution",
-            message_ko="워크플로우 실행 시작",
+            message_ko="Starting workflow execution",
             data={"query": query},
             progress_percent=0.0,
         )
@@ -359,7 +359,7 @@ class ProgressStreamer:
             type=ProgressEventType.WORKFLOW_COMPLETE if success else ProgressEventType.WORKFLOW_ERROR,
             status=AgentStatus.COMPLETED if success else AgentStatus.FAILED,
             message="Workflow completed successfully" if success else f"Workflow failed: {error}",
-            message_ko="워크플로우 완료" if success else f"워크플로우 실패: {error}",
+            message_ko="Workflow completed successfully" if success else f"Workflow failed: {error}",
             data={"final_output": final_output} if final_output else None,
             progress_percent=100.0 if success else self._calculate_overall_progress(),
             elapsed_time_ms=elapsed,
@@ -374,7 +374,7 @@ class ProgressStreamer:
             type=ProgressEventType.PLANNING_START,
             status=AgentStatus.RUNNING,
             message="Analyzing query and creating execution plan",
-            message_ko="쿼리 분석 및 실행 계획 생성 중",
+            message_ko="Analyzing query and creating execution plan",
             data={"query": query[:200]},  # Truncate long queries
             progress_percent=5.0,
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -399,7 +399,7 @@ class ProgressStreamer:
             type=ProgressEventType.PLANNING_COMPLETE,
             status=AgentStatus.COMPLETED,
             message=f"Execution plan created: {plan.get_stage_count()} stages, {plan.get_total_agents()} agents",
-            message_ko=f"실행 계획 생성 완료: {plan.get_stage_count()}개 스테이지, {plan.get_total_agents()}개 에이전트",
+            message_ko=f"Execution plan created: {plan.get_stage_count()} stages, {plan.get_total_agents()} agents",
             data={
                 "workflow_strategy": plan.workflow_strategy,
                 "stage_count": plan.get_stage_count(),
@@ -418,7 +418,7 @@ class ProgressStreamer:
             type=ProgressEventType.PLANNING_ERROR,
             status=AgentStatus.FAILED,
             message=f"Failed to create execution plan: {error}",
-            message_ko=f"실행 계획 생성 실패: {error}",
+            message_ko=f"Failed to create execution plan: {error}",
             error=error,
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
@@ -430,7 +430,7 @@ class ProgressStreamer:
             type=ProgressEventType.VALIDATION_START,
             status=AgentStatus.RUNNING,
             message="Validating execution plan",
-            message_ko="실행 계획 검증 중",
+            message_ko="Validating execution plan",
             progress_percent=12.0,
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
@@ -442,7 +442,7 @@ class ProgressStreamer:
             type=ProgressEventType.VALIDATION_COMPLETE,
             status=AgentStatus.COMPLETED,
             message="Execution plan validated",
-            message_ko="실행 계획 검증 완료",
+            message_ko="Execution plan validated",
             progress_percent=15.0,
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
@@ -454,7 +454,7 @@ class ProgressStreamer:
             type=ProgressEventType.VALIDATION_ERROR,
             status=AgentStatus.FAILED,
             message=f"Plan validation failed: {len(errors)} errors",
-            message_ko=f"실행 계획 검증 실패: {len(errors)}개 오류",
+            message_ko=f"Plan validation failed: {len(errors)} errors",
             data={"validation_errors": errors},
             error="; ".join(errors),
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -481,7 +481,7 @@ class ProgressStreamer:
             stage_id=stage_id,
             status=AgentStatus.RUNNING,
             message=f"Starting stage {stage_id} ({execution_type}): {len(agent_ids)} agent(s)",
-            message_ko=f"스테이지 {stage_id} 시작 ({execution_type}): {len(agent_ids)}개 에이전트",
+            message_ko=f"Starting stage {stage_id} ({execution_type}): {len(agent_ids)} agent(s)",
             data={
                 "execution_type": execution_type,
                 "agents": agent_ids,
@@ -514,7 +514,7 @@ class ProgressStreamer:
             stage_id=stage_id,
             status=AgentStatus.COMPLETED if success else AgentStatus.FAILED,
             message=f"Stage {stage_id} completed ({results_count} results)",
-            message_ko=f"스테이지 {stage_id} 완료 ({results_count}개 결과)",
+            message_ko=f"Stage {stage_id} completed ({results_count} results)",
             data={"results_count": results_count},
             progress_percent=current_progress,
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -537,7 +537,7 @@ class ProgressStreamer:
             agent_id=agent_id,
             status=AgentStatus.QUEUED,
             message=f"Agent '{agent_id}' queued",
-            message_ko=f"에이전트 '{agent_id}' 대기 중",
+            message_ko=f"Agent '{agent_id}' queued",
             data={"sub_query": sub_query[:100]},
             display_name=display_name or agent_id,
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -561,7 +561,7 @@ class ProgressStreamer:
             agent_id=agent_id,
             status=AgentStatus.RUNNING,
             message=f"Agent '{agent_id}' started",
-            message_ko=f"에이전트 '{agent_id}' 시작",
+            message_ko=f"Agent '{agent_id}' started",
             data={"sub_query": sub_query[:100]},
             display_name=display_name or agent_id,
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -582,7 +582,7 @@ class ProgressStreamer:
             agent_id=agent_id,
             status=AgentStatus.RUNNING,
             message=message or f"Agent '{agent_id}' processing... {progress_percent:.0f}%",
-            message_ko=message or f"에이전트 '{agent_id}' 처리 중... {progress_percent:.0f}%",
+            message_ko=message or f"Agent '{agent_id}' processing... {progress_percent:.0f}%",
             progress_percent=progress_percent,
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
@@ -605,11 +605,11 @@ class ProgressStreamer:
         if agent_id in self._agent_start_times:
             agent_elapsed = (time.time() - self._agent_start_times[agent_id]) * 1000
 
-        # data에 preview와 full_result 모두 포함
+        # Include both preview and full_result in data
         event_data = {
             "result_preview": result_preview[:200] if result_preview else None,
         }
-        # full_result가 있으면 포함 (프론트엔드에서 전체 결과 사용 가능)
+        # Include full_result if available (allows frontend to access complete result)
         if full_result is not None:
             event_data["full_result"] = full_result
 
@@ -619,7 +619,7 @@ class ProgressStreamer:
             agent_id=agent_id,
             status=AgentStatus.COMPLETED if success else AgentStatus.FAILED,
             message=f"Agent '{agent_id}' completed in {agent_elapsed:.0f}ms" if success else f"Agent '{agent_id}' failed: {error}",
-            message_ko=f"에이전트 '{agent_id}' 완료 ({agent_elapsed:.0f}ms)" if success else f"에이전트 '{agent_id}' 실패: {error}",
+            message_ko=f"Agent '{agent_id}' completed in {agent_elapsed:.0f}ms" if success else f"Agent '{agent_id}' failed: {error}",
             data=event_data,
             progress_percent=self._calculate_overall_progress(),
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -643,7 +643,7 @@ class ProgressStreamer:
             agent_id=agent_id,
             status=AgentStatus.RETRYING,
             message=f"Retrying agent '{agent_id}' (attempt {retry_count}): {reason}",
-            message_ko=f"에이전트 '{agent_id}' 재시도 ({retry_count}번째): {reason}",
+            message_ko=f"Retrying agent '{agent_id}' (attempt {retry_count}): {reason}",
             data={"retry_count": retry_count, "reason": reason},
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
@@ -659,7 +659,7 @@ class ProgressStreamer:
             type=ProgressEventType.TRANSFORM_START,
             status=AgentStatus.RUNNING,
             message=f"Transforming data from '{source_agent}' to '{target_agent}'",
-            message_ko=f"'{source_agent}'에서 '{target_agent}'로 데이터 변환 중",
+            message_ko=f"Transforming data from '{source_agent}' to '{target_agent}'",
             data={"source": source_agent, "target": target_agent},
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
@@ -676,7 +676,7 @@ class ProgressStreamer:
             type=ProgressEventType.TRANSFORM_COMPLETE if success else ProgressEventType.TRANSFORM_ERROR,
             status=AgentStatus.COMPLETED if success else AgentStatus.FAILED,
             message="Data transformation completed" if success else "Data transformation failed",
-            message_ko="데이터 변환 완료" if success else "데이터 변환 실패",
+            message_ko="Data transformation completed" if success else "Data transformation failed",
             elapsed_time_ms=self._calculate_elapsed_time(),
         )
         await self.emit(event)
@@ -687,7 +687,7 @@ class ProgressStreamer:
             type=ProgressEventType.AGGREGATION_START,
             status=AgentStatus.RUNNING,
             message=f"Aggregating results ({aggregation_type})",
-            message_ko=f"결과 통합 중 ({aggregation_type})",
+            message_ko=f"Aggregating results ({aggregation_type})",
             data={"aggregation_type": aggregation_type},
             progress_percent=95.0,
             elapsed_time_ms=self._calculate_elapsed_time(),
@@ -700,7 +700,7 @@ class ProgressStreamer:
             type=ProgressEventType.AGGREGATION_COMPLETE,
             status=AgentStatus.COMPLETED,
             message=f"Results aggregated ({result_type})",
-            message_ko=f"결과 통합 완료 ({result_type})",
+            message_ko=f"Results aggregated ({result_type})",
             progress_percent=98.0,
             elapsed_time_ms=self._calculate_elapsed_time(),
         )

@@ -1,6 +1,6 @@
 """
 🧠 Core Interfaces
-핵심 인터페이스 정의
+Core interface definitions
 """
 
 from abc import ABC, abstractmethod
@@ -19,26 +19,26 @@ from .models import (
 
 
 class QueryAnalyzer(ABC):
-    """쿼리 분석기 인터페이스"""
+    """Query analyzer interface"""
     
     @abstractmethod
     async def analyze_query(self, query_text: str, context: Dict[str, Any] = None) -> SemanticQuery:
-        """쿼리 분석 및 SemanticQuery 객체 생성"""
+        """Analyze query and create SemanticQuery object"""
         pass
     
     @abstractmethod
     def estimate_complexity(self, query: SemanticQuery) -> float:
-        """쿼리 복잡도 추정 (0.0 ~ 1.0)"""
+        """Estimate query complexity (0.0 ~ 1.0)"""
         pass
     
     @abstractmethod
     def suggest_agents(self, query: SemanticQuery) -> List[AgentType]:
-        """쿼리에 적합한 에이전트 추천"""
+        """Recommend agents suitable for the query"""
         pass
 
 
 class ExecutionEngine(ABC):
-    """실행 엔진 인터페이스"""
+    """Execution engine interface"""
     
     @abstractmethod
     async def execute_query(
@@ -46,12 +46,12 @@ class ExecutionEngine(ABC):
         query: SemanticQuery, 
         context: ExecutionContext
     ) -> List[AgentExecutionResult]:
-        """쿼리 실행"""
+        """Execute query"""
         pass
     
     @abstractmethod
     def get_supported_strategies(self) -> List[ExecutionStrategy]:
-        """지원하는 실행 전략 목록"""
+        """List of supported execution strategies"""
         pass
     
     @abstractmethod
@@ -60,12 +60,12 @@ class ExecutionEngine(ABC):
         query: SemanticQuery, 
         strategy: ExecutionStrategy
     ) -> float:
-        """실행 시간 추정"""
+        """Estimate execution time"""
         pass
 
 
 class DataTransformer(ABC):
-    """데이터 변환기 인터페이스"""
+    """Data transformer interface"""
     
     @abstractmethod
     async def transform_input(
@@ -74,7 +74,7 @@ class DataTransformer(ABC):
         source_agent: AgentType, 
         target_agent: AgentType
     ) -> Any:
-        """입력 데이터 변환"""
+        """Transform input data"""
         pass
     
     @abstractmethod
@@ -83,33 +83,33 @@ class DataTransformer(ABC):
         result: AgentExecutionResult, 
         target_format: str
     ) -> Any:
-        """출력 데이터 변환"""
+        """Transform output data"""
         pass
     
     @abstractmethod
     def get_supported_transformations(self) -> Dict[str, List[str]]:
-        """지원하는 변환 목록"""
+        """List of supported transformations"""
         pass
 
 
 class ResultProcessor(ABC):
-    """결과 처리기 인터페이스"""
+    """Result processor interface"""
     
     @abstractmethod
     async def process_results(self, 
                             results: List[AgentExecutionResult],
                             context: ExecutionContext) -> Dict[str, Any]:
-        """결과 처리"""
+        """Process results"""
         pass
     
     @abstractmethod
     def validate_result(self, result: AgentExecutionResult) -> bool:
-        """결과 유효성 검증"""
+        """Validate result"""
         pass
 
 
 class WorkflowDesigner(ABC):
-    """워크플로우 설계자 인터페이스"""
+    """Workflow designer interface"""
     
     @abstractmethod
     async def design_workflow(
@@ -117,80 +117,80 @@ class WorkflowDesigner(ABC):
         query: SemanticQuery, 
         context: ExecutionContext
     ) -> WorkflowPlan:
-        """워크플로우 설계"""
+        """Design workflow"""
         pass
     
     @abstractmethod
     async def optimize_workflow(self, plan: WorkflowPlan) -> WorkflowPlan:
-        """워크플로우 최적화"""
+        """Optimize workflow"""
         pass
     
     @abstractmethod
     def validate_workflow(self, plan: WorkflowPlan) -> bool:
-        """워크플로우 유효성 검증"""
+        """Validate workflow"""
         pass
 
 
 class CacheManager(ABC):
-    """캐시 관리자 인터페이스"""
+    """Cache manager interface"""
     
     @abstractmethod
     async def get(self, key: str) -> Optional[Any]:
-        """캐시에서 값 조회"""
+        """Retrieve value from cache"""
         pass
     
     @abstractmethod
     async def set(self, key: str, value: Any, ttl: int = None) -> bool:
-        """캐시에 값 저장"""
+        """Store value in cache"""
         pass
     
     @abstractmethod
     async def delete(self, key: str) -> bool:
-        """캐시에서 값 삭제"""
+        """Delete value from cache"""
         pass
     
     @abstractmethod
     async def clear(self) -> bool:
-        """캐시 전체 삭제"""
+        """Clear all cache entries"""
         pass
     
     @abstractmethod
     def get_stats(self) -> Dict[str, Any]:
-        """캐시 통계 정보"""
+        """Cache statistics"""
         pass
 
 
 class KnowledgeGraph(ABC):
-    """지식 그래프 인터페이스"""
+    """Knowledge graph interface"""
     
     @abstractmethod
     async def add_concept(self, concept: str, properties: Dict[str, Any] = None):
-        """개념 추가"""
+        """Add concept"""
         pass
     
     @abstractmethod
     async def add_relation(self, source: str, target: str, relation_type: str, properties: Dict[str, Any] = None):
-        """관계 추가"""
+        """Add relationship"""
         pass
     
     @abstractmethod
     async def query_graph(self, query: str) -> List[Dict[str, Any]]:
-        """그래프 쿼리"""
+        """Query the graph"""
         pass
     
     @abstractmethod
     async def find_related_concepts(self, concept: str, max_depth: int = 2) -> List[str]:
-        """관련 개념 찾기"""
+        """Find related concepts"""
         pass
     
     @abstractmethod
     def visualize_graph(self, output_path: str = None) -> str:
-        """그래프 시각화"""
+        """Visualize graph"""
         pass
 
 
 class AgentCaller(ABC):
-    """에이전트 호출자 인터페이스"""
+    """Agent caller interface"""
     
     @abstractmethod
     async def call_agent(
@@ -199,7 +199,7 @@ class AgentCaller(ABC):
         query: SemanticQuery, 
         context: ExecutionContext
     ) -> AgentExecutionResult:
-        """단일 에이전트 호출"""
+        """Call a single agent"""
         pass
     
     @abstractmethod
@@ -207,36 +207,36 @@ class AgentCaller(ABC):
         self, 
         agent_calls: List[Dict[str, Any]]
     ) -> List[AgentExecutionResult]:
-        """병렬 에이전트 호출"""
+        """Call agents in parallel"""
         pass
     
     @abstractmethod
     def get_agent_status(self, agent_type: AgentType) -> Dict[str, Any]:
-        """에이전트 상태 조회"""
+        """Get agent status"""
         pass
 
 
 class ProgressCallback(ABC):
-    """진행 상황 콜백 인터페이스"""
+    """Progress callback interface"""
     
     @abstractmethod
     async def on_progress(self, message: str, progress: float, metadata: Dict[str, Any] = None):
-        """진행 상황 업데이트"""
+        """Update progress"""
         pass
     
     @abstractmethod
     async def on_step_complete(self, step_id: str, result: AgentExecutionResult):
-        """단계 완료 알림"""
+        """Notify step completion"""
         pass
     
     @abstractmethod
     async def on_error(self, error_message: str, error_details: Dict[str, Any] = None):
-        """오류 발생 알림"""
+        """Notify error occurrence"""
         pass
 
 
 class SystemMonitor(ABC):
-    """시스템 모니터 인터페이스"""
+    """System monitor interface"""
     
     @abstractmethod
     def record_execution(self, 
@@ -244,27 +244,27 @@ class SystemMonitor(ABC):
                         execution_time: float, 
                         success: bool, 
                         metadata: Dict[str, Any] = None):
-        """실행 기록"""
+        """Record execution"""
         pass
     
     @abstractmethod
     def record_cache_access(self, hit: bool, key: str = None):
-        """캐시 접근 기록"""
+        """Record cache access"""
         pass
     
     @abstractmethod
     def get_system_health(self) -> Dict[str, Any]:
-        """시스템 상태 조회"""
+        """Get system health"""
         pass
     
     @abstractmethod
     def get_performance_metrics(self) -> Dict[str, Any]:
-        """성능 메트릭스 조회"""
+        """Get performance metrics"""
         pass
 
 
 class MetricsCollector(ABC):
-    """메트릭 수집기 인터페이스"""
+    """Metrics collector interface"""
     
     @abstractmethod
     def record_query_execution(
@@ -273,136 +273,136 @@ class MetricsCollector(ABC):
         execution_time: float, 
         success: bool
     ):
-        """쿼리 실행 기록"""
+        """Record query execution"""
         pass
     
     @abstractmethod
     def record_cache_access(self, hit: bool):
-        """캐시 접근 기록"""
+        """Record cache access"""
         pass
     
     @abstractmethod
     def record_duplicate_prevention(self):
-        """중복 호출 방지 기록"""
+        """Record duplicate call prevention"""
         pass
     
     @abstractmethod
     def get_metrics(self) -> SystemMetrics:
-        """메트릭 조회"""
+        """Get metrics"""
         pass
     
     @abstractmethod
     async def export_metrics(self, format: str = "json") -> str:
-        """메트릭 내보내기"""
+        """Export metrics"""
         pass
 
 
 class EventListener(ABC):
-    """이벤트 리스너 인터페이스"""
+    """Event listener interface"""
     
     @abstractmethod
     async def on_query_start(self, query: SemanticQuery, context: ExecutionContext):
-        """쿼리 시작 이벤트"""
+        """Query start event"""
         pass
     
     @abstractmethod
     async def on_query_complete(self, query: SemanticQuery, results: List[AgentExecutionResult]):
-        """쿼리 완료 이벤트"""
+        """Query complete event"""
         pass
     
     @abstractmethod
     async def on_agent_call(self, agent_type: AgentType, query: SemanticQuery):
-        """에이전트 호출 이벤트"""
+        """Agent call event"""
         pass
     
     @abstractmethod
     async def on_cache_hit(self, key: str):
-        """캐시 히트 이벤트"""
+        """Cache hit event"""
         pass
     
     @abstractmethod
     async def on_error(self, error: Exception, context: Dict[str, Any]):
-        """오류 이벤트"""
+        """Error event"""
         pass
 
 
 class ConfigurationManager(ABC):
-    """설정 관리자 인터페이스"""
+    """Configuration manager interface"""
     
     @abstractmethod
     def get_config(self, key: str, default: Any = None) -> Any:
-        """설정 값 조회"""
+        """Get configuration value"""
         pass
     
     @abstractmethod
     def set_config(self, key: str, value: Any) -> bool:
-        """설정 값 저장"""
+        """Save configuration value"""
         pass
     
     @abstractmethod
     def load_config_file(self, file_path: str) -> bool:
-        """설정 파일 로드"""
+        """Load configuration file"""
         pass
     
     @abstractmethod
     def save_config_file(self, file_path: str) -> bool:
-        """설정 파일 저장"""
+        """Save configuration file"""
         pass
     
     @abstractmethod
     def get_all_configs(self) -> Dict[str, Any]:
-        """모든 설정 조회"""
+        """Get all configurations"""
         pass
 
 
 class HealthChecker(ABC):
-    """헬스 체커 인터페이스"""
+    """Health checker interface"""
     
     @abstractmethod
     async def check_system_health(self) -> Dict[str, Any]:
-        """시스템 전체 헬스 체크"""
+        """Check overall system health"""
         pass
     
     @abstractmethod
     async def check_agent_health(self, agent_type: AgentType) -> Dict[str, Any]:
-        """특정 에이전트 헬스 체크"""
+        """Check specific agent health"""
         pass
     
     @abstractmethod
     async def check_cache_health(self) -> Dict[str, Any]:
-        """캐시 시스템 헬스 체크"""
+        """Check cache system health"""
         pass
     
     @abstractmethod
     def get_health_status(self) -> str:
-        """전체 헬스 상태 (healthy/degraded/unhealthy)"""
+        """Overall health status (healthy/degraded/unhealthy)"""
         pass
 
 
 class ProgressTracker(ABC):
-    """진행 상황 추적기 인터페이스"""
+    """Progress tracker interface"""
     
     @abstractmethod
     async def start_tracking(self, session_id: str, total_steps: int):
-        """추적 시작"""
+        """Start tracking"""
         pass
     
     @abstractmethod
     async def update_progress(self, session_id: str, completed_steps: int, message: str = None):
-        """진행 상황 업데이트"""
+        """Update progress"""
         pass
     
     @abstractmethod
     async def complete_tracking(self, session_id: str, success: bool = True):
-        """추적 완료"""
+        """Complete tracking"""
         pass
     
     @abstractmethod
     def get_progress(self, session_id: str) -> Dict[str, Any]:
-        """진행 상황 조회"""
+        """Get progress status"""
         pass
     
     @abstractmethod
     async def subscribe_progress(self, session_id: str) -> AsyncIterator[Dict[str, Any]]:
-        """진행 상황 구독 (실시간 업데이트)"""
+        """Subscribe to progress updates (real-time)"""
         pass 

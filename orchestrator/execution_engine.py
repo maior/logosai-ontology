@@ -440,7 +440,7 @@ class ExecutionEngine:
                         stage_id=stage_id,
                         success=True,
                         result_preview=result_preview,
-                        full_result=result,  # 전체 결과도 전달
+                        full_result=result,  # Pass full result as well
                     )
 
                 return agent_result
@@ -505,7 +505,7 @@ class ExecutionEngine:
         exec_context = context.copy() if context else {}
         exec_context["input_data"] = input_data
 
-        # 🔥 이전 단계의 결과를 sub_query에 포함하여 에이전트가 활용할 수 있도록 함
+        # 🔥 Include the previous stage result in sub_query so the agent can utilize it
         enriched_query = self._enrich_query_with_input(sub_query, input_data, agent_id)
 
         # Call executor
@@ -515,16 +515,16 @@ class ExecutionEngine:
 
     def _extract_core_result(self, data: Any, depth: int = 0) -> str:
         """
-        중첩된 데이터에서 핵심 결과(answer, result, content)를 재귀적으로 추출.
+        Recursively extract core result (answer, result, content) from nested data.
 
         Args:
-            data: 추출할 데이터
-            depth: 재귀 깊이 (무한 재귀 방지)
+            data: Data to extract from
+            depth: Recursion depth (to prevent infinite recursion)
 
         Returns:
-            핵심 결과 문자열 또는 빈 문자열
+            Core result string or empty string
         """
-        if depth > 5:  # 무한 재귀 방지
+        if depth > 5:  # Prevent infinite recursion
             return ""
 
         if data is None:
@@ -537,14 +537,14 @@ class ExecutionEngine:
             return str(data)
 
         if isinstance(data, dict):
-            # 1. 직접 answer 필드 확인
+            # 1. Check for direct answer field
             if "answer" in data:
                 answer = data["answer"]
                 if isinstance(answer, str):
                     return answer
                 return self._extract_core_result(answer, depth + 1)
 
-            # 2. result 필드 확인 (중첩 가능)
+            # 2. Check for result field (may be nested)
             if "result" in data:
                 result = data["result"]
                 if isinstance(result, str):
@@ -553,27 +553,27 @@ class ExecutionEngine:
                 if extracted:
                     return extracted
 
-            # 3. content 필드 확인
+            # 3. Check for content field
             if "content" in data:
                 content = data["content"]
                 if isinstance(content, str):
                     return content
                 return self._extract_core_result(content, depth + 1)
 
-            # 4. data 필드 확인 (중첩 가능)
+            # 4. Check for data field (may be nested)
             if "data" in data:
                 inner_data = data["data"]
                 extracted = self._extract_core_result(inner_data, depth + 1)
                 if extracted:
                     return extracted
 
-            # 5. text 필드 확인
+            # 5. Check for text field
             if "text" in data:
                 text = data["text"]
                 if isinstance(text, str):
                     return text
 
-            # 6. 없으면 전체 JSON으로 변환
+            # 6. Fall back to full JSON conversion
             try:
                 return json.dumps(data, ensure_ascii=False, indent=2)
             except:
@@ -596,26 +596,26 @@ class ExecutionEngine:
         agent_id: str,
     ) -> str:
         """
-        이전 단계 결과를 sub_query에 통합.
+        Integrate the previous stage result into sub_query.
 
-        추상적인 sub_query (예: "계산 결과를 전달")를
-        실제 데이터가 포함된 구체적인 쿼리로 변환합니다.
+        Converts an abstract sub_query (e.g. "deliver the calculation result")
+        into a concrete query containing the actual data.
         """
         if input_data is None:
             return sub_query
 
-        # input_data에서 핵심 결과 추출
+        # Extract core result from input_data
         input_str = self._extract_core_result(input_data)
 
         if not input_str:
             return sub_query
 
-        # 너무 긴 경우 잘라냄
+        # Truncate if too long
         max_input_len = 2000
         if len(input_str) > max_input_len:
-            input_str = input_str[:max_input_len] + "... (생략)"
+            input_str = input_str[:max_input_len] + "... (truncated)"
 
-        # 쿼리 구성
+        # Build enriched query
         enriched_query = f"""[이전 단계 결과]
 {input_str}
 
@@ -626,7 +626,7 @@ class ExecutionEngine:
 
         logger.info(
             f"[ExecutionEngine] Enriched query for {agent_id}: "
-            f"input_data 길이={len(input_str)}, 원래 쿼리='{sub_query[:50]}...'"
+            f"input_data length={len(input_str)}, original query='{sub_query[:50]}...'"
         )
 
         return enriched_query
