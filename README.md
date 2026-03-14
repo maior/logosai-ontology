@@ -225,9 +225,18 @@ providers:
 
 The Ontology System integrates with:
 - **ACP Server** (port 8888) -- Executes selected agents
-- **Django Backend** (port 8080) -- Receives user queries
-- **FORGE AI** (port 8030) -- Generates new agents when needed
+- **logos_api** ([logosai-api](https://github.com/maior/logosai-api)) -- FastAPI backend
+- **logos_web** ([logosai-web](https://github.com/maior/logosai-web)) -- Next.js frontend
+- **logosai** ([logosai-framework](https://github.com/maior/logosai-framework)) -- Agent SDK & runtime
 - **Knowledge Graph** -- Stores and retrieves learned patterns
+
+### Related Repositories
+
+| Repository | Description | URL |
+|-----------|-------------|-----|
+| **logosai-framework** | Python SDK for building agents | [github.com/maior/logosai-framework](https://github.com/maior/logosai-framework) |
+| **logosai-api** | FastAPI backend server | [github.com/maior/logosai-api](https://github.com/maior/logosai-api) |
+| **logosai-web** | Next.js frontend | [github.com/maior/logosai-web](https://github.com/maior/logosai-web) |
 
 ## Technology Stack
 
