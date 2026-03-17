@@ -3,9 +3,12 @@ Ontology Knowledge Graph Engine - Clean Integrated Version
 
 Integrated knowledge graph engine leveraging the new split engines.
 """
+import json
+import os
 import networkx as nx
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Any, Optional, Set, Tuple
 from loguru import logger
 
@@ -14,6 +17,8 @@ from ..core.interfaces import KnowledgeGraph
 from ..core.llm_manager import get_ontology_llm_manager, OntologyLLMType
 from .graph.graph_engine import GraphEngine
 from .graph.visualization_engine import VisualizationEngine
+
+_DEFAULT_DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 class KnowledgeGraphEngine(KnowledgeGraph):
@@ -619,6 +624,96 @@ class KnowledgeGraphEngine(KnowledgeGraph):
     def _update_metadata(self):
         """Update metadata"""
         self.metadata["last_updated"] = datetime.now().isoformat()
+
+    # ─── Persistence ────────────────────────────────────────────────
+
+    def save_to_disk(self, path: Optional[str] = None) -> bool:
+        """Save the knowledge graph to disk as JSON.
+
+        Uses nx.node_link_data() for serialization and atomic write
+        (.tmp → rename) for crash safety.
+        """
+        try:
+            save_path = Path(path) if path else _DEFAULT_DATA_DIR / "kg_checkpoint.json"
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+
+            graph_data = nx.node_link_data(self.graph_engine.graph)
+
+            checkpoint = {
+                "graph": graph_data,
+                "metadata": self.metadata,
+                "saved_at": datetime.now().isoformat(),
+                "version": "2.0",
+            }
+
+            tmp_path = save_path.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(checkpoint, f, ensure_ascii=False, default=str)
+            os.replace(str(tmp_path), str(save_path))
+
+            node_count = self.graph_engine.graph.number_of_nodes()
+            edge_count = self.graph_engine.graph.number_of_edges()
+            logger.info(f"💾 KG checkpoint saved: {node_count} nodes, {edge_count} edges → {save_path}")
+            return True
+        except Exception as e:
+            logger.error(f"KG checkpoint save failed: {e}")
+            return False
+
+    def load_from_disk(self, path: Optional[str] = None) -> bool:
+        """Load the knowledge graph from a JSON checkpoint.
+
+        Uses nx.node_link_graph() and re-syncs the visualization engine.
+        """
+        try:
+            load_path = Path(path) if path else _DEFAULT_DATA_DIR / "kg_checkpoint.json"
+            if not load_path.exists():
+                logger.info(f"No KG checkpoint found at {load_path} — starting fresh")
+                return False
+
+            with open(load_path, "r", encoding="utf-8") as f:
+                checkpoint = json.load(f)
+
+            graph_data = checkpoint.get("graph")
+            if not graph_data:
+                logger.warning("KG checkpoint has no graph data")
+                return False
+
+            restored_graph = nx.node_link_graph(graph_data, directed=True, multigraph=True)
+            self.graph_engine.graph = restored_graph
+            self.visualization_engine.graph = restored_graph
+
+            saved_metadata = checkpoint.get("metadata", {})
+            if saved_metadata:
+                self.metadata.update(saved_metadata)
+            self.metadata["last_loaded"] = datetime.now().isoformat()
+
+            node_count = restored_graph.number_of_nodes()
+            edge_count = restored_graph.number_of_edges()
+            logger.info(f"📂 KG checkpoint loaded: {node_count} nodes, {edge_count} edges ← {load_path}")
+            return True
+        except Exception as e:
+            logger.error(f"KG checkpoint load failed: {e}")
+            return False
+
+
+# ─── Module-level singleton ─────────────────────────────────────────
+
+_knowledge_graph_engine_instance: Optional[KnowledgeGraphEngine] = None
+
+
+def get_knowledge_graph_engine() -> KnowledgeGraphEngine:
+    """Return the shared KnowledgeGraphEngine singleton.
+
+    On first call, creates the instance and loads the latest checkpoint
+    from disk (if any). All components should use this instead of
+    creating their own KnowledgeGraphEngine.
+    """
+    global _knowledge_graph_engine_instance
+    if _knowledge_graph_engine_instance is None:
+        _knowledge_graph_engine_instance = KnowledgeGraphEngine(fast_mode=True)
+        _knowledge_graph_engine_instance.load_from_disk()
+        logger.info("🧠 KG singleton initialized (with checkpoint load attempt)")
+    return _knowledge_graph_engine_instance
 
 
 logger.info("🧠 Integrated ontology knowledge graph engine loaded!")

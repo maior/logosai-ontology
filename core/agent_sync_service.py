@@ -69,12 +69,12 @@ class AgentSyncService:
 
     @property
     def knowledge_graph(self):
-        """Lazy-load knowledge graph"""
+        """Lazy-load knowledge graph — uses shared singleton"""
         if self._knowledge_graph is None:
             try:
-                from ..engines.knowledge_graph_clean import KnowledgeGraphEngine
-                self._knowledge_graph = KnowledgeGraphEngine(fast_mode=True)
-                logger.info("📊 Knowledge graph engine loaded")
+                from ..engines.knowledge_graph_clean import get_knowledge_graph_engine
+                self._knowledge_graph = get_knowledge_graph_engine()
+                logger.info("📊 Knowledge graph engine loaded (shared singleton)")
             except Exception as e:
                 logger.warning(f"⚠️ Knowledge graph load failed: {e}")
         return self._knowledge_graph

@@ -95,3 +95,7 @@ ehthumbs.db
 # Others
 *.tmp
 
+# KG checkpoints and selector stats (runtime data, not tracked)
+data/*.json
+data/*.pkl
+

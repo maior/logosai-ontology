@@ -38,6 +38,7 @@ import asyncio
 import json
 import math
 import re
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
@@ -99,6 +100,10 @@ class HybridAgentSelector:
             "time_decay_applied": 0
         }
 
+        # v3.0: History buffers for dashboard visualization
+        self._selection_history: deque = deque(maxlen=200)
+        self._training_history: deque = deque(maxlen=100)
+
         # v2.0: Query category cache (minimize LLM calls)
         self._category_cache: Dict[str, Dict[str, Any]] = {}
 
@@ -139,12 +144,12 @@ class HybridAgentSelector:
 
     @property
     def knowledge_graph(self):
-        """Lazy load knowledge graph"""
+        """Lazy load knowledge graph — uses shared singleton"""
         if self._knowledge_graph is None:
             try:
-                from ..engines.knowledge_graph_clean import KnowledgeGraphEngine
-                self._knowledge_graph = KnowledgeGraphEngine(fast_mode=True)
-                logger.info("📊 Knowledge graph engine loaded")
+                from ..engines.knowledge_graph_clean import get_knowledge_graph_engine
+                self._knowledge_graph = get_knowledge_graph_engine()
+                logger.info("📊 Knowledge graph engine loaded (shared singleton)")
             except Exception as e:
                 logger.warning(f"⚠️ Knowledge graph load failed, using LLM only: {e}")
         return self._knowledge_graph
@@ -236,6 +241,32 @@ class HybridAgentSelector:
                             "timestamp": datetime.now().isoformat()
                         }
 
+                        self._selection_history.append({
+                            "timestamp": datetime.now().isoformat(),
+                            "query": query[:80],
+                            "selected_agent": gnn_rl_agent,
+                            "method": "gnn_rl",
+                            "confidence": gnn_rl_confidence,
+                            "value_estimate": gnn_rl_result.get("value_estimate", 0.0),
+                            "elapsed_ms": round(elapsed_ms, 1),
+                            # Enriched metadata for detail view
+                            "reasoning": f"GNN+RL model selected with {gnn_rl_confidence:.1%} confidence (direct)",
+                            "graph_insights": {
+                                "has_insights": False,
+                                "entities": [],
+                                "related_concepts": [],
+                                "past_patterns": [],
+                                "recommended_agents": [],
+                                "kg_confidence": 0.0,
+                            },
+                            "gnn_rl": {
+                                "raw_confidence": gnn_rl_confidence,
+                                "value_estimate": gnn_rl_result.get("value_estimate", 0.0),
+                                "suggested_agent": gnn_rl_agent,
+                                "used_directly": True,
+                            },
+                        })
+
                         logger.info(
                             f"🤖 GNN+RL direct selection complete: {gnn_rl_agent} "
                             f"(confidence: {gnn_rl_confidence:.1%}, {elapsed_ms:.0f}ms)"
@@ -289,7 +320,33 @@ class HybridAgentSelector:
         else:
             self.stats["llm_only"] += 1
 
-            logger.info(
+        self._selection_history.append({
+            "timestamp": datetime.now().isoformat(),
+            "query": query[:80],
+            "selected_agent": selected_agent,
+            "method": selection_method,
+            "confidence": gnn_rl_result["confidence"] if gnn_rl_result else 0.0,
+            "value_estimate": gnn_rl_result["value_estimate"] if gnn_rl_result else 0.0,
+            "elapsed_ms": round(elapsed_ms, 1),
+            # Enriched metadata for detail view
+            "reasoning": reasoning,
+            "graph_insights": {
+                "has_insights": graph_insights.get("has_insights", False),
+                "entities": graph_insights.get("entities", [])[:10],
+                "related_concepts": graph_insights.get("related_concepts", [])[:10],
+                "past_patterns": graph_insights.get("past_patterns", [])[:3],
+                "recommended_agents": graph_insights.get("recommended_agents", [])[:3],
+                "kg_confidence": graph_insights.get("confidence", 0.0),
+            },
+            "gnn_rl": {
+                "raw_confidence": gnn_rl_result["confidence"],
+                "value_estimate": gnn_rl_result["value_estimate"],
+                "suggested_agent": gnn_rl_result["agent"],
+                "used_directly": False,
+            } if gnn_rl_result else None,
+        })
+
+        logger.info(
             f"🧠 Hybrid selection complete: {selected_agent} "
             f"(method: {selection_method}, {elapsed_ms:.0f}ms)"
         )
@@ -977,6 +1034,31 @@ class HybridAgentSelector:
 
             self.stats["feedback_stored"] += 1
 
+            # Enrich matching selection_history entry with feedback data
+            query_short = query[:80]
+            for entry in reversed(self._selection_history):
+                if entry.get("query") == query_short and entry.get("selected_agent") == selected_agent:
+                    # Determine EMA success rate from current node attrs
+                    ema_rate = None
+                    if mapping_id in graph.nodes:
+                        ema_rate = graph.nodes[mapping_id].get("success_rate")
+                    entry["feedback"] = {
+                        "success": success,
+                        "query_semantics": query_semantics,
+                        "ema_success_rate": ema_rate,
+                        "kg_nodes_updated": True,
+                    }
+                    break
+
+            # Periodic save: checkpoint KG + stats every 50 feedbacks
+            if self.stats["feedback_stored"] % 50 == 0:
+                try:
+                    self.knowledge_graph.save_to_disk()
+                    self.save_stats()
+                    logger.info(f"💾 Periodic checkpoint at feedback #{self.stats['feedback_stored']}")
+                except Exception as save_err:
+                    logger.warning(f"⚠️ Periodic save failed: {save_err}")
+
             # v3.0: Also store feedback in GNN+RL experience buffer
             if self._gnn_rl_enabled and self.intelligent_selector:
                 try:
@@ -985,6 +1067,16 @@ class HybridAgentSelector:
                         execution_result=execution_result
                     )
                     logger.info(f"🤖 GNN+RL feedback stored: {selected_agent} (success={success})")
+
+                    # Record training loss for dashboard
+                    last_loss = self.intelligent_selector.stats.get("last_train_loss")
+                    if last_loss is not None:
+                        self._training_history.append({
+                            "timestamp": datetime.now().isoformat(),
+                            "total_loss": last_loss,
+                            "training_steps": self.intelligent_selector.stats.get("training_steps", 0),
+                            "buffer_size": self.intelligent_selector.experience_buffer.size,
+                        })
                 except Exception as gnn_rl_error:
                     logger.warning(f"⚠️ GNN+RL feedback store failed: {gnn_rl_error}")
 
@@ -995,21 +1087,7 @@ class HybridAgentSelector:
             return False
 
     def get_stats(self) -> Dict[str, Any]:
-        """
-        Get selector statistics (v2.0: extended statistics)
-
-        Returns:
-            Dict with statistics including:
-            - total_selections: Total selection count
-            - graph_assisted: Graph-assisted selection count
-            - llm_only: LLM-only selection count
-            - feedback_stored: Stored feedback count
-            - agents_synced: Synced agent count
-            - semantic_analysis_count: LLM semantic analysis count (v2.0)
-            - pattern_generalizations: Pattern generalization match count (v2.0)
-            - time_decay_applied: Time decay application count (v2.0)
-            - graph_assist_ratio: Graph assist ratio
-        """
+        """Get selector statistics (v3.0: includes history for dashboard)."""
         return {
             **self.stats,
             "graph_assist_ratio": round(
@@ -1020,8 +1098,90 @@ class HybridAgentSelector:
                 self.stats["pattern_generalizations"] / max(self.stats["time_decay_applied"], 1),
                 3
             ) if self.stats["time_decay_applied"] > 0 else 0.0,
-            "version": "2.0"
+            "version": "3.0",
+            # v3.0: History buffers for dashboard visualization
+            "selection_history": list(self._selection_history),
+            "training_history": list(self._training_history),
+            "gnn_rl_enabled": self._gnn_rl_enabled,
+            "ml_stats": (
+                self.intelligent_selector.stats
+                if self._gnn_rl_enabled and self.intelligent_selector
+                else None
+            ),
+            "buffer_size": (
+                self.intelligent_selector.experience_buffer.size
+                if self._gnn_rl_enabled and self.intelligent_selector
+                else 0
+            ),
         }
+
+    def save_stats(self) -> bool:
+        """Save selector stats + category cache to disk."""
+        try:
+            from pathlib import Path
+            import json
+
+            data_dir = Path(__file__).parent.parent / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            save_path = data_dir / "selector_stats.json"
+
+            checkpoint = {
+                "stats": self.stats,
+                "category_cache": dict(self._category_cache),
+                "selection_history": list(self._selection_history),
+                "training_history": list(self._training_history),
+                "saved_at": datetime.now().isoformat(),
+            }
+            tmp_path = save_path.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(checkpoint, f, ensure_ascii=False, default=str)
+            import os
+            os.replace(str(tmp_path), str(save_path))
+            logger.info(f"💾 Selector stats saved: {self.stats['total_selections']} selections, {self.stats['feedback_stored']} feedbacks")
+            return True
+        except Exception as e:
+            logger.error(f"Selector stats save failed: {e}")
+            return False
+
+    def load_stats(self) -> bool:
+        """Load selector stats + category cache from disk."""
+        try:
+            from pathlib import Path
+            import json
+
+            load_path = Path(__file__).parent.parent / "data" / "selector_stats.json"
+            if not load_path.exists():
+                logger.info("No selector stats checkpoint found — starting fresh")
+                return False
+
+            with open(load_path, "r", encoding="utf-8") as f:
+                checkpoint = json.load(f)
+
+            saved_stats = checkpoint.get("stats", {})
+            if saved_stats:
+                self.stats.update(saved_stats)
+
+            saved_cache = checkpoint.get("category_cache", {})
+            if saved_cache:
+                self._category_cache.update(saved_cache)
+
+            saved_selection_history = checkpoint.get("selection_history", [])
+            if saved_selection_history:
+                self._selection_history.extend(saved_selection_history)
+
+            saved_training_history = checkpoint.get("training_history", [])
+            if saved_training_history:
+                self._training_history.extend(saved_training_history)
+
+            logger.info(
+                f"📂 Selector stats loaded: {self.stats['total_selections']} selections, "
+                f"{self.stats['feedback_stored']} feedbacks, {len(self._category_cache)} cached categories, "
+                f"{len(self._selection_history)} selection history, {len(self._training_history)} training history"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Selector stats load failed: {e}")
+            return False
 
     def clear_category_cache(self):
         """v2.0: Clear category cache"""
@@ -1034,10 +1194,11 @@ _hybrid_selector_instance = None
 
 
 def get_hybrid_selector() -> HybridAgentSelector:
-    """Return hybrid selector singleton instance"""
+    """Return hybrid selector singleton instance (loads stats from checkpoint)"""
     global _hybrid_selector_instance
     if _hybrid_selector_instance is None:
         _hybrid_selector_instance = HybridAgentSelector()
+        _hybrid_selector_instance.load_stats()
     return _hybrid_selector_instance
 
 
