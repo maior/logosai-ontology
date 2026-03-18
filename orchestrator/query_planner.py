@@ -405,11 +405,20 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 - 핵심 내용을 상단에 배치 (inverted pyramid)
 - 항목이 3개 이상이면 bullet point 또는 번호 목록 사용
 
-## 6. 금지 사항
+## 6. 워크플로우 설계 규칙
 - 불필요한 에이전트 추가 금지 (필요한 에이전트만 선택)
 - 같은 에이전트 중복 호출 금지 (한 스테이지 내에서)
 - 데이터 의존성 무시 금지 (실시간 데이터 먼저 수집)
-- 단일 에이전트만으로 결과 반환 금지 (최소 2단계: 데이터 수집 → 결과 정리)
+
+### 단일 에이전트 vs 다단계 판단 기준 (CRITICAL)
+- **단일 에이전트 충분**: 정보 검색, Q&A, 번역, 코드 생성, 요약, 일반 대화
+  → 전문 에이전트 1개로 바로 결과 반환 (예: "테슬라 주식 어때?" → internet_agent만)
+- **2단계 이상 필요**: 데이터 분석 후 시각화, 비교 분석, 복잡한 계산
+  → 데이터 수집 → 분석/시각화 (예: "삼성전자 5일 종가 그래프" → internet → visualization)
+- **analysis_agent 사용 조건**: 반드시 구체적인 숫자/통계 데이터가 제공될 때만
+  → "주식 어때?" 같은 일반 질문에 analysis_agent 사용 금지
+- **llm_search_agent 정리 단계**: 최종 정리가 꼭 필요한 복합 쿼리에만 추가
+  → 단순 검색/Q&A에는 불필요
 
 # 예시
 
@@ -461,7 +470,31 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
   "reasoning": "실시간 주가 데이터 수집 → 데이터 구조화 → 차트 시각화의 순차적 파이프라인"
 }}
 
-## 예시 2: "양자역학이란 무엇인가?" (일반 지식 검색)
+## 예시 2: "테슬라 주식 어때?" (단일 에이전트 — 실시간 검색만 필요)
+{{
+  "workflow_strategy": "sequential",
+  "stages": [
+    {{
+      "stage_id": 1,
+      "execution_type": "sequential",
+      "agents": [
+        {{
+          "agent_id": "internet_agent",
+          "sub_query": "테슬라 현재 주가 및 최근 동향",
+          "input_from": null,
+          "output_to": ["final"]
+        }}
+      ]
+    }}
+  ],
+  "final_aggregation": {{
+    "type": "single",
+    "format": "report"
+  }},
+  "reasoning": "단순 정보 검색 쿼리 — internet_agent 1개 스테이지로 충분. analysis_agent 불필요."
+}}
+
+## 예시 3: "양자역학이란 무엇인가?" (일반 지식 검색)
 {{
   "workflow_strategy": "sequential",
   "stages": [
