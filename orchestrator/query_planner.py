@@ -318,6 +318,19 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 다른 에이전트를 선택하려면 명확한 이유가 있어야 합니다.
 """
 
+        # Build conversation history section
+        conversation_history_section = ""
+        if context and context.get("conversation_history"):
+            conversation_history_section = f"""# 이전 대화 내용 (최근)
+{context["conversation_history"]}
+
+⚠️ 대화 맥락 활용 원칙:
+- 사용자가 "그것", "현재가", "이전 결과" 등 이전 대화를 참조하면, 위 대화 내용을 기반으로 쿼리를 해석하세요
+- 이전 대화에서 언급된 주제(종목명, 키워드 등)를 현재 쿼리와 연결하세요
+- 예: 이전 "삼성전자 주식" + 현재 "현재가는?" → "삼성전자 현재 주가"로 해석
+
+"""
+
         # Build user memory section
         user_memory_section = ""
         if context and context.get("user_memories"):
@@ -335,7 +348,7 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
         prompt = f"""# 역할
 당신은 사용자 쿼리를 분석하여 최적의 에이전트 워크플로우를 설계하는 전문가입니다.
 {gnn_rl_section}
-# 사용 가능한 에이전트
+{conversation_history_section}# 사용 가능한 에이전트
 {agents_context}
 
 # 핵심 원칙
