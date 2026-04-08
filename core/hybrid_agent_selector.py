@@ -171,7 +171,17 @@ class HybridAgentSelector:
                     auto_load=True,  # Auto-load saved models
                     device='cpu'
                 )
-                logger.info("🤖 GNN+RL IntelligentAgentSelector loaded")
+                # Pre-warm embedding model in background thread
+                # (SentenceTransformer is CPU-bound, blocks event loop if loaded inline)
+                import threading
+                def _warm():
+                    try:
+                        _ = self._intelligent_selector.embedding_model
+                        logger.info("🤖 Embedding model pre-warmed in background")
+                    except Exception as e:
+                        logger.debug(f"Embedding pre-warm failed: {e}")
+                threading.Thread(target=_warm, daemon=True).start()
+                logger.info("🤖 GNN+RL IntelligentAgentSelector loaded (embedding warming...)")
             except Exception as e:
                 logger.warning(f"⚠️ GNN+RL selector load failed, using fallback: {e}")
                 self._gnn_rl_enabled = False
@@ -204,14 +214,22 @@ class HybridAgentSelector:
         self.stats["total_selections"] += 1
         start_time = datetime.now()
 
-        # ========== Phase 0 (v3.0): GNN+RL Selection ==========
+        # ========== Phase 0 (v3.0): GNN+RL Selection (skip if embedding not ready) ==========
         gnn_rl_result = None
         if self._gnn_rl_enabled and self.intelligent_selector:
-            try:
-                gnn_rl_agent, gnn_rl_meta = await self.intelligent_selector.select_agent(
-                    query=query,
-                    available_agents=available_agents,
-                    deterministic=False  # Allow exploration
+            # Skip GNN+RL if embedding model hasn't finished loading yet
+            if self.intelligent_selector._embedding_model is None:
+                logger.info("🔄 GNN+RL skipped (embedding model still loading)")
+                self.stats["gnn_rl_fallback"] = self.stats.get("gnn_rl_fallback", 0) + 1
+            else:
+              try:
+                gnn_rl_agent, gnn_rl_meta = await asyncio.wait_for(
+                    self.intelligent_selector.select_agent(
+                        query=query,
+                        available_agents=available_agents,
+                        deterministic=False
+                    ),
+                    timeout=2.0,
                 )
 
                 gnn_rl_confidence = gnn_rl_meta.get('confidence', 0.0)
@@ -279,7 +297,10 @@ class HybridAgentSelector:
                 self.stats["gnn_rl_fallback"] += 1
                 logger.info(f"🔄 GNN+RL confidence low ({gnn_rl_confidence:.1%}), falling back to KG+LLM")
 
-            except Exception as e:
+              except asyncio.TimeoutError:
+                logger.info(f"🔄 GNN+RL timeout (2s), skipping to KG+LLM")
+                self.stats["gnn_rl_fallback"] = self.stats.get("gnn_rl_fallback", 0) + 1
+              except Exception as e:
                 logger.warning(f"GNN+RL selection failed, falling back to KG+LLM: {e}")
 
         # ========== Phase 1: Knowledge Graph Analysis ==========

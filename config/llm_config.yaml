@@ -38,7 +38,7 @@ providers:
     description: "Google Gemini 모델들"
     models:
       high_performance: "gemini-3-flash-preview"
-      standard: "gemini-2.5-flash"
+      standard: "gemini-2.5-flash-lite"
       fast: "gemini-2.5-flash-lite"
       creative: "gemini-3-flash-preview"
       budget: "gemini-2.5-flash-lite"

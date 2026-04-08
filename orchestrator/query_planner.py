@@ -244,11 +244,14 @@ class QueryPlanner:
             # Check confidence threshold
             confidence = metadata.get("confidence", 0) if metadata else 0
             if confidence < self.HYBRID_CONFIDENCE_THRESHOLD:
-                logger.debug(
+                logger.info(
                     f"[QueryPlanner] Hybrid confidence {confidence:.1%} below threshold "
-                    f"{self.HYBRID_CONFIDENCE_THRESHOLD:.1%}, will let LLM decide"
+                    f"{self.HYBRID_CONFIDENCE_THRESHOLD:.1%}, passing as hint (not mandatory)"
                 )
-                return None, None
+                # 신뢰도 낮아도 힌트로 전달 (LLM이 참고하도록)
+                if metadata:
+                    metadata["is_hint"] = True
+                return agent_id, metadata
 
             return agent_id, metadata
 
@@ -307,7 +310,20 @@ class QueryPlanner:
         if recommended_agent and hybrid_metadata:
             confidence = hybrid_metadata.get("confidence", 0)
             selection_source = hybrid_metadata.get("selection_source", "unknown")
-            gnn_rl_section = f"""
+            is_hint = hybrid_metadata.get("is_hint", False)
+
+            if is_hint:
+                gnn_rl_section = f"""
+## 🔍 GNN+RL 추천 에이전트 (참고)
+GNN+RL 지능형 시스템이 아래 에이전트를 추천합니다 (신뢰도 낮음, 참고용):
+- **추천 에이전트**: `{recommended_agent}`
+- **신뢰도**: {confidence:.1%}
+- **선택 근거**: {selection_source}
+
+💡 이 에이전트가 쿼리에 적합한지 description/capabilities를 확인하고, 적합하면 우선 사용하세요.
+"""
+            else:
+                gnn_rl_section = f"""
 ## 🎯 GNN+RL 추천 에이전트 (IMPORTANT)
 GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 - **추천 에이전트**: `{recommended_agent}`
@@ -575,6 +591,10 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
    - 이전: "테슬라 분석해줘" → 현재: "일주일 전 대비 변화율은?"
    - sub_query: "테슬라 주가 일주일 전 대비 변화율" (O) — "일주일 전 대비 변화율" (X)
 4. sub_query만 보고도 어떤 데이터를 가져와야 하는지 알 수 있어야 합니다
+5. **사용자가 명시하지 않은 조건을 sub_query에 추가하지 마세요** (CRITICAL)
+   - "파일 찾아줘" → sub_query: "oars 관련 파일 검색" (O) — "데스크탑 폴더에서 oars 파일 검색" (X, 사용자가 데스크탑이라고 안 함)
+   - "날씨 알려줘" → sub_query: "서울 날씨" (O, 대화 맥락에서 추론) — "내일 오전 서울 강남구 날씨" (X, 과도한 추가)
+   - 에이전트가 알아서 판단할 영역(검색 범위, 정렬 순서 등)을 sub_query에서 제한하지 마세요
 
 위 쿼리에 대한 실행 계획을 JSON 형식으로 작성하세요.
 반드시 위 JSON 형식을 정확히 따르세요.
