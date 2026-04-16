@@ -1,7 +1,7 @@
 """
 Query Planner
 
-Uses gemini-2.0-flash-lite (non-thinking) for single-call execution planning.
+Uses gemini-2.5-flash-lite (non-thinking) for single-call execution planning.
 Based on 4-model comparison test: Flash-Lite achieves 100% accuracy at 3.63s avg.
 
 Key Design Principles:
@@ -53,12 +53,12 @@ except ImportError:
 
 class QueryPlanner:
     """
-    Query analysis and execution planning using gemini-2.0-flash-lite.
+    Query analysis and execution planning using gemini-2.5-flash-lite.
 
     Based on comprehensive 4-model comparison testing:
-    - gemini-2.0-flash-lite: 100% accuracy, 3.63s avg (WINNER)
+    - gemini-2.5-flash-lite: 100% accuracy, 3.63s avg (WINNER)
     - gemini-2.0-flash: 100% accuracy, 9.39s avg
-    - gemini-2.0-flash-lite+thinking: 81.8% accuracy
+    - gemini-2.5-flash-lite+thinking: 81.8% accuracy
     - gemini-2.0-flash+thinking: 54.5% accuracy
 
     Single LLM call generates complete execution plan including:
@@ -70,7 +70,7 @@ class QueryPlanner:
     """
 
     # LLM Configuration
-    MODEL = "gemini-2.0-flash-lite"
+    MODEL = "gemini-2.5-flash-lite"
     TEMPERATURE = 0.3
     MAX_TOKENS = 4096
 
