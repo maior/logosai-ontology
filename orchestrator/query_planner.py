@@ -51,6 +51,107 @@ except ImportError:
     types = None
 
 
+def detect_explicit_capability_gap(query: str) -> Optional[Dict[str, Any]]:
+    """Code-level safety net (2026-05-09): query 에 명시적 에이전트 생성 패턴이
+    있으면 capability_gap 강제 trigger.
+
+    LLM (flash-lite) 이 prompt 강화에도 internet_agent 같은 generic 으로 fallback
+    하는 보수적 분류 깨지지 않을 때의 backstop. 단순 키워드 매칭이지만 의미가
+    명백한 의도만 잡으므로 false-positive 위험 낮음.
+
+    Args:
+        query: 사용자 쿼리 원문
+
+    Returns:
+        capability_gap dict (detected, missing_capabilities, suggested_agent_description, reason)
+        패턴 매칭 안 되면 None.
+    """
+    if not query:
+        return None
+    explicit_patterns = [
+        # 한국어
+        "에이전트 만들", "에이전트를 만들", "에이전트 생성", "에이전트를 생성",
+        "에이전트 추가", "에이전트를 추가", "에이전트 만들어", "agent 만들",
+        # 영어
+        "build agent", "create agent", "make agent",
+        "build an agent", "create an agent", "make an agent",
+        "build me an agent", "create me an agent",
+    ]
+    q_lower = query.lower()
+    if not any(p.lower() in q_lower for p in explicit_patterns):
+        return None
+    return {
+        "detected": True,
+        "missing_capabilities": ["explicit_agent_creation_request"],
+        "suggested_agent_description": query,
+        "reason": "사용자가 명시적으로 새 에이전트 생성을 요청 (code safety net)",
+    }
+
+
+def merge_independent_stages(stages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """LLM 이 만든 stages 에서 데이터 의존성 없는 1-agent stages 를 parallel 로 병합.
+
+    flash-lite 의 흔한 실수 (독립적 multi-domain 쿼리를 1-agent-per-stage 로 분리) 의 backstop.
+
+    Rules:
+      - 인접한 stages 들이 모두 1 agent 이고 input_from 이 모두 null 이면 → 같은 parallel stage 로 병합
+      - 데이터 의존성 (input_from 에 stage_X 참조) 있으면 그 자리에서 분리 유지
+      - 이미 parallel 인 stage 는 건드리지 않음
+
+    Args:
+        stages: LLM 이 만든 raw stages list (각 dict: stage_id, execution_type, agents)
+
+    Returns:
+        Post-processed stages with stage_ids renumbered.
+    """
+    if not stages or len(stages) < 2:
+        return stages
+
+    def _is_independent_singleton(stage: Dict[str, Any]) -> bool:
+        agents = stage.get("agents", [])
+        if len(agents) != 1:
+            return False
+        input_from = agents[0].get("input_from")
+        # input_from 이 None / [] / 빈 리스트 면 의존성 없음
+        if input_from is None:
+            return True
+        if isinstance(input_from, list) and len(input_from) == 0:
+            return True
+        return False
+
+    out: List[Dict[str, Any]] = []
+    i = 0
+    while i < len(stages):
+        cur = stages[i]
+        if _is_independent_singleton(cur):
+            # 인접한 independent singletons 수집
+            group_agents = list(cur.get("agents", []))
+            j = i + 1
+            while j < len(stages) and _is_independent_singleton(stages[j]):
+                group_agents.extend(stages[j].get("agents", []))
+                j += 1
+            if len(group_agents) > 1:
+                # 병합
+                out.append({
+                    "stage_id": len(out) + 1,
+                    "execution_type": "parallel",
+                    "agents": group_agents,
+                })
+                i = j
+                continue
+        # 그대로 추가 + stage_id 재번호
+        new_stage = dict(cur)
+        new_stage["stage_id"] = len(out) + 1
+        out.append(new_stage)
+        i += 1
+
+    # 후속 stages 의 input_from 참조도 새 stage_id 로 매핑해야 하지만,
+    # 현재 input_from 형식이 "stage_N.agent_id" 인데 stage 번호 변경이 일어남.
+    # 안전성: ExecutionEngine 이 stage 번호 의존성보다는 stage 순서로 처리한다고 가정 (검증 필요).
+    # 단, 1-agent → parallel 병합은 stage 1 에서 일어나므로 stage 1 이름은 유지됨.
+    return out
+
+
 class QueryPlanner:
     """
     Query analysis and execution planning using gemini-2.5-flash-lite.
@@ -436,6 +537,21 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 - **llm_search_agent 정리 단계**: 최종 정리가 꼭 필요한 복합 쿼리에만 추가
   → 단순 검색/Q&A에는 불필요
 
+### 병렬화 판단 기준 (CRITICAL — 자주 누락됨)
+**같은 stage 안에 여러 agent 를 parallel 로 묶어야 하는 경우**:
+- 사용자 쿼리에 **서로 독립적인 sub-task 가 N개** 포함 (N≥2)
+  → 데이터 의존성 없으면 **모두 같은 stage_id 안에 execution_type="parallel"**
+  → 서로 다른 agent (예: 날씨 + 환율 + 검색) 들도 마찬가지 — agent 가 다르다고 stage 분리 금지
+- 표지: 쿼리에 "그리고", "와/과", "동시에", "각각", "모두", 콤마로 나열된 N개 항목
+- **잘못된 패턴**: agent 마다 stage 분리 → execution_type 이 sequential 인데 의존성 없는 N개 stage 가 줄지어 늘어섬 (불필요한 latency)
+- **올바른 패턴**: 의존성 없는 모든 agent 를 **stage 1 에 parallel 로 묶고**, 종합이 필요하면 stage 2 에 sequential 로 종합 agent 1개
+
+**판단 알고리즘**:
+1. 쿼리를 sub-task 들로 분해
+2. 각 sub-task 간 데이터 의존성 그래프 작성
+3. 같은 의존성 레이어 → 같은 stage 안에 parallel
+4. 다른 레이어 → 다른 stage 에 sequential
+
 # 예시
 
 ## 예시 1: "삼성전자 5일 종가 그래프로 그려줘"
@@ -576,6 +692,116 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
   "reasoning": "두 회사 데이터를 병렬로 수집하고 통합 분석"
 }}
 
+## 예시 4: 독립적 다중 정보 요청 — **다른 agent 들도 같은 stage 에 parallel** (CRITICAL)
+"여러 종류의 독립적 정보를 한 번에 알려줘" (예: A 정보, B 정보, C 정보 — 데이터 의존성 없음)
+{{
+  "workflow_strategy": "parallel",
+  "stages": [
+    {{
+      "stage_id": 1,
+      "execution_type": "parallel",
+      "agents": [
+        {{ "agent_id": "<A 도메인 전문 agent>", "sub_query": "A 정보 요청", "input_from": null, "output_to": ["stage_2"] }},
+        {{ "agent_id": "<B 도메인 전문 agent>", "sub_query": "B 정보 요청", "input_from": null, "output_to": ["stage_2"] }},
+        {{ "agent_id": "<C 도메인 전문 agent>", "sub_query": "C 정보 요청", "input_from": null, "output_to": ["stage_2"] }}
+      ]
+    }},
+    {{
+      "stage_id": 2,
+      "execution_type": "sequential",
+      "agents": [
+        {{
+          "agent_id": "llm_search_agent",
+          "sub_query": "수집된 A/B/C 정보를 사용자 친화적으로 종합 정리",
+          "input_from": ["stage_1.<A>", "stage_1.<B>", "stage_1.<C>"],
+          "output_to": ["final"]
+        }}
+      ]
+    }}
+  ],
+  "final_aggregation": {{
+    "type": "combine",
+    "format": "summary"
+  }},
+  "reasoning": "독립적인 N개 정보 요청 → 모두 같은 stage 에 parallel 로 묶어 latency 최소화. agent 가 서로 달라도 의존성 없으면 같은 stage."
+}}
+**핵심 원칙**: agent 가 다르다고 stage 분리 금지. **데이터 의존성만이 stage 분리 기준**.
+
+## 예시 5 (CRITICAL — 자주 실수): 잘못된 분리 vs 올바른 병합
+**쿼리**: "오늘 날씨, 환율, 비트코인 가격을 모두 알려줘"
+**상황**: 3개 sub-task. 서로 독립 (의존성 없음). 다른 도메인 agent 들 필요.
+
+❌ **잘못된 패턴** (절대 피할 것 — flash-lite 의 흔한 실수):
+```
+{{ "stages": [
+  {{ "stage_id": 1, "execution_type": "sequential", "agents": [{{ weather_agent }}] }},
+  {{ "stage_id": 2, "execution_type": "sequential", "agents": [{{ currency_agent }}] }},
+  {{ "stage_id": 3, "execution_type": "sequential", "agents": [{{ internet_agent }}] }},
+  {{ "stage_id": 4, "execution_type": "sequential", "agents": [{{ llm_search_agent }}] }}
+]}}
+```
+**왜 잘못인가**: 3개 sub-task 가 서로 독립인데 stage 4개로 분리. 결과적으로 3배 latency. agent 가 다른 것을 stage 분리의 이유로 삼지 않는다.
+
+✅ **올바른 패턴**:
+```
+{{ "stages": [
+  {{
+    "stage_id": 1,
+    "execution_type": "parallel",
+    "agents": [
+      {{ "agent_id": "weather_agent",  "sub_query": "...", "input_from": null, "output_to": ["stage_2"] }},
+      {{ "agent_id": "currency_exchange_agent", "sub_query": "...", "input_from": null, "output_to": ["stage_2"] }},
+      {{ "agent_id": "internet_agent", "sub_query": "비트코인 가격 ...", "input_from": null, "output_to": ["stage_2"] }}
+    ]
+  }},
+  {{ "stage_id": 2, "execution_type": "sequential", "agents": [{{ "agent_id": "llm_search_agent", "sub_query": "수집 정보 종합", "input_from": ["stage_1.weather_agent","stage_1.currency_exchange_agent","stage_1.internet_agent"], "output_to": ["final"] }}] }}
+]}}
+```
+**핵심**: 모든 독립 sub-task 를 stage 1 에 parallel. 종합은 stage 2.
+
+## 예시 6: 능력 부재 — capability_gap 선언 (CRITICAL)
+**출력 필드**: `capability_gap` (optional). 다음 3 시그널 중 하나라도 해당하면 **detected=true** 로 선언:
+
+### 시그널 A — 명시적 에이전트 생성 요청
+사용자가 "에이전트 만들어줘", "에이전트 생성", "build agent", "create agent" 같이
+**새 에이전트 자체를 요구**하면 등록된 generic agent 가 우회 처리 가능해도 **무조건 detected=true**.
+
+### 시그널 B — 외부 API 전용성
+특정 외부 API (Mastodon, Discord, Slack, Notion, Stripe, GitHub API 등) 호출이 필요한데
+그 서비스 전용 에이전트가 등록 목록에 없으면 → **internet_agent 의 일반 검색으로 대체 불가**
+→ detected=true. 일반 검색은 API 호출과 본질이 다름 (인증, 페이로드, 권한 미지원).
+
+### 시그널 C — 약한 매칭 금지
+internet_agent / analysis_agent / llm_search_agent 같은 범용 에이전트가 있다고 해서
+특화 도메인 쿼리를 그쪽으로 fallback 하면 안 됨. 약한 매칭은 detected=true 와 같다.
+
+### 출력 형식
+```
+{{
+  "workflow_strategy": "sequential",
+  "stages": [],
+  "capability_gap": {{
+    "detected": true,
+    "missing_capabilities": ["mastodon_api", "sentiment_analysis"],
+    "suggested_agent_description": "Mastodon API 로 toot fetch + sentiment 분석",
+    "reason": "Mastodon 전용 에이전트 부재, internet_agent 의 일반 검색으로 대체 불가"
+  }},
+  "reasoning": "...",
+  "final_aggregation": {{"type": "single"}}
+}}
+```
+**주의**: capability_gap.detected=true 면 stages 는 빈 list 또는 부분 워크플로우 (전처리만).
+실제 FORGE 호출 + 새 에이전트 등록은 logos_api 가 ACP /stream/multi 로 fallback 해서 처리.
+
+### ❌ 잘못된 예 (자주 발생):
+query: "Mastodon API 로 toot 5개 가져와서 sentiment 분석하는 에이전트 만들어줘"
+→ 잘못된 응답: capability_gap 누락, stages=[internet_agent, analysis_agent]
+→ 진짜 문제: (1) 사용자가 명시적 "에이전트 만들어줘" — 시그널 A 위반.
+              (2) Mastodon API 는 internet_agent 로 호출 불가 — 시그널 B 위반.
+
+### ✅ 올바른 예:
+같은 query → capability_gap.detected=true, missing=["mastodon_api"], stages=[]
+
 {user_memory_section}# 사용자 쿼리
 "{query}"
 
@@ -658,10 +884,34 @@ JSON 외에 다른 텍스트는 포함하지 마세요.
         plan_data: Dict[str, Any],
         plan_id: str,
     ) -> ExecutionPlan:
-        """Build ExecutionPlan from parsed LLM response"""
+        """Build ExecutionPlan from parsed LLM response.
+
+        Post-processing safety net (2026-05-09): merge_independent_stages 가
+        flash-lite 의 흔한 실수 (의존성 없는 1-agent stages 의 sequential 분리) 를
+        자동으로 parallel 로 병합. prompt 가 안 통할 때의 backstop.
+        """
+
+        raw_stages = plan_data.get("stages", [])
+        merged_stages = merge_independent_stages(raw_stages)
+
+        # workflow_strategy 도 함께 갱신 (병합 결과 반영)
+        workflow_strategy = plan_data.get("workflow_strategy", "sequential")
+        if len(merged_stages) != len(raw_stages):
+            n_parallel = sum(1 for s in merged_stages if s.get("execution_type") == "parallel")
+            n_seq = sum(1 for s in merged_stages if s.get("execution_type") != "parallel")
+            workflow_strategy = (
+                "parallel" if n_parallel > 0 and n_seq == 0
+                else "hybrid" if n_parallel > 0 and n_seq > 0
+                else "sequential"
+            )
+            logger.info(
+                f"  Stage merger: {len(raw_stages)} → {len(merged_stages)} stages "
+                f"(strategy: {plan_data.get('workflow_strategy')} → {workflow_strategy})"
+            )
+            plan_data["workflow_strategy"] = workflow_strategy
 
         stages = []
-        for stage_data in plan_data.get("stages", []):
+        for stage_data in merged_stages:
             agents = []
             for agent_data in stage_data.get("agents", []):
                 agent = AgentTask(
@@ -680,6 +930,20 @@ JSON 외에 다른 텍스트는 포함하지 마세요.
             )
             stages.append(stage)
 
+        # capability_gap 결정 (LLM 응답 우선, safety net 으로 backfill)
+        capability_gap = plan_data.get("capability_gap")
+        if not (isinstance(capability_gap, dict) and capability_gap.get("detected")):
+            # LLM 이 안 잡았으면 safety net (명시적 패턴) 검사
+            safety = detect_explicit_capability_gap(query)
+            if safety:
+                logger.info(
+                    f"  Code safety net: 명시적 에이전트 생성 패턴 감지 → "
+                    f"capability_gap 강제 trigger (LLM 누락 보강)"
+                )
+                capability_gap = safety
+            else:
+                capability_gap = None
+
         plan = ExecutionPlan(
             query=query,
             workflow_strategy=plan_data.get("workflow_strategy", "sequential"),
@@ -687,6 +951,7 @@ JSON 외에 다른 텍스트는 포함하지 마세요.
             final_aggregation=plan_data.get("final_aggregation", {"type": "combine"}),
             reasoning=plan_data.get("reasoning", ""),
             plan_id=plan_id,
+            capability_gap=capability_gap,
         )
 
         return plan

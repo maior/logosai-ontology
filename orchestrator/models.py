@@ -258,6 +258,12 @@ class ExecutionPlan:
     is_validated: bool = False
     validation_errors: List[str] = field(default_factory=list)
 
+    # Capability gap (2026-05-09): query_planner 가 등록된 에이전트로 처리
+    # 불가하다고 판단하면 채워짐. logos_api orchestrator 가 이 신호를 보면
+    # ACP /stream/multi 로 fallback (ACP 의 capability_gap classifier + FORGE 분기 재사용).
+    # None = no gap, dict = {detected, missing_capabilities, suggested_agent_description, reason}
+    capability_gap: Optional[Dict[str, Any]] = None
+
     def get_total_agents(self) -> int:
         return sum(stage.get_agent_count() for stage in self.stages)
 
@@ -287,6 +293,7 @@ class ExecutionPlan:
             ],
             "final_aggregation": self.final_aggregation,
             "reasoning": self.reasoning,
+            "capability_gap": self.capability_gap,
         }
 
 
