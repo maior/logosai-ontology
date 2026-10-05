@@ -11,7 +11,28 @@ from loguru import logger
 
 from ...core.models import SemanticQuery, AgentExecutionResult
 from ...core.interfaces import KnowledgeGraph
-from ...core.llm_manager import get_ontology_llm_manager, OntologyLLMType
+from ...core.ontology_schema import validate_relation as validate_relation_schema
+
+# llm_manager 는 지연 import — 이 모듈은 그래프 CRUD 가 본업이고, LLM 은
+# query_graph 같은 일부 경로에서만 쓴다. 모듈 레벨로 끌어오면 logosai(에이전트
+# 프레임워크)까지 딸려와 커널만 쓰려는 소비자가 전체 스택을 설치해야 한다.
+# (tests/test_kernel_decoupling.py 가 이 계약을 고정한다)
+
+
+class _LazyLLMType:
+    """OntologyLLMType 지연 프록시.
+
+    모듈 __getattr__(PEP 562)은 모듈 *바깥*에서의 속성 접근에만 걸리고,
+    모듈 내부 함수의 전역 이름 조회(LOAD_GLOBAL)에는 걸리지 않는다. 그래서
+    호출부 6곳을 그대로 두면서 import 만 늦추려면 이 프록시가 필요하다.
+    """
+
+    def __getattr__(self, name):
+        from ...core.llm_manager import OntologyLLMType as _Real
+        return getattr(_Real, name)
+
+
+OntologyLLMType = _LazyLLMType()
 
 
 class GraphEngine(KnowledgeGraph):
@@ -107,14 +128,34 @@ class GraphEngine(KnowledgeGraph):
                     subject, predicate, object, properties
                 )
 
+            # Ontology schema validation — warn-only, never rejects the write
+            source_type = self.graph.nodes[subject].get("type") if subject in self.graph else None
+            target_type = self.graph.nodes[object].get("type") if object in self.graph else None
+            schema_ok, schema_msg = validate_relation_schema(predicate, source_type, target_type)
+            if not schema_ok:
+                logger.warning(f"⚠️ Ontology schema violation (write allowed): {schema_msg}")
+
             # Set edge attributes
             edge_attrs = {
                 "predicate": predicate,
-                "created_at": datetime.now().isoformat(),
                 "weight": enhanced_properties.get("weight", 1.0),
                 "confidence": enhanced_properties.get("confidence", 0.8),
                 **enhanced_properties
             }
+
+            # Deduplicate: the same (subject, predicate, object) triple is
+            # updated in place instead of piling up parallel edges
+            existing_edges = self.graph.get_edge_data(subject, object) or {}
+            for edge_key, attrs in existing_edges.items():
+                if attrs.get("predicate") == predicate:
+                    attrs.update(edge_attrs)
+                    attrs["last_updated"] = datetime.now().isoformat()
+                    attrs["update_count"] = attrs.get("update_count", 0) + 1
+                    self._update_metadata()
+                    logger.debug(f"Relation updated (dedup): {subject} --{predicate}--> {object}")
+                    return True
+
+            edge_attrs["created_at"] = datetime.now().isoformat()
 
             # Add edge to graph
             self.graph.add_edge(subject, object, **edge_attrs)
@@ -393,8 +434,9 @@ class GraphEngine(KnowledgeGraph):
 
     @property
     def llm_manager(self):
-        """LLM manager with lazy loading"""
+        """LLM manager with lazy loading (import 도 여기서 — 모듈 상단 참고)"""
         if self._llm_manager is None:
+            from ...core.llm_manager import get_ontology_llm_manager
             self._llm_manager = get_ontology_llm_manager()
         return self._llm_manager
     

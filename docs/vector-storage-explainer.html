@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>벡터는 어디에 사는가 — 그래프와 의미 인덱스의 분리</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700&family=Nanum+Pen+Script&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-snap-type:y mandatory; }
+  body { font-family:'Noto Sans KR',sans-serif; background:#f6f3ec; color:#2b2822; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  .slide { min-height:100vh; padding:66px 110px 88px; display:flex; flex-direction:column; justify-content:center; scroll-snap-align:start; position:relative; border-bottom:1px solid #ddd8ca; }
+  h1 { font-family:'Noto Serif KR',serif; font-size:2.8rem; font-weight:900; line-height:1.25; color:#1d1b16; }
+  h2 { font-family:'Noto Serif KR',serif; font-size:1.85rem; font-weight:700; line-height:1.3; color:#1d1b16; margin-bottom:8px; }
+  h3 { font-size:1.02rem; font-weight:700; color:#2b2822; margin-bottom:6px; }
+  p  { line-height:1.85; }
+  .secnum { font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:#b23a2e; letter-spacing:2px; margin-bottom:10px; }
+  .lede { font-size:1.02rem; color:#4a463c; line-height:1.9; max-width:820px; margin-top:14px; }
+  .lede b, p b { color:#1d1b16; }
+  .hl { background:linear-gradient(transparent 58%, #ffe28a 58%); padding:0 2px; }
+  .red { color:#b23a2e; }
+  .u { border-bottom:2.5px solid #b23a2e; padding-bottom:1px; }
+  code, .mono { font-family:'JetBrains Mono',monospace; }
+  .pen { font-family:'Nanum Pen Script',cursive; color:#b23a2e; font-size:1.35rem; line-height:1.35; transform:rotate(-1.4deg); display:inline-block; }
+  .margin-note { position:absolute; max-width:220px; }
+  .box { border:1.5px solid #3a372e; background:#fdfcf7; padding:18px 22px; border-radius:2px; }
+  .box.soft { border-color:#c9c3b2; }
+  .box p { font-size:0.87rem; color:#4a463c; line-height:1.75; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:34px; align-items:start; margin-top:26px; }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:0.85rem; }
+  th { text-align:left; font-size:0.72rem; letter-spacing:1px; color:#8a8371; padding:8px 10px; border-bottom:1.5px solid #3a372e; font-weight:700; }
+  td { padding:9px 10px; border-bottom:1px solid #e3ddcd; color:#4a463c; line-height:1.6; vertical-align:top; }
+  td.mono { font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:#2b2822; }
+  th.c, td.c { text-align:center; }
+  .code { background:#2b2822; color:#d8d3c4; border-radius:3px; padding:16px 20px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; line-height:1.8; overflow-x:auto; margin-top:14px; }
+  .code .k { color:#8fb8e8; } .code .s { color:#a8c98a; } .code .d { color:#7a756a; } .code .n { color:#e8b04f; } .code .x { color:#e07a5f; }
+  .footer { position:absolute; bottom:26px; left:110px; right:110px; display:flex; justify-content:space-between; font-size:0.7rem; color:#a09a89; font-family:'JetBrains Mono',monospace; }
+  .nav-dots { position:fixed; right:22px; top:50%; transform:translateY(-50%); z-index:100; display:flex; flex-direction:column; gap:9px; }
+  .nav-dot { width:7px; height:7px; border-radius:50%; background:#cfc9b8; cursor:pointer; transition:all .25s; }
+  .nav-dot.active { background:#b23a2e; height:20px; border-radius:4px; }
+  .kbd-hint { position:fixed; right:26px; bottom:20px; z-index:100; font-size:0.66rem; color:#b6b0a0; }
+
+  /* 두 세계 다이어그램 */
+  .worlds { display:grid; grid-template-columns:1fr 90px 1fr; gap:0; align-items:stretch; margin-top:30px; }
+  .world { border:2px solid #3a372e; border-radius:4px; padding:24px 26px; }
+  .world.persist { background:#eef2f8; }
+  .world.volatile { background:#fbf1ee; border-style:dashed; border-color:#b23a2e; }
+  .world .wtag { font-family:'JetBrains Mono',monospace; font-size:0.7rem; letter-spacing:1px; padding:4px 10px; border-radius:20px; display:inline-block; margin-bottom:14px; }
+  .world.persist .wtag { background:#20599c; color:#fff; }
+  .world.volatile .wtag { background:#b23a2e; color:#fff; }
+  .world h3 { font-family:'Noto Serif KR',serif; font-size:1.3rem; }
+  .world .item { font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#3a372e; padding:7px 0; border-bottom:1px dashed #cfc9b8; }
+  .world .item:last-child { border-bottom:none; }
+  .world .sub { font-size:0.72rem; color:#8a8371; margin-top:2px; }
+  .bridge { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .bridge .barrow { font-size:1.6rem; color:#b23a2e; }
+  .bridge .blabel { font-family:'JetBrains Mono',monospace; font-size:0.62rem; color:#8a8371; text-align:center; line-height:1.4; }
+  .disk { font-size:1.4rem; }
+
+  /* 라이프사이클 */
+  .life { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:30px; }
+  .lstep { border:1.5px solid #3a372e; background:#fdfcf7; border-radius:3px; padding:14px 18px; text-align:center; min-width:150px; }
+  .lstep .lt { font-size:0.85rem; font-weight:700; color:#1d1b16; }
+  .lstep .ls { font-size:0.68rem; color:#8a8371; margin-top:4px; line-height:1.5; }
+  .lstep.hot { background:#fff7dd; border-width:2px; }
+  .lstep.drop { border-color:#b23a2e; border-style:dashed; }
+  .larrow { color:#8a8371; font-size:1.2rem; }
+
+  @media (max-width:1100px) {
+    .slide { padding:50px 34px 80px; }
+    .two { grid-template-columns:1fr; }
+    .worlds { grid-template-columns:1fr; gap:16px; }
+    .bridge { flex-direction:row; padding:6px 0; }
+    .footer { left:34px; right:34px; }
+    .margin-note { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="nav-dots" id="dots"></div>
+<div class="kbd-hint">↑ ↓ 로 이동</div>
+
+<!-- 1. COVER -->
+<section class="slide">
+  <div class="secnum">LOGOS ONTOLOGY · 설계 노트</div>
+  <h1>벡터는 <span class="red">어디에 사는가</span></h1>
+  <p class="lede" style="margin-top:24px;">
+    질문: <b>"벡터 데이터는 온톨로지에 저장하지 않지?"</b><br>
+    답: <span class="hl">맞다.</span> 벡터는 그래프에 넣지 않는다. 별도의 <b>휘발성 의미 인덱스</b>에
+    메모리로만 살고, 그래프 노드로부터 <span class="u">언제든 다시 만들어진다.</span>
+  </p>
+  <p class="lede" style="margin-top:20px;">이게 실수가 아니라 <span class="red">의도된 설계</span>인 이유를 그림으로 풀어본다.</p>
+  <div class="margin-note pen" style="top:130px; right:80px;">벡터 = 저장물이 아니라<br>다시 만들 수 있는 캐시 ↘</div>
+  <div class="footer"><span>Vector Storage Design</span><span>01</span></div>
+</section>
+
+<!-- 2. 두 세계 -->
+<section class="slide">
+  <div class="secnum">01 · 두 개의 세계</div>
+  <h2>영속 그래프 &nbsp;vs&nbsp; 휘발 인덱스</h2>
+  <p class="lede">온톨로지는 디스크에 남는다. 벡터는 메모리에만 있고 저장되지 않는다.</p>
+  <div class="worlds">
+    <div class="world persist">
+      <span class="wtag">영속 · 디스크</span>
+      <h3>온톨로지 그래프</h3>
+      <p style="font-size:0.8rem; color:#5a554a; margin:6px 0 12px;">NetworkX MultiDiGraph</p>
+      <div class="item">노드 + 속성<div class="sub">이름 · 정의 · 별칭 · 위경도 · 카테고리</div></div>
+      <div class="item">엣지 (관계)<div class="sub">is_a · located_in · has_capability …</div></div>
+      <div class="item">→ kg_{ns}.json<div class="sub">nx.node_link_data() 구조만</div></div>
+    </div>
+    <div class="bridge">
+      <div class="blabel">그래프에서<br>생성 →</div>
+      <div class="barrow">⇢</div>
+      <div class="blabel">← 저장 안 됨<br>(끊긴 화살표)</div>
+    </div>
+    <div class="world volatile">
+      <span class="wtag">휘발 · 메모리</span>
+      <h3>의미 인덱스</h3>
+      <p style="font-size:0.8rem; color:#5a554a; margin:6px 0 12px;">SemanticIndex</p>
+      <div class="item">_vectors : numpy (n, dim)<div class="sub">L2 정규화된 임베딩 행렬</div></div>
+      <div class="item">ko-sroberta-nli<div class="sub">노드 텍스트 → 384-dim 벡터</div></div>
+      <div class="item">💨 프로세스 종료 시 사라짐<div class="sub">디스크에 기록되지 않음</div></div>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:24px;"><span class="pen" style="font-size:1.5rem;">그래프는 진실. 벡터는 그 진실을 검색하기 위한 임시 도구.</span></p>
+  <div class="footer"><span>두 개의 세계</span><span>02</span></div>
+</section>
+
+<!-- 3. 체크포인트 안에 뭐가 있나 -->
+<section class="slide">
+  <div class="secnum">02 · 증거</div>
+  <h2>체크포인트 JSON 안에 뭐가 있나</h2>
+  <p class="lede">저장 코드가 담는 것은 <b>그래프 구조와 메타데이터뿐</b>. 벡터 필드는 존재하지 않는다.</p>
+  <div class="code">
+<span class="d"># knowledge_graph_clean.py · save_to_disk()</span>
+graph_data = nx.<span class="k">node_link_data</span>(self.graph_engine.graph)
+
+checkpoint = {
+    <span class="s">"graph"</span>:    graph_data,   <span class="d"># 노드 + 엣지 + 속성</span>
+    <span class="s">"metadata"</span>: {...},        <span class="d"># 노드/엣지 수, 시각 등</span>
+    <span class="x">#  ❌ "vectors" 없음</span>
+    <span class="x">#  ❌ "embeddings" 없음</span>
+}
+json.<span class="k">dump</span>(checkpoint, f, ensure_ascii=<span class="n">False</span>)
+  </div>
+  <div class="two" style="margin-top:22px;">
+    <div class="box soft"><h3>저장되는 것 ✓</h3><p>노드 id · 타입 · 이름 · 정의 · 별칭 · 위경도 · 카테고리 · 모든 엣지</p></div>
+    <div class="box" style="border-color:#b23a2e;"><h3 class="red">저장 안 되는 것 ✕</h3><p>임베딩 벡터. <code>_vectors</code> numpy 배열은 <code>SemanticIndex</code> 안에서 메모리로만 존재하고 직렬화되지 않는다.</p></div>
+  </div>
+  <div class="footer"><span>체크포인트 내용</span><span>03</span></div>
+</section>
+
+<!-- 4. 라이프사이클 -->
+<section class="slide">
+  <div class="secnum">03 · 벡터의 일생</div>
+  <h2>필요할 때 만들고, 낡으면 버린다</h2>
+  <div class="life">
+    <div class="lstep"><div class="lt">그래프 로드</div><div class="ls">kg_{ns}.json ← 디스크<br>(벡터 없음)</div></div>
+    <div class="larrow">→</div>
+    <div class="lstep hot"><div class="lt">첫 검색 요청</div><div class="ls">build_from_graph()<br>노드 텍스트 → 임베딩</div></div>
+    <div class="larrow">→</div>
+    <div class="lstep"><div class="lt">검색</div><div class="ls">query 벡터 × 행렬<br>코사인 유사도</div></div>
+    <div class="larrow">→</div>
+    <div class="lstep drop"><div class="lt">clear() / 재시작</div><div class="ls">인덱스 폐기<br>죽은 노드 가리킴 방지</div></div>
+  </div>
+  <div class="box soft" style="margin-top:34px;">
+    <p><code>compose_node_text()</code> 로 노드의 이름·정의·별칭을 한 문장으로 엮어 임베딩한다. 노드가 바뀌면 텍스트가 바뀌고, 다음 빌드에서 자동으로 다시 임베딩된다 — <b>벡터를 저장해두면 오히려 낡은 값이 남는다.</b></p>
+  </div>
+  <div class="margin-note pen" style="bottom:120px; right:100px;">저장 안 하니까<br>항상 최신 ✓</div>
+  <div class="footer"><span>벡터의 일생</span><span>04</span></div>
+</section>
+
+<!-- 5. 왜 -->
+<section class="slide">
+  <div class="secnum">04 · 왜 이렇게 했나</div>
+  <h2>벡터를 <span class="red">진실의 원천</span>으로 취급하지 않는다</h2>
+  <div class="two">
+    <div>
+      <div class="box"><h3>① 재생성 가능한 파생물</h3><p style="margin-top:6px;">벡터는 그래프에서 언제든 다시 만들 수 있다. 원본이 아니라 캐시. 원본(그래프)만 저장하면 충분하다.</p></div>
+      <div class="box" style="margin-top:16px;"><h3>② 모델이 바뀔 수 있다</h3><p style="margin-top:6px;">임베딩 모델을 교체하면 예전 벡터는 무의미. 저장해두면 마이그레이션 부담만 늘어난다.</p></div>
+    </div>
+    <div>
+      <div class="box"><h3>③ 규모에 맞는 단순함</h3><p style="margin-top:6px;">~1,000 노드에서 numpy 행렬곱은 <b>밀리초</b>. 벡터 DB 의존성을 추가할 이유가 없다. <span class="mono" style="font-size:0.75rem;">(semantic_index.py 설계 주석)</span></p></div>
+      <div class="box" style="margin-top:16px; background:#fff7dd; border-width:2px;"><h3>④ 관심사 분리</h3><p style="margin-top:6px;">그래프 = 지식(영속). 인덱스 = 검색 가속(휘발). 둘을 섞지 않으니 각각 독립적으로 교체·확장 가능.</p></div>
+    </div>
+  </div>
+  <div class="footer"><span>설계 근거</span><span>05</span></div>
+</section>
+
+<!-- 6. 트레이드오프 & 로드맵 -->
+<section class="slide">
+  <div class="secnum">05 · 대가와 다음 수</div>
+  <h2>대가: 재시작 때 다시 임베딩</h2>
+  <p class="lede">저장하지 않는 대신, 재시작 후 첫 검색에서 전체를 다시 임베딩한다.</p>
+  <table>
+    <thead><tr><th style="width:34%">네임스페이스</th><th class="c">노드 수</th><th>첫 검색 재빌드</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">default</td><td class="c mono">1,277</td><td>순간 (문제 없음)</td></tr>
+      <tr><td class="mono">heritage_kr</td><td class="c mono">2,784</td><td>수 초 블로킹</td></tr>
+      <tr><td class="mono">heritage_us</td><td class="c mono">3,623</td><td>수 초 블로킹</td></tr>
+      <tr><td class="mono" style="color:#8a8371;">수만~수십만 (미래)</td><td class="c mono" style="color:#8a8371;">10⁴⁺</td><td class="red">재고 대상 →</td></tr>
+    </tbody>
+  </table>
+  <div class="two" style="margin-top:26px;">
+    <div class="box soft"><h3>지금 (옳음)</h3><p>현 규모에선 재빌드가 싸다. 저장하지 않는 단순함이 이득. <b>그대로 둔다.</b></p></div>
+    <div class="box" style="border-color:#20599c;"><h3 style="color:#20599c;">커지면 (interop)</h3><p>① 노드 해시로 무효화하는 로컬 <code>.npy</code> 캐시 (그래프 checkpoint엔 여전히 안 넣음)<br>② 외부 벡터 스토어(FAISS·Qdrant) 어댑터로 위임</p></div>
+  </div>
+  <p class="lede" style="margin-top:24px;"><span class="pen" style="font-size:1.5rem;">"저장은 남에게, 우리는 지휘" — 벡터에도 똑같이 적용된다.</span></p>
+  <div class="footer"><span>트레이드오프 · 로드맵</span><span>06</span></div>
+</section>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dots=document.getElementById('dots');
+  slides.forEach((s,i)=>{const d=document.createElement('div');d.className='nav-dot';d.onclick=()=>s.scrollIntoView({behavior:'smooth'});dots.appendChild(d);});
+  const dotEls=[...dots.children];
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){const i=slides.indexOf(e.target);dotEls.forEach((d,j)=>d.classList.toggle('active',j===i));}});},{threshold:0.5});
+  slides.forEach(s=>io.observe(s));
+  document.addEventListener('keydown',(e)=>{const cur=slides.findIndex(s=>{const r=s.getBoundingClientRect();return r.top>=-window.innerHeight/2&&r.top<window.innerHeight/2;});if(e.key==='ArrowDown'&&cur<slides.length-1){e.preventDefault();slides[cur+1].scrollIntoView({behavior:'smooth'});}if(e.key==='ArrowUp'&&cur>0){e.preventDefault();slides[cur-1].scrollIntoView({behavior:'smooth'});}});
+</script>
+</body>
+</html>

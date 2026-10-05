@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>실험 하네스 아키텍처 — 어떤 조합(방법×데이터×모델)이 최고 효율인가</title>
+<style>
+  :root { --ink:#1c2330; --ink2:#5a6478; --line:#dfe4ee; --bg:#f7f9fc; --card:#fff;
+          --blue:#2a78d6; --green:#1baf7a; --orange:#e8842f; --red:#d64545; --violet:#7a5cd6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e6e9f2; --ink2:#9aa4b8; --line:#2a3245; --bg:#12161f; --card:#1a2030; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.65; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 25px; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 42px 0 12px; padding-top: 18px; border-top: 2px solid var(--line); }
+  p, li { font-size: 14px; }
+  .sub { color: var(--ink2); font-size: 13.5px; }
+  .meta { display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 0; }
+  .chip { font-size:12px; padding:3px 10px; border-radius:12px; border:1px solid var(--line); color:var(--ink2); }
+  .chip.b { border-color:var(--blue); color:var(--blue); }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--blue) 7%, var(--card)); font-weight: 700; }
+  code { background: color-mix(in srgb, var(--ink) 8%, transparent);
+         padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: ui-monospace,Menlo,monospace; }
+  pre { background: var(--card); border:1px solid var(--line); border-radius:10px; padding:14px;
+        overflow-x:auto; font-size:12px; line-height:1.55; font-family: ui-monospace,Menlo,monospace; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .warn { border-left: 4px solid var(--orange); }
+  .good { border-left: 4px solid var(--green); }
+  .bad  { border-left: 4px solid var(--red); }
+  .flow { display:flex; align-items:stretch; flex-wrap:wrap; margin:16px 0; }
+  .node { background:var(--card); border:1.5px solid var(--line); border-radius:10px;
+          padding:10px 12px; font-size:12.5px; min-width:118px; text-align:center; }
+  .node b { display:block; font-size:13px; margin-bottom:3px; }
+  .node small { color:var(--ink2); font-size:11px; line-height:1.4; display:block; }
+  .node.det { border-color:var(--green); }
+  .node.store { border-color:var(--blue); }
+  .node.human { border-color:var(--orange); background:color-mix(in srgb, var(--orange) 6%, var(--card)); }
+  .arr { display:flex; align-items:center; padding:0 8px; color:var(--ink2); font-size:16px; }
+  .lane { border:1px dashed var(--line); border-radius:12px; padding:12px 14px; margin:10px 0; }
+  .lane > .lt { font-size:11.5px; font-weight:700; color:var(--ink2); letter-spacing:.4px; margin-bottom:8px; }
+  .overflow { overflow-x:auto; }
+  .cols { display:flex; gap:14px; flex-wrap:wrap; }
+  .cols > div { flex:1 1 300px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>실험 하네스 아키텍처</h1>
+<p class="sub">"어떤 방법 × 어떤 데이터 × 어떤 모델이 최고 효율인가"를 반복 측정 가능하게 —
+효율 = 품질 × 비용의 파레토</p>
+<div class="meta">
+  <span class="chip">2026-08-03</span>
+  <span class="chip b">설계 확정 — 구현 대기</span>
+  <span class="chip">인벤토리·설계 에이전트 2기 병렬 + 교차 검증</span>
+</div>
+
+<h2>1. 왜 — 인벤토리가 확정한 세 gap</h2>
+<div class="cols">
+  <div class="card bad"><b>① 비용을 재는 자가 0개</b>
+    <p class="sub">자 4종(골든셋·슬롯·라우팅 홀드아웃·커버리지) 전부 품질만 잰다.
+    "온톨로지 검색이 hit@1 2.8배"는 알지만 그 대가(지연 ms·임베딩 콜·확장 노드 수)는
+    어떤 자에도 없다 — <b>효율은 품질/비용인데 분모가 없다</b>.</p></div>
+  <div class="card bad"><b>② 실험이 재현 불가</b>
+    <p class="sub">3단 비교(벡터/온톨로지/에이전트)·임베더 비교·knob 스윕 — 전부
+    CLAUDE.md 표와 코드 주석으로만 남았다. 유일한 스윕 스크립트는 entry_ratio
+    1축·target=node 고정·이력 미기록.</p></div>
+  <div class="card bad"><b>③ 조합 간 비교 화면 없음</b>
+    <p class="sub">타임라인은 시간축 하나. "설정 A vs B 를 나란히"를 보는 화면·API 가
+    없어 결론이 사람 기억에 산다 — 그리고 이 세션에서 그 결론이 두 번 뒤집혔다.</p></div>
+</div>
+
+<h2>2. 전체 그림</h2>
+<div class="lane"><div class="lt">실험 실행 (LLM 0콜 — 임베딩 추론만)</div>
+<div class="flow">
+  <div class="node det"><b>축 열거</b><small>enumerate_combos<br>결정적 · max 상한 초과 시<br>소리내는 거부</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>채널 빌더 (공유)</b><small>vector / graph / graph+prop<br>evaluate_golden_set 에서 추출<br>— 측정과 라이브가 같은 경로</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>evaluate_cases</b><small>기존 자 그대로<br>hit@1·hit@k·MRR·by_tag</small></div>
+  <div class="arr">＋</div>
+  <div class="node det"><b>비용 계측</b><small>러너 측 perf_counter<br>p50/p95 지연 · embed 콜<br>확장 노드 · 풀 크기</small></div>
+</div></div>
+
+<div class="lane"><div class="lt">기록 — 지문 3종이 결과의 유효 조건을 박제한다</div>
+<div class="flow">
+  <div class="node store"><b>실험 레코드</b><small>axes + metrics + cost<br>+ <b>설정 지문</b>(공유 fn)<br>+ <b>그래프 상태 지문</b><br>+ <b>골든셋 지문</b></small></div>
+  <div class="arr">→</div>
+  <div class="node store"><b>experiments_{ns}.jsonl</b><small>append-only<br>eval_history 와 <b>분리</b><br>(운영 품질 블록 오염 방지)</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>파레토 프런티어</b><small>품질↑ 비용↓ 비지배 집합<br>단일 스칼라 합성 금지<br>(가중치를 지어내지 않는다)</small></div>
+  <div class="arr">→</div>
+  <div class="node human"><b>ExperimentTab</b><small>산점도 + 조합 표<br>◆ 현재 운영 설정 마커<br>⚠ 표본 부족 배지</small></div>
+</div></div>
+
+<div class="lane"><div class="lt">결정 — 제안까지만</div>
+<div class="flow">
+  <div class="node det"><b>recommend</b><small>같은 그래프 지문의<br>레코드만 후보 — 다르면<br>stale: "재실험 먼저"</small></div>
+  <div class="arr">→</div>
+  <div class="node human"><b>운영자 적용</b><small>기존 retrieval-config API<br>(검증 + 감사) — 하네스는<br>쓰기 경로를 갖지 않는다</small></div>
+</div></div>
+
+<h2>3. 효율의 정의</h2>
+<table>
+<tr><th>축</th><th>지표</th><th>출처</th></tr>
+<tr><td><b>품질</b></td><td>hit@1 / hit@k / MRR (target=evidence 기본) + by_tag</td><td>기존 <code>evaluate_cases</code> — 신규 지표 코드 0줄</td></tr>
+<tr><td rowspan="2"><b>비용</b></td><td>질의 지연 p50 / p95 (워밍업 1질의 제외 — 콜드스타트 8.5s 실측이 평균을 무의미하게 함)</td><td>러너 측 perf_counter — <b>라이브 경로 무변경</b></td></tr>
+<tr><td>embed_calls · expanded_nodes · propagated_nodes · pool_chunks · llm_calls(항상 0 = 계약)</td><td>contextvar 카운터(기본 no-op) + expand()/search() 반환값</td></tr>
+</table>
+<p class="sub">비교는 <b>파레토</b> — 품질과 비용을 하나의 점수로 합치지 않는다 (가중치를
+지어내는 것). "벡터만"이 품질은 낮아도 비용이 훨씬 싸면 프런티어에 남는다 — 그게 정답일
+네임스페이스도 있다.</p>
+
+<h2>4. 실험 공간 — 실행 비용 계층 (싼 축부터)</h2>
+<div class="overflow"><table>
+<tr><th>Tier</th><th>축</th><th>비용</th><th>규율</th></tr>
+<tr><td><b>0 — 질의 시점</b></td>
+    <td><b>채널 구성(벡터만/+그래프/+확산)</b> · retrieval knob 8종 격자 · top_k</td>
+    <td>조합당 수 초, 무해</td>
+    <td>"온톨로지 vs 벡터" 질문이 정확히 이 축 — 3단 비교(08-02 손측정)의 자동화</td></tr>
+<tr><td><b>1 — 임베더</b></td>
+    <td>노드/청크 모델 조합 (bge-m3·ko-sroberta·후보)</td>
+    <td>재색인 필요 (쓰기 동반)</td>
+    <td><b>스크래치 NS 클론에서만</b> (P-5 사고의 운영 규율) + 항상 융합 경로로 측정
+    (격리 측정이 반대 결론을 낸 07-31 실측)</td></tr>
+<tr><td><b>2 — 라우팅</b></td>
+    <td>라벨 소스(부트스트랩/+실피드백/+fallback) · 가중 BC vs 비가중 · 게이트 임계</td>
+    <td>CPU 수 분</td>
+    <td>자 = 홀드아웃 top-1 + SNIPS (training_loop 재사용). 층이 다르므로 파레토도 층 안에서만</td></tr>
+</table></div>
+<p class="sub">전수 격자 금지 — Tier 0 승자를 고정하고 Tier 1 을 그 위에서 돈다 (격자 폭발 방지).</p>
+
+<h2>5. 핵심 설계 결정 4가지</h2>
+<table>
+<tr><th>결정</th><th>근거 (전부 이 저장소의 실측)</th></tr>
+<tr><td><b>레코드에 그래프 상태 지문 필수</b> (nodes·edges·coverage·hash)</td>
+    <td>max_terms 스윕이 그래프 상태에 따라 두 번 뒤집혔다. 지문이 다른 레코드 간 비교는
+    화면에서 흐리게 + 경고, 추천에서는 <b>거부</b></td></tr>
+<tr><td><b>골든셋 지문도 필수</b> (n·statuses·hash)</td>
+    <td>라벨도 코퍼스 세대에 묶인다 (OCR 재인제스트 실측) — "같은 자로 쟀는가"가 레코드에 남아야 한다</td></tr>
+<tr><td><b>eval_history 와 분리 저장</b></td>
+    <td>eval_history → latest_quality → /retrieve 의 품질 블록. 실험 레코드가 섞이면
+    라이브 응답이 실험 설정의 품질을 운영 품질로 보고한다</td></tr>
+<tr><td><b>표본 n&lt;50 이면 추천 거부</b> (small_sample 경고)</td>
+    <td>47케이스 과적합 경고 — 1건=0.02 인 자로 knob 을 확정하지 않는다.
+    현재 골든셋: PROJ-A 65 (confirmed 0 — statuses 명시 필수), ins 47</td></tr>
+</table>
+
+<h2>6. 구현 Phase</h2>
+<table>
+<tr><th>Phase</th><th>내용</th></tr>
+<tr><td><b>1</b></td><td>커널 <code>core/experiment.py</code> — 열거·지문 3종·파레토·스토어 (+ conftest 격리 등재) + embed 카운터 + 채널 빌더 추출 (두 벌 금지)</td></tr>
+<tr><td><b>2</b></td><td>러너 <code>service.run_retrieval_experiments</code> (Tier 0) + 라우터 3종 — 계약 테스트: eval_history 무변화·llm_calls 0</td></tr>
+<tr><td><b>3</b></td><td>프론트 <code>ExperimentTab</code> — 파레토 산점도 + 조합 표 + ◆현재 마커 + ⚠표본 배지 (순수 뷰모델 + node --test)</td></tr>
+<tr><td><b>4</b></td><td>추천 경로 + Tier 1 임베더 실험 스크립트 (스크래치 NS, 라이브 API 경유)</td></tr>
+<tr><td><b>5</b></td><td>Tier 2 라우팅 실험 (training_loop 라벨 소스 필터) + 주기 실행 전환 조건 (골든셋 ≥50 등 3조건)</td></tr>
+</table>
+
+<h2>7. 위험과 완화</h2>
+<table>
+<tr><th>위험</th><th>완화</th></tr>
+<tr><td>골든셋 과적합</td><td>표본 수 필수 + 경고 배지 + 추천 하한 + statuses 기록</td></tr>
+<tr><td>그래프 드리프트로 낡은 결론</td><td>지문 불일치 시 추천 거부 + revalidate 신호 (검수 큐 카드 후보)</td></tr>
+<tr><td>계측이 측정을 오염</td><td>라이브 경로 무변경 (러너 측 계측), contextvar 기본 no-op, 워밍업 제외</td></tr>
+<tr><td>Tier 1 재색인이 라이브 오염</td><td>스크래치 NS 전용 + 라이브 API 경유 (PG=진실 규율)</td></tr>
+<tr><td>격자 폭발</td><td>Tier 계층 실행 + max_combos 소리내는 상한</td></tr>
+</table>
+
+<p class="sub" style="margin-top:32px">근거: 측정·실험 자산 인벤토리 (에이전트 산출, 자 4종 전수 + 비용 계측 0 실측),
+CLAUDE.md 2026-07-30~08-03 실측 이력 (knob 번복·임베더 격리/융합 역전·과적합 경고),
+docs/review-collaboration-architecture.html (제안-전용 결정 경로 규율).</p>
+
+</div>
+</body>
+</html>

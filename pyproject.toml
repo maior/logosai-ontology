@@ -1,6 +1,6 @@
 [project]
 name = "logosai-ontology"
-version = "2.0.0"
+version = "2.0.2"
 description = "Knowledge-driven multi-agent orchestration with LLM-powered query analysis and intelligent agent selection"
 readme = "README.md"
 license = {text = "MIT"}
@@ -18,23 +18,102 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
+# 커널 런타임 의존성 — 모듈 레벨 import 만. 무거운 것(임베더·ML·ES)은 전부
+# extras 로 뺀다: 문서에서 개념을 뽑으려는 소비자가 torch 를 설치해야 하면
+# 축 1(커널 분리)이 무의미해진다. (계약: tests/test_packaging.py)
 dependencies = [
     "loguru>=0.7.0",
     "networkx>=3.0",
+    "numpy>=1.24",       # semantic_index / npy_backend / es_backend 가 모듈 레벨로 쓴다
     "pyyaml>=6.0",
     "aiohttp>=3.9.0",
-    "langchain-core>=0.2.0",
-    "langchain-openai>=0.1.0",
 ]
 
 [project.optional-dependencies]
-gemini = ["google-generativeai>=0.5.0"]
+# 코드는 `from google import genai` — 배포명은 google-genai 다.
+# (구 google-generativeai 는 **다른 패키지**라 설치해도 Gemini 가 안 켜진다)
+gemini = ["google-genai>=1.0.0"]
+# 임베딩 의미 검색. 없으면 semantic_index 가 빈 결과로 degrade 한다(설계).
+embeddings = ["sentence-transformers>=2.2.0"]
+# 축 3 하이브리드 백엔드. 없으면 memory 로 degrade 한다.
+es = ["elasticsearch>=8.13,<9"]
+# 문서 내 이미지 주소화 — bbox(출처 좌표)를 주는 리더. pdfplumber 는 MIT 다.
+# ⚠️ PyMuPDF(fitz)를 쓰지 말 것: bbox 를 주고 이미 환경에 깔려 있지만 **AGPL-3.0**
+#    이라 9274 를 네트워크 서비스로 제공하는 이 저장소에 전염 위험이 있다.
+# 없으면 이미지 추출이 빈 결과로 degrade 한다(builder/image_assets 순수 로직은
+# 의존성 0 이라 이 extra 없이도 import·테스트된다).
+images = ["pdfplumber>=0.11"]
+# 축 5 인스턴스 진실 원본(노드·엣지). 없으면 memory(NetworkX)로 degrade 한다.
+# core/pg.py 가 lazy import — 이 extra 없이도 커널은 import·동작한다.
+postgres = ["psycopg[binary]>=3.1"]
+# 에이전트 라우팅용 GNN+RL — 커널이 아니다 (ontology/ml).
 ml = ["torch>=2.0.0", "torch-geometric>=2.5.0", "sentence-transformers>=2.2.0"]
-all = ["google-generativeai>=0.5.0", "torch>=2.0.0", "torch-geometric>=2.5.0", "sentence-transformers>=2.2.0"]
+# 표준 서버 (FastAPI Ontology Builder)
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "python-multipart>=0.0.9"]
+# openai / anthropic / openai-호환 프로바이더는 logosai LLMClient 를 경유한다
+# (core/llm_provider.py LogosAIProvider). google 은 gemini extra 로 직결되므로
+# 이것 없이도 동작한다 — 그래서 커널 의존이 아니라 선택 경로다.
+#
+# ⚠️ 필수 의존으로 올리지 말 것. 축 1(커널 분리)이 KG import 시 logosai 를
+#    31개 → 0 으로 줄인 작업이고, aicoach 가 온톨로지 채택을 포기한 이유가
+#    정확히 "heavy transitive deps" 였다. 계약: tests/test_packaging.py
+# ontology.orchestrator 도 이 extra 가 필요하다 — 실행부 8개가 logosai.orchestration 으로
+# 옮겨졌고 옛 경로는 그 별칭이다 (2026-10-04). 하한 0.14.0 = logosai.orchestration 이
+# 처음 들어간 릴리스 (0.13.0 이하엔 그 패키지가 없다).
+logosai = ["logosai>=0.14.0"]
+all = [
+    "google-genai>=1.0.0",
+    "sentence-transformers>=2.2.0",
+    "elasticsearch>=8.13,<9",
+    "psycopg[binary]>=3.1",
+    "torch>=2.0.0",
+    "torch-geometric>=2.5.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
+    "logosai>=0.14.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/maior/logosai-ontology"
 Issues = "https://github.com/maior/logosai-ontology/issues"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# 이 저장소는 **프로젝트 루트가 곧 패키지**다 — pyproject.toml 과 __init__.py 가
+# 같은 디렉터리에 있다. setuptools 자동 탐색은 이 구조에서 frontend/·data/·
+# tests/ 를 패키지로 오인하므로 매핑과 목록을 명시한다.
+package-dir = { "ontology" = "." }
+packages = [
+    "ontology",
+    # ─ 커널: 문서 → 온톨로지 → 검색 → 데이터셋 (축 1~4)
+    "ontology.builder",
+    "ontology.core",
+    "ontology.engines",
+    "ontology.engines.graph",
+    "ontology.server",
+    "ontology.utils",
+    # ─ 에이전트 스택: 커널이 아니다. 함께 배포하되 import 는 지연되므로
+    #   (축 1) 쓰지 않으면 로드되지 않는다.
+    "ontology.ml",
+    "ontology.orchestrator",
+    "ontology.system",
+]
+# processors/ 와 services/ 는 __init__.py 가 없어 패키지가 아니다(암묵적
+# 네임스페이스). 둘 다 에이전트 스택이라 커널 경계 밖이므로 배포하지 않는다.
+
+# 런타임에 코드가 읽는 데이터 파일 (2026-07-20).
+# wheel 은 .py 만 담는 게 기본이라, 이 선언이 없으면 격리 환경에서
+#   "Configuration file not found: .../ontology/config/llm_config.yaml"
+#   "⚠️ Using minimal hardcoded fallback configuration"
+# 으로 degrade 한다 (실측). 소비자는 설치가 깨진 것으로 오해한다.
+# 참조: core/llm_config_loader.py:34. 이 yaml 에는 api_key_env(환경변수 '이름')
+# 만 있고 키 값은 없다 — 배포해도 안전. 계약: tests/test_packaging.py
+[tool.setuptools.package-data]
+ontology = ["config/*.yaml"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

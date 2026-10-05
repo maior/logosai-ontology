@@ -38,12 +38,17 @@ import asyncio
 import json
 import math
 import re
+import threading
+import time
 from collections import deque
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
 
 from .llm_manager import get_ontology_llm_manager, OntologyLLMType
+from .selection_recorder import (
+    new_selection_id, emit_selection, emit_feedback,
+)
 
 
 # Time decay configuration
@@ -71,6 +76,10 @@ class HybridAgentSelector:
     USE_GNN_RL = True  # GNN+RL enabled
     GNN_RL_CONFIDENCE_THRESHOLD = 0.7  # Use GNN+RL result directly above this threshold
 
+    # P0-2 (2026-08-03): 임베더 예열 재시도 간격. 종전에는 예열이 1회성이라
+    # 첫 실패 = 프로세스 수명 동안 GNN+RL 영구 skip 이었다 (채택률 0% 의 벽 ①).
+    EMBEDDING_WARM_RETRY_SECONDS = 60.0
+
     def __init__(self, knowledge_graph=None, llm_manager=None, auto_sync: bool = True, use_gnn_rl: bool = True):
         """
         Args:
@@ -90,7 +99,15 @@ class HybridAgentSelector:
         self.stats = {
             "total_selections": 0,
             "gnn_rl_selections": 0,     # v3.0: GNN+RL direct selection count
-            "gnn_rl_fallback": 0,       # v3.0: GNN+RL fallback due to low confidence
+            "gnn_rl_fallback": 0,       # v3.0: 미채택 총계 (아래 사유별 합)
+            # P0-1 (2026-08-03): 미채택 사유 분리 계측. 총계 하나로는
+            # "왜 0% 인가"를 3일간 못 봤다 — 예열 blackout 과 확신 미달이
+            # 같은 숫자에 뭉쳐 있었고, 예외 분기는 아예 무계측이었다.
+            "gnn_rl_skip_not_ready": 0,   # 임베더 미로드로 호출 자체를 skip
+            "gnn_rl_timeout": 0,          # 2s 타임아웃
+            "gnn_rl_error": 0,            # 예외 (종전 무계측 분기)
+            "gnn_rl_low_confidence": 0,   # 게이트(0.7) 미달
+            "gnn_rl_unavailable_agent": 0,  # 확신은 넘었으나 목록 밖 에이전트
             "graph_assisted": 0,
             "llm_only": 0,
             "feedback_stored": 0,
@@ -99,6 +116,12 @@ class HybridAgentSelector:
             "pattern_generalizations": 0,
             "time_decay_applied": 0
         }
+
+        # P0-2: 임베더 예열 상태 (재시도 가드 + 실패 가시화)
+        self._embedding_warming = False
+        self._embedding_warm_last_attempt: Optional[float] = None
+        self._embedding_warm_error: Optional[str] = None
+        self._embedding_warm_thread: Optional[threading.Thread] = None
 
         # v3.0: History buffers for dashboard visualization
         self._selection_history: deque = deque(maxlen=200)
@@ -173,19 +196,64 @@ class HybridAgentSelector:
                 )
                 # Pre-warm embedding model in background thread
                 # (SentenceTransformer is CPU-bound, blocks event loop if loaded inline)
-                import threading
-                def _warm():
-                    try:
-                        _ = self._intelligent_selector.embedding_model
-                        logger.info("🤖 Embedding model pre-warmed in background")
-                    except Exception as e:
-                        logger.debug(f"Embedding pre-warm failed: {e}")
-                threading.Thread(target=_warm, daemon=True).start()
+                self._start_embedding_warmup()
                 logger.info("🤖 GNN+RL IntelligentAgentSelector loaded (embedding warming...)")
             except Exception as e:
                 logger.warning(f"⚠️ GNN+RL selector load failed, using fallback: {e}")
                 self._gnn_rl_enabled = False
         return self._intelligent_selector
+
+    def _count_gnn_rl_failure(self, kind: str) -> None:
+        """P0-1: GNN+RL 미채택을 사유별로 계측한다.
+
+        총계(gnn_rl_fallback)는 유지 — 기존 대시보드가 그 키를 읽는다.
+        """
+        key = f"gnn_rl_{kind}"
+        self.stats[key] = self.stats.get(key, 0) + 1
+        self.stats["gnn_rl_fallback"] = self.stats.get("gnn_rl_fallback", 0) + 1
+
+    def _start_embedding_warmup(self) -> bool:
+        """P0-2: 임베더 예열 스레드 기동. 재시도 가능해야 한다.
+
+        종전에는 intelligent_selector 최초 생성 시 1회만 예열했고, 실패는
+        debug 로그로 삼켜졌다 — bge-m3 전환(2026-07-31) 직후부터 GNN+RL 이
+        호출조차 안 되는 blackout 의 기원. 여기서는:
+        - 실패를 warning + `_embedding_warm_error` 로 남기고
+        - 간격(EMBEDDING_WARM_RETRY_SECONDS)·동시성 가드 하에 재시도를 허용한다.
+
+        Returns: 이번 호출이 실제로 예열 스레드를 띄웠으면 True.
+        """
+        sel = self._intelligent_selector
+        if sel is None or sel._embedding_model is not None:
+            return False
+        if self._embedding_warming:
+            return False
+        now = time.monotonic()
+        if (self._embedding_warm_last_attempt is not None
+                and now - self._embedding_warm_last_attempt < self.EMBEDDING_WARM_RETRY_SECONDS):
+            return False
+
+        self._embedding_warming = True
+        self._embedding_warm_last_attempt = now
+
+        def _warm():
+            try:
+                _ = sel.embedding_model
+                self._embedding_warm_error = None
+                logger.info("🤖 Embedding model pre-warmed in background")
+            except Exception as e:
+                # 조용한 실패 금지 — get_stats 의 embedding_warm_error 로도 보인다.
+                self._embedding_warm_error = str(e)
+                logger.warning(
+                    f"⚠️ Embedding pre-warm failed (retry in "
+                    f"{self.EMBEDDING_WARM_RETRY_SECONDS:.0f}s on next selection): {e}"
+                )
+            finally:
+                self._embedding_warming = False
+
+        self._embedding_warm_thread = threading.Thread(target=_warm, daemon=True)
+        self._embedding_warm_thread.start()
+        return True
 
     async def select_agent(
         self,
@@ -219,8 +287,10 @@ class HybridAgentSelector:
         if self._gnn_rl_enabled and self.intelligent_selector:
             # Skip GNN+RL if embedding model hasn't finished loading yet
             if self.intelligent_selector._embedding_model is None:
-                logger.info("🔄 GNN+RL skipped (embedding model still loading)")
-                self.stats["gnn_rl_fallback"] = self.stats.get("gnn_rl_fallback", 0) + 1
+                logger.info("🔄 GNN+RL skipped (embedding model not ready)")
+                self._count_gnn_rl_failure("skip_not_ready")
+                # P0-2: 방치하지 않고 재예열 — 1회 실패가 영구 skip 이 되지 않게
+                self._start_embedding_warmup()
             else:
               try:
                 gnn_rl_agent, gnn_rl_meta = await asyncio.wait_for(
@@ -237,6 +307,8 @@ class HybridAgentSelector:
                     "agent": gnn_rl_agent,
                     "confidence": gnn_rl_confidence,
                     "value_estimate": gnn_rl_meta.get('value_estimate', 0.0),
+                    # 피드백이 이 선택을 되짚는 키 (pending 맵 — 파이프 수리)
+                    "selection_id": gnn_rl_meta.get('selection_id'),
                     "method": "gnn_rl"
                 }
 
@@ -259,7 +331,20 @@ class HybridAgentSelector:
                             "timestamp": datetime.now().isoformat()
                         }
 
+                        # 영속화 (2026-07-31): deque 는 200건만 남는다.
+                        # selection_id 는 나중에 오는 피드백이 되짚을 키다.
+                        _sel_id = new_selection_id()
+                        emit_selection(
+                            selection_id=_sel_id, query=query,
+                            selected_agent=gnn_rl_agent, method="gnn_rl",
+                            confidence=gnn_rl_confidence, elapsed_ms=elapsed_ms,
+                            reasoning=metadata.get("reasoning", ""),
+                            graph_insights=None,
+                            value_estimate=gnn_rl_result.get("value_estimate"),
+                        )
                         self._selection_history.append({
+                            "selection_id": _sel_id,
+                            "ml_selection_id": gnn_rl_result.get("selection_id"),
                             "timestamp": datetime.now().isoformat(),
                             "query": query[:80],
                             "selected_agent": gnn_rl_agent,
@@ -291,17 +376,22 @@ class HybridAgentSelector:
                         )
                         return gnn_rl_agent, metadata
                     else:
+                        # 확신은 넘었으나 목록 밖 — low_confidence 와 다른 결함이다
+                        # (등록/가용 목록 불일치). 종전엔 같은 카운터에 뭉쳤다.
                         logger.warning(f"⚠️ GNN+RL selection {gnn_rl_agent} not in available_agents, falling back")
-
-                # Fall back if confidence is low
-                self.stats["gnn_rl_fallback"] += 1
-                logger.info(f"🔄 GNN+RL confidence low ({gnn_rl_confidence:.1%}), falling back to KG+LLM")
+                        self._count_gnn_rl_failure("unavailable_agent")
+                else:
+                    self._count_gnn_rl_failure("low_confidence")
+                    logger.info(f"🔄 GNN+RL confidence low ({gnn_rl_confidence:.1%}), falling back to KG+LLM")
 
               except asyncio.TimeoutError:
                 logger.info(f"🔄 GNN+RL timeout (2s), skipping to KG+LLM")
-                self.stats["gnn_rl_fallback"] = self.stats.get("gnn_rl_fallback", 0) + 1
+                self._count_gnn_rl_failure("timeout")
               except Exception as e:
+                # P0-1: 종전엔 이 분기만 카운터를 안 올렸다 — 예외로 죽는
+                # 지뢰(max_agents IndexError)가 전량 무계측이었던 이유.
                 logger.warning(f"GNN+RL selection failed, falling back to KG+LLM: {e}")
+                self._count_gnn_rl_failure("error")
 
         # ========== Phase 1: Knowledge Graph Analysis ==========
         graph_insights = await self._analyze_with_knowledge_graph(query, available_agents)
@@ -341,7 +431,18 @@ class HybridAgentSelector:
         else:
             self.stats["llm_only"] += 1
 
+        _sel_id = new_selection_id()
+        emit_selection(
+            selection_id=_sel_id, query=query, selected_agent=selected_agent,
+            method=selection_method,
+            confidence=gnn_rl_result["confidence"] if gnn_rl_result else 0.0,
+            elapsed_ms=elapsed_ms, reasoning=reasoning,
+            graph_insights=graph_insights,
+            value_estimate=gnn_rl_result["value_estimate"] if gnn_rl_result else None,
+        )
         self._selection_history.append({
+            "selection_id": _sel_id,
+            "ml_selection_id": (gnn_rl_result or {}).get("selection_id"),
             "timestamp": datetime.now().isoformat(),
             "query": query[:80],
             "selected_agent": selected_agent,
@@ -1057,8 +1158,10 @@ class HybridAgentSelector:
 
             # Enrich matching selection_history entry with feedback data
             query_short = query[:80]
+            ml_selection_id = None   # 피드백 파이프 — pending 맵을 되짚는 키
             for entry in reversed(self._selection_history):
                 if entry.get("query") == query_short and entry.get("selected_agent") == selected_agent:
+                    ml_selection_id = entry.get("ml_selection_id")
                     # Determine EMA success rate from current node attrs
                     ema_rate = None
                     if mapping_id in graph.nodes:
@@ -1069,6 +1172,15 @@ class HybridAgentSelector:
                         "ema_success_rate": ema_rate,
                         "kg_nodes_updated": True,
                     }
+                    # 피드백은 선택보다 나중에 온다 — selection_id 로 되짚는다
+                    # (시각으로 짝을 맞추면 동시 요청에서 어긋난다).
+                    if entry.get("selection_id"):
+                        emit_feedback(
+                            selection_id=entry["selection_id"],
+                            selected_agent=selected_agent, success=success,
+                            ema_success_rate=ema_rate,
+                            query_semantics=query_semantics,
+                        )
                     break
 
             # Periodic save: checkpoint KG + stats every 50 feedbacks
@@ -1083,9 +1195,14 @@ class HybridAgentSelector:
             # v3.0: Also store feedback in GNN+RL experience buffer
             if self._gnn_rl_enabled and self.intelligent_selector:
                 try:
+                    # id 로 되짚고(동시 요청 오귀속 방지), 실행 에이전트를
+                    # 명시해 보상이 실제 실행 쪽에 귀속되게 한다 — 채택률이
+                    # 낮은 동안 fallback 성공/실패가 그대로 학습 라벨이 된다.
                     await self.intelligent_selector.store_feedback(
                         success=success,
-                        execution_result=execution_result
+                        execution_result=execution_result,
+                        selection_id=ml_selection_id,
+                        executed_agent=selected_agent,
                     )
                     logger.info(f"🤖 GNN+RL feedback stored: {selected_agent} (success={success})")
 
@@ -1124,6 +1241,14 @@ class HybridAgentSelector:
             "selection_history": list(self._selection_history),
             "training_history": list(self._training_history),
             "gnn_rl_enabled": self._gnn_rl_enabled,
+            # P0-1: enabled:True 이면서 3일간 호출 0 이던 상태가 보이지 않았다.
+            # "켜져 있다"와 "발화 가능하다"는 다른 사실 — 둘 다 보고한다.
+            # (_intelligent_selector 직접 참조: 조회가 생성을 트리거하면 안 된다)
+            "embedding_ready": (
+                self._intelligent_selector is not None
+                and self._intelligent_selector._embedding_model is not None
+            ),
+            "embedding_warm_error": self._embedding_warm_error,
             "ml_stats": (
                 self.intelligent_selector.stats
                 if self._gnn_rl_enabled and self.intelligent_selector

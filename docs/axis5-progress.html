@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>저장 엔진 재설계 — 진행 현황</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#161b2c; --line:#2a3350; --ink:#e8ebf5; --ink2:#aab3cf;
+    --faint:#71809f; --accent:#7c8cff; --green:#34d399; --amber:#fbbf24; --pg:#5b9bff; --es:#f5b74e;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0e1220 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;line-height:1.65}
+  .wrap{max-width:1000px;margin:0 auto;padding:48px 28px 90px}
+  .eyebrow{color:var(--green);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .15em}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:740px}
+  h2{font-size:1.3rem;font-weight:750;margin:48px 0 10px}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:26px 0}
+  @media(max-width:720px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 16px}
+  .metric .v{font-size:1.7rem;font-weight:800;letter-spacing:-.02em}
+  .metric .k{color:var(--faint);font-size:.8rem;font-weight:600;margin-top:2px}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin:22px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:10px}
+  .phase{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:var(--radius);padding:18px 22px;margin:14px 0}
+  .phase.done{border-left-color:var(--green)}
+  .phase.next{border-left-color:var(--amber)}
+  .phase h3{margin:0 0 4px;font-size:1.08rem;display:flex;align-items:center;gap:10px}
+  .phase .st{font-size:.72rem;font-weight:800;padding:2px 10px;border-radius:20px}
+  .st.ok{background:#0f2e24;color:var(--green);border:1px solid #1c5040}
+  .st.wip{background:#2e2810;color:var(--amber);border:1px solid #5a4d1c}
+  .phase p{color:var(--ink2);margin:.4em 0 0;font-size:.94rem}
+  .phase .v{color:var(--faint);font-size:.84rem;margin-top:8px}
+  .phase .v b{color:var(--green)}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.85em;background:#0b0f1c;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c7d0ee}
+  .foot{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:.82rem}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Ontology Storage Engine · 축 5 · 진행 현황</div>
+  <h1>사실의 층, 다시 짓기</h1>
+  <p class="sub">인메모리 그래프 → <b style="color:var(--pg)">PostgreSQL(진실)</b> +
+     <b style="color:var(--es)">Elasticsearch(투영)</b> + NetworkX(폴백). 네 단계 중 <b>세 단계 완료</b>,
+     하나의 실네임스페이스(<code>demo_ko</code>)가 이미 PG 를 진실 원본으로 서빙 중.</p>
+
+  <div class="metrics">
+    <div class="metric"><div class="v" style="color:var(--green)">721</div><div class="k">테스트 통과 (1 xfail)</div></div>
+    <div class="metric"><div class="v" style="color:var(--pg)">3,623</div><div class="k">최대 PG 전환 노드 (heritage_us)</div></div>
+    <div class="metric"><div class="v" style="color:var(--es)">1.000</div><div class="k">검색 recall@5 (200질의)</div></div>
+    <div class="metric"><div class="v">3개</div><div class="k">PG 라이브 네임스페이스</div></div>
+  </div>
+
+  <div class="fig">
+  <svg viewBox="0 0 900 150" role="img" aria-label="단계 타임라인">
+    <line x1="70" y1="60" x2="830" y2="60" stroke="#2a3350" stroke-width="3"/>
+    <line x1="70" y1="60" x2="670" y2="60" stroke="#34d399" stroke-width="3"/>
+    <!-- nodes -->
+    <g font-size="12" text-anchor="middle">
+      <circle cx="70" cy="60" r="13" fill="#0f2e24" stroke="#34d399" stroke-width="2.5"/><text x="70" y="65" fill="#34d399" font-weight="800">✓</text>
+      <text x="70" y="98" fill="#e8ebf5" font-weight="700">P0</text><text x="70" y="115" fill="#71809f" font-size="10.5">PG 연결·DDL</text>
+      <circle cx="270" cy="60" r="13" fill="#0f2e24" stroke="#34d399" stroke-width="2.5"/><text x="270" y="65" fill="#34d399" font-weight="800">✓</text>
+      <text x="270" y="98" fill="#e8ebf5" font-weight="700">P1</text><text x="270" y="115" fill="#71809f" font-size="10.5">GraphStore seam</text>
+      <circle cx="470" cy="60" r="13" fill="#0f2e24" stroke="#34d399" stroke-width="2.5"/><text x="470" y="65" fill="#34d399" font-weight="800">✓</text>
+      <text x="470" y="98" fill="#e8ebf5" font-weight="700">P2</text><text x="470" y="115" fill="#71809f" font-size="10.5">dual-write</text>
+      <circle cx="670" cy="60" r="13" fill="#0f2e24" stroke="#34d399" stroke-width="2.5"/><text x="670" y="65" fill="#34d399" font-weight="800">✓</text>
+      <text x="670" y="98" fill="#e8ebf5" font-weight="700">P3</text><text x="670" y="115" fill="#71809f" font-size="10.5">ES 검색·파셋</text>
+      <circle cx="830" cy="60" r="13" fill="#2e2810" stroke="#fbbf24" stroke-width="2.5"/><text x="830" y="65" fill="#fbbf24" font-weight="800">4</text>
+      <text x="830" y="98" fill="#e8ebf5" font-weight="700">P4</text><text x="830" y="115" fill="#71809f" font-size="10.5">NX 강등</text>
+    </g>
+  </svg>
+  <div class="cap">각 단계는 독립 배포 가능하고, 인메모리 폴백은 전 구간 유지된다.</div>
+  </div>
+
+  <h2>단계별 상세</h2>
+
+  <div class="phase done">
+    <h3>P0 · PostgreSQL 토대 <span class="st ok">완료</span></h3>
+    <p><code>core/pg.py</code> — lazy psycopg(없으면 degrade) + 멱등 DDL(<code>ontology.node/edge</code> + 인덱스 7개) + <code>postgres</code> extra. 스키마는 기존 DB 안 <code>ontology</code>, <code>namespace</code> 컬럼 다중화.</p>
+    <div class="v">검증: 라이브 스키마 생성·왕복, 이웃질의 <b>EXPLAIN = Index Scan using edge_out</b> (O(degree))</div>
+  </div>
+
+  <div class="phase done">
+    <h3>P1 · GraphStore seam <span class="st ok">완료</span></h3>
+    <p><code>core/graph_store.py</code> — 단일 인터페이스 뒤에 <code>InMemoryGraphStore</code>(현재·폴백)와 <code>PostgresGraphStore</code>(인덱스 질의). 서비스의 list_nodes/edges/neighbors 를 seam 에 위임. 백엔드는 <code>ONTOLOGY_GRAPH_BACKEND</code> / <code>ONTOLOGY_PG_NAMESPACES</code> 로 선택.</p>
+    <div class="v">검증: memory ↔ PostgreSQL <b>반환 payload 바이트 동일</b> (계약 테스트) · admin 60 무회귀</div>
+  </div>
+
+  <div class="phase done">
+    <h3>P2 · dual-write & 라이브 전환 <span class="st ok">완료</span></h3>
+    <p><code>sync_from_graph</code> (KG→PG 멱등 미러) + 빌드/인제스트 hook + <code>migrate_namespace_to_pg</code> (+<code>POST /graphs/{ns}/migrate-pg</code>). PG 는 진짜 인덱스 <code>COUNT</code> 라 근사 <code>COUNT_CAP</code> 밴드에이드 제거.</p>
+    <div class="v">검증: <code>demo_ko</code> 를 PG 로 전환 — PG-only sentinel 삽입 시 HTTP <b>9→10</b> 로 PG 서빙 증명, 제거 시 복귀</div>
+  </div>
+
+  <div class="phase done">
+    <h3>P3 · Elasticsearch 검색·파셋 <span class="st ok">완료</span></h3>
+    <p><code>core/object_index.py</code> — 객체 인덱스 <code>ontology-obj-{ns}</code>, BM25(name 가중) + <code>type/trust</code> keyword 파셋(aggregation). <code>object_search()</code> + <code>GET /graphs/{ns}/object-search</code> (ES 없으면 PG substring 폴백, <code>source</code> 필드로 구분).</p>
+    <div class="v">검증: <code>q=경주</code> → <b>Region:경주 관련도 최상위</b>, <code>type/trust</code> 파셋 · demo_en(memory) → fallback</div>
+  </div>
+
+  <div class="phase done">
+    <h3>P4-a · 검색 UI 배선 + 콜레이션 정합 <span class="st ok">완료</span></h3>
+    <p>관리 콘솔 검색창을 <code>object-search</code> 에 연결 — ES BM25 관련도 정렬 + 타입/신뢰 <b>파셋 칩</b>(클릭 좁히기, 결과로 재계산). PostgresGraphStore 정렬을 <code>COLLATE "C"</code> 로 memory 와 순서까지 일치.</p>
+    <div class="v">검증: demo_ko “경주” → 관련도 랭킹·파셋·좁히기 라이브 · 순서-민감 parity 테스트</div>
+  </div>
+
+  <div class="phase done">
+    <h3>P4-c · 검색 품질 측정 하네스 <span class="st ok">완료</span></h3>
+    <p><code>scripts/eval_search.py</code> — known-item(자동, recall@1/@5·MRR) + 사람 라벨 골든셋(<code>--golden</code>). 골든셋을 지어내지 않고 소여와 관련도 튜닝을 구분.</p>
+    <div class="v">베이스라인(200질의): heritage_us <b>recall@5 1.000·MRR 0.990</b>, heritage_kr <b>1.000·0.998</b></div>
+  </div>
+
+  <div class="phase done">
+    <h3>P4-b(1) · 수동 변경 PG 이중기록 <span class="st ok">완료</span></h3>
+    <p>생성·편집·거절·엣지·타입개명이 KG 만 바꾸고 PG(읽기 진실)엔 반영 안 되던 문제 해결. PostgresGraphStore 쓰기 프리미티브 5종 + <code>_pg_apply</code>(PG-backed·접속가능 시 이중기록, 실패는 ERROR). stats/개요/node_detail 도 seam 으로 이관해 개요 조회가 <b>전체 그래프 로드 없이</b> PG 인덱스 GROUP BY.</p>
+    <div class="v">검증: 라이브 이중기록 E2E(demo_ko 생성→PG·엣지→PG·거절→PG 0/0, 정리)</div>
+  </div>
+
+  <div class="phase done">
+    <h3>P4-b(2) · 증분 미러 <span class="st ok">완료</span></h3>
+    <p><code>sync_from_graph</code> 가 <code>content_hash</code> diff 로 <b>변경/신규만 upsert·사라진 것만 delete</b> — 미변경 행은 쓰기 0. 대용량에서 매 빌드 전체 재기록(이전 delete-all+insert-all)을 없앤다.</p>
+    <div class="v">검증: 미변경 재동기화 시 updated_at 불변(재기록 0) · 라이브 heritage_us 2차 “노드 ~0/-0”</div>
+  </div>
+
+  <div class="phase done">
+    <h3>구조화 검색 + 코호트 추출 <span class="st ok">완료</span></h3>
+    <p>프로퍼티 값(=·포함·있음) + 노드 관계(술어·대상·대상타입·방향)로 찾기(<code>/query</code>, PG jsonb+EXISTS) + 탐색 “고급 검색” UI. 검색 코호트를 그대로 <b>RL/LLM 학습데이터</b>로 추출(triples/qa/surface/evidence, <code>/dataset</code> + <code>c_*</code> 다운로드).</p>
+    <div class="v">라이브: 관계 “→State” 1,985 · museum 코호트 42노드→254행 추출</div>
+  </div>
+
+  <div class="phase" style="border-left-color:var(--faint)">
+    <h3>P4-b(3) · 빌더 PG 직접기록 <span class="st" style="background:#232a3c;color:var(--faint)">의도적 비목표</span></h3>
+    <p>빌더가 개체별로 PG 에 직접 쓰는 것은 안티패턴 — 인제스트 중 수천 왕복이라 <b>증분 미러(배치)보다 느리고 위험</b>하다. (1)+(2)로 PG 는 이미 커밋된 진실이고 일관적이라, 이 단계는 <b>하지 않는다</b>. 인제스트는 KG(작업 버퍼)→증분 미러(PG 진실) 방향을 유지.</p>
+  </div>
+
+  <h2>실측 근거 (제안서 인용용)</h2>
+  <div class="phase done">
+    <p style="margin-top:0"><b style="color:var(--pg)">대용량 라이브 전환</b> — <code>heritage_us</code> 3,623 노드 / 6,852 엣지, <code>heritage_kr</code> 2,784 / 5,707 을 PG 진실 원본으로 전환. 브라우즈 <b>total=3,623 · capped=false</b>(근사 아닌 진짜 인덱스 카운트), HTTP 255 ms.</p>
+    <p><b style="color:var(--pg)">인덱스 이웃질의</b> — 최고차수 허브(degree 1,963)의 이웃 조회 318 ms, 일반 노드는 그 이하. 전체 그래프 스캔 없이 O(degree).</p>
+    <p><b style="color:var(--es)">검색·파셋</b> — heritage_us “museum” 55 hits 57 ms(엔진) / 332 ms(HTTP), 타입 파셋 {museum:17·HeritageClass:15·house:8}.</p>
+    <p><b style="color:var(--green)">검색 품질</b> — known-item 200 질의 recall@5 = 1.000(전 질의 상위5 내), recall@1 ≈ 0.98–0.995.</p>
+  </div>
+
+  <h2>정직한 한계</h2>
+  <div class="phase" style="border-left-color:var(--faint)">
+    <p style="margin-top:0"><b style="color:var(--green)">정렬 콜레이션 — 해결(P4-a)</b> · PG 정렬을 <code>COLLATE "C"</code>(바이트=코드포인트)로 memory 와 순서까지 일치. 순서-민감 parity 테스트로 고정.</p>
+    <p><b style="color:var(--green)">증분 미러 — 해결(P4-b2)</b> · <code>content_hash</code> diff 로 변경분만 반영, 미변경 쓰기 0. 전체 재기록 제거.</p>
+    <p><b>도메인 관련도 튜닝</b> — known-item 소여는 recall@5=1.000 으로 측정됐으나, RRF·검색 가중치의 <b>관련도 튜닝은 사람이 라벨한 골든셋</b>이 있어야 한다(하네스 준비됨, <code>--golden</code>).</p>
+    <p><b>빌더 진실 방향</b> — 읽기·개요·수동변경은 PG(진실)에 직행·이중기록되나, 인제스트는 여전히 KG(작업 버퍼)→증분 미러→PG 방향이다. 빌더 개체별 PG 직접기록은 배치 미러보다 느리고 위험해 <b>의도적 비목표</b>(P4-b3). 실용상 PG 는 커밋된 진실 역할을 한다.</p>
+  </div>
+
+  <div class="foot">
+    관련 문서: <a href="axis5-engine-architecture.html">엔진 아키텍처 & 차별점 →</a><br>
+    커널 경계: psycopg·elasticsearch 는 extras+lazy — 커널 import 비용 0 · degrade 설계.
+  </div>
+</div>
+</body>
+</html>

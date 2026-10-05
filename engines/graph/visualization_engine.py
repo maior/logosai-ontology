@@ -10,7 +10,10 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Set, Tuple
 from loguru import logger
 
-from ...core.llm_manager import get_ontology_llm_manager, OntologyLLMType
+# llm_manager 는 지연 import — 이 모듈은 시각화 데이터 생성이 본업이고 LLM 을
+# 실제로 호출하지 않는다(속성만 들고 있었다). 모듈 레벨로 끌어오면 logosai
+# (에이전트 프레임워크) 전량이 딸려와, KG 를 읽기만 하는 소비자까지 그 비용을
+# 낸다. (계약: tests/test_kernel_decoupling.py)
 
 
 class VisualizationEngine:
@@ -18,7 +21,7 @@ class VisualizationEngine:
 
     def __init__(self, graph: nx.MultiDiGraph):
         self.graph = graph
-        self.llm_manager = get_ontology_llm_manager()
+        self._llm_manager = None
 
         # Color palette
         self.node_colors = {
@@ -45,6 +48,14 @@ class VisualizationEngine:
         }
         
         logger.info("🎨 Visualization engine initialized")
+
+    @property
+    def llm_manager(self):
+        """LLM manager — 첫 접근 시 생성 (import 도 이때, 모듈 상단 참고)."""
+        if self._llm_manager is None:
+            from ...core.llm_manager import get_ontology_llm_manager
+            self._llm_manager = get_ontology_llm_manager()
+        return self._llm_manager
 
     async def generate_visualization(self, max_nodes: int = 100) -> Dict[str, Any]:
         """Generate rich visualization data"""

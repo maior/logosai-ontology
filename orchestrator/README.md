@@ -86,21 +86,40 @@ print(f"이유: {plan.reasoning}")
 
 ## 컴포넌트 구조
 
+⚠️ **정본은 `logosai.orchestration` 이다 (2026-10-04~05, orchestrator-unify).**
+계획·검증·실행의 메커니즘은 SDK 로 옮겼고, 여기에는 **Logos 인스턴스**와 **호환 경로**만 남는다.
+import 경로(`from ontology.orchestrator import ...`)는 그대로 동작한다.
+
 ```
 ontology/orchestrator/
-├── __init__.py              # 패키지 exports
-├── models.py                # 데이터 모델 (ProgressEvent, ExecutionPlan, etc.)
-├── exceptions.py            # 예외 클래스
-├── progress_streamer.py     # 실시간 스트리밍 엔진
-├── agent_registry.py        # 에이전트 레지스트리
-├── query_planner.py         # LLM 기반 쿼리 계획 (Flash-Lite)
-├── plan_validator.py        # 실행 계획 검증
-├── data_transformer.py      # 에이전트 간 데이터 변환
-├── execution_engine.py      # 순차/병렬 실행 엔진
-├── result_aggregator.py     # 결과 통합
-├── workflow_orchestrator.py # 메인 오케스트레이터
-└── test_orchestrator.py     # 통합 테스트
+├── __init__.py              # 패키지 exports (경로 호환)
+├── models.py · exceptions.py · progress_streamer.py · agent_registry.py
+├── plan_validator.py · data_transformer.py · execution_engine.py · result_aggregator.py
+│                            # ↑ 별칭: 모듈 자체가 logosai.orchestration.<같은 이름> 이다
+│                            #   (싱글턴·isinstance·패치가 한 객체로 유지된다)
+├── query_planner.py         # Logos 플래너 — SDK QueryPlanner 상속. Logos 프롬프트·Gemini·
+│                            #   GNN+RL 힌트·배제 관문·키워드 gap 만 훅으로 남는다
+├── workflow_orchestrator.py # Logos 오케스트레이터 — SDK 상속, 플래너만 Logos 것
+├── logos_agents.py          # Logos 기본 에이전트 12개 (logos_default_agents())
+└── plan_regression.py       # 계획 회귀 판정 (scripts/plan_regression.py 가 실행)
 ```
+
+**레지스트리는 빈 상태로 시작한다.** Logos 기본 목록이 필요하면 명시한다:
+
+```python
+from ontology.orchestrator import AgentRegistry
+from ontology.orchestrator.logos_agents import logos_default_agents
+
+registry = AgentRegistry(defaults=logos_default_agents())   # 기본 먼저, DB 나중
+```
+
+기본 목록을 빼면 플래너 프롬프트의 에이전트 나열 순서가 바뀌어 계획이 달라진다
+(계획 회귀 하네스 안정 시나리오 30개 중 6개, 실측). 같은 이유로 `rag_search_agent`
+(실체 없는 유령)도 일부러 남겨 두었다 — `KNOWN_GHOSTS` 참고.
+
+동작이 옮기기 전과 같음을 지키는 테스트: `tests/test_planner_golden.py`(프롬프트·계획
+바이트 동일), `tests/test_orchestrator_characterization.py`(이벤트 흐름), 그리고
+실제 LLM 분포 비교 `python scripts/plan_regression.py compare`.
 
 ## 스트리밍 이벤트
 
@@ -193,6 +212,48 @@ Stage 2: [analysis_agent]  (결과 병합 후 분석)
 ### Hybrid (하이브리드)
 
 복잡한 쿼리에서 병렬과 순차를 조합합니다.
+
+## 스테이지 간 데이터 전달 (핸드오프)
+
+**계약**: 각 스테이지는 이전 스테이지 결과를 받아 → **핵심만 가공(압축)** → 다음 에이전트 쿼리에 통합해 전달하고, 다음 에이전트가 이를 활용해 재가공한다.
+
+```
+Stage 1 결과(들)
+  → _extract_core_result()     # answer/result/content 만 재귀 추출 (metadata 배제)
+  → _enrich_query_with_input() # 아래 형식으로 sub_query 에 통합 (최대 2000자)
+  → 다음 에이전트 실행
+```
+
+**enriched query 형식** (`execution_engine.py`):
+
+```
+[이전 단계 결과]
+[결과 1]
+<Stage 1 에이전트 A 의 핵심 결과>
+
+[결과 2]
+<Stage 1 에이전트 B 의 핵심 결과>
+
+[요청]
+<이 스테이지의 sub_query>
+
+위의 이전 단계 결과를 활용하여 요청에 응답해주세요.
+```
+
+**핵심 추출 규칙** (`_extract_core_result`, 2026-07-07 개편):
+
+| 입력 형태 | 처리 |
+|-----------|------|
+| dict | `answer` → `result` → `content` → `data` → `text` 순으로 재귀 추출 |
+| **다중 항목 리스트** (병렬 결과) | **각 항목의 핵심만 추출해 `[결과 N]` 라벨로 join** — 통 JSON 직렬화 금지 |
+| 단일 항목 리스트 | 항목의 핵심만 (라벨 없음) |
+| **JSON 문자열** | **파싱 후 위 규칙 적용** — 상류(DataTransformer)가 stage 결과를 pretty-JSON 문자열로 직렬화해 전달하는 실경로 대응 |
+| **full-HTML** (`<!DOCTYPE`/`<html`/`<style` 시작) | **태그 제거한 순수 텍스트로 변환** (`_html_to_text`) — 표시용 HTML(예: scheduler 프리미엄 뷰)은 핸드오프 데이터로 부적합. 인라인 태그 섞인 markdown 은 오탐 방지 위해 그대로 |
+| 일반 텍스트 | 그대로 |
+
+**Why (2026-07-07 하이브리드 실측)**: 병렬 결과를 metadata(`source_info`·`success`·`reasoning` 등) 포함 통 JSON 으로 직렬화하면 2000자 truncate 예산을 잠식해 **뒷 병렬 결과가 잘렸다**(서울·제주 사례: 제주 데이터 truncate 발동). 핵심(answer)만 압축한 뒤에는 두 결과가 온전히 전달되고 truncate 미발동. 또한 stage 간 데이터가 ExecutionEngine 에 **list 가 아니라 JSON 문자열로 도착**하는 실경로(DataTransformer 직렬화)가 프로브로 확인되어 문자열 파싱 경로가 필수다. HTML 변환은 D3 실측(scheduler HTML 이 다음 stage 입력을 오염, 9KB HTML → 수십 자 텍스트) 대응 — 표시 경로(프론트 rehypeRaw 렌더)는 건드리지 않는다.
+
+테스트: `test_extract_core_parallel.py` (X-1~X-17).
 
 ## 에이전트 레지스트리
 

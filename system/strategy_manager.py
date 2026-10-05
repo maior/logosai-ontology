@@ -8,11 +8,12 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from loguru import logger
 
-# Import from the correct models module
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))
-from core.models import ExecutionStrategy, OptimizationStrategy, WorkflowComplexity, QueryType, AgentType
+# 상대 import — 종전에는 `sys.path.append(ontology/)` 뒤 `from core.models`
+# 라는 절대 import 였다. ontology/ 자신이 sys.path 에 있어야만 로드돼
+# `from ontology import OntologySystem` 이 깨졌고, import 하는 것만으로
+# 프로세스의 sys.path 를 오염시켰다 (2026-08-21 수리).
+from ..core.models import (AgentType, ExecutionStrategy, OptimizationStrategy,
+                           QueryType, WorkflowComplexity)
 
 
 @dataclass

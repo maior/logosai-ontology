@@ -14,18 +14,41 @@ from loguru import logger
 
 from ..core.models import SemanticQuery, AgentExecutionResult
 from ..core.interfaces import KnowledgeGraph
-from ..core.llm_manager import get_ontology_llm_manager, OntologyLLMType
+from ..core.semantic_index import SemanticIndex, DEFAULT_NODE_TYPES
+from ..core.vector_backend import VectorBackend, select_backend
 from .graph.graph_engine import GraphEngine
 from .graph.visualization_engine import VisualizationEngine
 
 _DEFAULT_DATA_DIR = Path(__file__).parent.parent / "data"
 
 
+class _LazyLLMType:
+    """OntologyLLMType 지연 프록시 — graph_engine._LazyLLMType 과 같은 이유.
+
+    KG 엔진은 문서 검색·데이터셋 추출 소비자의 주 진입점이다. 여기서
+    llm_manager 를 모듈 레벨로 import 하면 그 소비자 전원이 logosai(에이전트
+    프레임워크)를 설치해야 한다. LLM 은 analyze_graph_patterns 같은 일부
+    경로에서만 쓰이므로 그때 로드한다.
+    """
+
+    def __getattr__(self, name):
+        from ..core.llm_manager import OntologyLLMType as _Real
+        return getattr(_Real, name)
+
+
+OntologyLLMType = _LazyLLMType()
+
+
 class KnowledgeGraphEngine(KnowledgeGraph):
     """🧠 Ontology Knowledge Graph Engine - Clean Integrated Version"""
 
-    def __init__(self, max_nodes: int = 1000, fast_mode: bool = True):
+    def __init__(self, max_nodes: int = 1000, fast_mode: bool = True,
+                 namespace: str = "default"):
         self.max_nodes = max_nodes
+        # Namespace separates independent ontologies (agent routing vs
+        # domain knowledge built by ontology.builder) — each gets its own
+        # graph instance and checkpoint file.
+        self.namespace = namespace
 
         # Core graph engine (CRUD operations) - fast mode applied
         self.graph_engine = GraphEngine(fast_mode=fast_mode)
@@ -33,8 +56,10 @@ class KnowledgeGraphEngine(KnowledgeGraph):
         # Visualization engine
         self.visualization_engine = VisualizationEngine(self.graph_engine.graph)
 
-        # LLM manager
-        self.llm_manager = get_ontology_llm_manager()
+        # LLM manager — 지연 생성 (llm_manager 프로퍼티 참고). 그래프를 읽기만
+        # 하는 소비자(문서 검색·데이터셋 추출)가 대다수인데, 생성자에서
+        # 만들면 그 전원이 LLM 설정 로딩 비용을 낸다.
+        self._llm_manager = None
 
         # Metadata
         self.metadata = {
@@ -44,6 +69,10 @@ class KnowledgeGraphEngine(KnowledgeGraph):
             "engine_type": "integrated_clean",
             "fast_mode": fast_mode
         }
+
+        # Semantic (embedding) index — created lazily on first search,
+        # or explicitly via init_semantic_index() (tests inject embed_fn)
+        self._semantic_index: Optional[SemanticIndex] = None
         
         logger.info(f"🧠 Integrated ontology knowledge graph engine initialized (fast mode: {'ON' if fast_mode else 'OFF'})")
 
@@ -625,7 +654,293 @@ class KnowledgeGraphEngine(KnowledgeGraph):
         """Update metadata"""
         self.metadata["last_updated"] = datetime.now().isoformat()
 
+    # ─── Ontology inference (data-perspective queries) ──────────────
+    # Pure graph traversal — synchronous, deterministic, no LLM.
+
+    def get_ancestors(self, node_id: str, predicate: str = "is_a") -> List[str]:
+        """Transitive closure upward: all nodes reachable via `predicate`
+        out-edges (nearest first, BFS order)."""
+        graph = self.graph
+        if node_id not in graph:
+            return []
+        ancestors: List[str] = []
+        visited = {node_id}
+        queue = [node_id]
+        while queue:
+            current = queue.pop(0)
+            for _, target, attrs in graph.out_edges(current, data=True):
+                if attrs.get("predicate") == predicate and target not in visited:
+                    visited.add(target)
+                    ancestors.append(target)
+                    queue.append(target)
+        return ancestors
+
+    def get_descendants(self, node_id: str, predicate: str = "is_a") -> List[str]:
+        """Transitive closure downward: all nodes that reach `node_id`
+        via `predicate` edges."""
+        graph = self.graph
+        if node_id not in graph:
+            return []
+        descendants: List[str] = []
+        visited = {node_id}
+        queue = [node_id]
+        while queue:
+            current = queue.pop(0)
+            for source, _, attrs in graph.in_edges(current, data=True):
+                if attrs.get("predicate") == predicate and source not in visited:
+                    visited.add(source)
+                    descendants.append(source)
+                    queue.append(source)
+        return descendants
+
+    def _resolve_node_id(self, name: str, prefix: str) -> Optional[str]:
+        """Accept both bare names ('web_search') and prefixed node ids
+        ('capability_web_search')."""
+        if name in self.graph:
+            return name
+        prefixed = f"{prefix}{name}"
+        return prefixed if prefixed in self.graph else None
+
+    def find_agents_by_capability(self, capability: str,
+                                  include_inherited: bool = True) -> List[str]:
+        """Agents holding a capability. With include_inherited=True, agents
+        holding a *sub-capability* (is_a descendant) also match — e.g. a
+        'realtime_search' holder matches a 'web_search' query."""
+        cap_id = self._resolve_node_id(capability, "capability_")
+        if cap_id is None:
+            return []
+        capability_ids = [cap_id]
+        if include_inherited:
+            capability_ids += self.get_descendants(cap_id)
+
+        graph = self.graph
+        agents: List[str] = []
+        for cid in capability_ids:
+            for source, _, attrs in graph.in_edges(cid, data=True):
+                if (attrs.get("predicate") == "has_capability"
+                        and graph.nodes[source].get("type") == "agent"
+                        and source not in agents):
+                    agents.append(source)
+        return sorted(agents)
+
+    def find_agents_by_tag(self, tag: str) -> List[str]:
+        """Agents annotated with a tag."""
+        tag_id = self._resolve_node_id(tag, "tag_")
+        if tag_id is None:
+            return []
+        graph = self.graph
+        agents = [
+            source
+            for source, _, attrs in graph.in_edges(tag_id, data=True)
+            if attrs.get("predicate") == "has_tag"
+            and graph.nodes[source].get("type") == "agent"
+        ]
+        return sorted(set(agents))
+
+    def get_agent_profile(self, agent_id: str) -> Dict[str, Any]:
+        """Unified data view of one agent: properties + capabilities + tags
+        + learned success patterns, assembled from the graph."""
+        graph = self.graph
+        if agent_id not in graph or graph.nodes[agent_id].get("type") != "agent":
+            return {}
+        props = dict(graph.nodes[agent_id])
+
+        capabilities: List[str] = []
+        tags: List[str] = []
+        patterns: List[Dict[str, Any]] = []
+        for _, target, attrs in graph.out_edges(agent_id, data=True):
+            predicate = attrs.get("predicate")
+            node = graph.nodes.get(target, {})
+            if predicate == "has_capability":
+                capabilities.append(node.get("name") or target.replace("capability_", "", 1))
+            elif predicate == "has_tag":
+                tags.append(node.get("name") or target.replace("tag_", "", 1))
+            elif predicate == "has_mapping":
+                patterns.append({
+                    "pattern": node.get("generalization_pattern"),
+                    "category": node.get("category"),
+                    "success_rate": node.get("success_rate"),
+                    "usage_count": node.get("usage_count"),
+                })
+        patterns.sort(key=lambda p: p.get("success_rate") or 0, reverse=True)
+
+        return {
+            "agent_id": agent_id,
+            "name": props.get("name", agent_id),
+            "description": props.get("description", ""),
+            "capabilities": sorted(set(capabilities)),
+            "tags": sorted(set(tags)),
+            "success_patterns": patterns[:20],
+            "is_available": props.get("is_available", True),
+        }
+
+    # ─── Semantic search (embedding entry + graph expansion) ────────
+
+    def _semantic_node_types(self):
+        """The default namespace indexes only the agent-semantic surface
+        (skipping hundreds of query_agent_mapping records); builder
+        namespaces hold arbitrary document schemas, so index every type."""
+        return DEFAULT_NODE_TYPES if self.namespace == "default" else None
+
+    def init_semantic_index(self, embed_fn=None, node_types=...) -> VectorBackend:
+        """Create (or replace) the semantic index and build it from the
+        current graph. The backend tier is auto-selected by node count
+        (see vector_backend.select_backend) — callers configure nothing.
+        Tests inject a deterministic embed_fn; production omits it to use
+        the real sentence-transformers model."""
+        if node_types is ...:
+            node_types = self._semantic_node_types()
+        # namespace 를 넘겨야 tier 1(npy) 캐시가 네임스페이스별로 갈린다 —
+        # 안 넘기면 heritage_kr 벡터를 heritage_us 가 물려받는다.
+        self._semantic_index = select_backend(
+            self.graph.number_of_nodes(), embed_fn=embed_fn,
+            namespace=self.namespace)
+        self._semantic_index.build_from_graph(self.graph, node_types=node_types)
+        return self._semantic_index
+
+    def refresh_semantic_index(self) -> int:
+        """Re-index nodes whose text changed and index new nodes.
+        Call after sync/feedback batches. Returns nodes (re-)embedded."""
+        if self._semantic_index is None:
+            return 0
+        return self._semantic_index.build_from_graph(
+            self.graph, node_types=self._semantic_node_types())
+
+    def rebuild_semantic_index(self, embed_fn=None, node_types=...) -> dict:
+        """색인을 그래프와 강제로 맞춘다 — 관리자의 명시적 재색인용.
+
+        refresh_semantic_index 와 다른 점: 색인이 아직 없으면 **만든다**.
+        refresh 가 None 일 때 0 을 돌려주는 것은 의도된 게으름이지만(아무도
+        검색하지 않았으면 임베딩 비용을 내지 않는다), /reindex 는 사용자가
+        "지금 맞춰라"라고 말한 것이므로 그 게으름이 곧 버그가 된다.
+
+        노드 편집·삭제·병합 뒤 이걸 부르지 않으면 semantic 채널이 그래프와
+        어긋난 채 남는다(실측: 병합 후 hit@1 0.3125→0.25 로 나빠졌고, 서버를
+        재시작해야 회복됐다 — 하마터면 병합의 회귀로 오진할 상황이었다).
+
+        {embedded, pruned, total} 을 돌려준다 — 조용히 성공하면 다음에 또 같은
+        오진을 한다.
+        """
+        if node_types is ...:
+            node_types = self._semantic_node_types()
+        if self._semantic_index is None:
+            self.init_semantic_index(embed_fn=embed_fn, node_types=node_types)
+            return {"embedded": len(self._semantic_index), "pruned": 0,
+                    "total": len(self._semantic_index)}
+        pruned = self._semantic_index.prune_to_graph(
+            self.graph, node_types=node_types)
+        embedded = self._semantic_index.build_from_graph(
+            self.graph, node_types=node_types)
+        return {"embedded": embedded, "pruned": pruned,
+                "total": len(self._semantic_index)}
+
+    def semantic_search(self, query: str, top_k: int = 5,
+                        node_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Embedding-similarity search over graph nodes.
+        Finds nodes even when the query shares no literal tokens with them.
+        Returns [] (never raises) when no embedder is available."""
+        if self._semantic_index is None:
+            self.init_semantic_index()
+        return self._semantic_index.search(query, top_k=top_k, node_types=node_types)
+
+    def find_agents_semantic(self, query: str, top_k: int = 5,
+                             min_score: float = 0.1) -> List[Dict[str, Any]]:
+        """Semantic entry + graph expansion:
+
+        1. Similarity search finds entry nodes (agent / capability / tag).
+        2. Capability and tag hits expand to holding agents via in-edges;
+           capability hits also include holders of is_a sub-capabilities.
+        3. Each agent keeps its best score. Returns
+           [{agent_id, score, matched_via}] sorted by score.
+        """
+        # Wider entry net than top_k: several entries can map to one agent
+        entries = self.semantic_search(query, top_k=max(top_k * 3, 10),
+                                       node_types=["agent", "capability", "tag"])
+        graph = self.graph
+        best: Dict[str, Dict[str, Any]] = {}
+
+        def consider(agent_id: str, score: float, via: str):
+            if score < min_score:
+                return
+            if agent_id not in best or score > best[agent_id]["score"]:
+                best[agent_id] = {"agent_id": agent_id,
+                                  "score": round(score, 4),
+                                  "matched_via": via}
+
+        for entry in entries:
+            node_id, node_type, score = entry["node_id"], entry["node_type"], entry["score"]
+
+            if node_type == "agent":
+                consider(node_id, score, node_id)
+                continue
+
+            predicate = "has_capability" if node_type == "capability" else "has_tag"
+            expanded = [node_id]
+            if node_type == "capability":
+                # holders of a more specific capability also qualify
+                expanded += self.get_descendants(node_id, predicate="is_a")
+
+            for target in expanded:
+                if target not in graph:
+                    continue
+                for source, _, attrs in graph.in_edges(target, data=True):
+                    if (attrs.get("predicate") == predicate
+                            and graph.nodes[source].get("type") == "agent"):
+                        consider(source, score, node_id)
+
+        return sorted(best.values(), key=lambda a: a["score"], reverse=True)[:top_k]
+
+    def clear(self) -> None:
+        """Reset this namespace's graph to empty (rebuild option).
+        The semantic index is dropped too — it would point at dead nodes."""
+        import networkx as nx
+        self.graph_engine.graph = nx.MultiDiGraph()
+        self.visualization_engine.graph = self.graph_engine.graph
+        self._semantic_index = None
+        self._update_metadata()
+        logger.info(f"🧹 KG cleared (namespace={self.namespace})")
+
+    def deduplicate_edges(self) -> int:
+        """Remove parallel duplicate edges: keep one edge per
+        (source, target, predicate) triple. Returns the number removed.
+
+        One-time cleanup for graphs written before write-time dedup existed.
+        """
+        graph = self.graph
+        to_remove: List[Tuple[str, str, Any]] = []
+        for source, target in set(graph.edges()):
+            edge_data = graph.get_edge_data(source, target) or {}
+            seen_predicates: Set[str] = set()
+            for edge_key in sorted(edge_data.keys(), key=str):
+                predicate = edge_data[edge_key].get("predicate")
+                if predicate in seen_predicates:
+                    to_remove.append((source, target, edge_key))
+                else:
+                    seen_predicates.add(predicate)
+        for source, target, edge_key in to_remove:
+            graph.remove_edge(source, target, key=edge_key)
+        if to_remove:
+            self._update_metadata()
+            logger.info(f"🧹 Removed {len(to_remove)} duplicate edges")
+        return len(to_remove)
+
     # ─── Persistence ────────────────────────────────────────────────
+
+    @property
+    def llm_manager(self):
+        """LLM manager — 첫 접근 시 생성 (import 도 이때 일어난다)."""
+        if self._llm_manager is None:
+            from ..core.llm_manager import get_ontology_llm_manager
+            self._llm_manager = get_ontology_llm_manager()
+        return self._llm_manager
+
+    @property
+    def checkpoint_path(self) -> Path:
+        """Namespace-specific checkpoint file. The default namespace keeps
+        the historical filename for backward compatibility."""
+        if self.namespace == "default":
+            return _DEFAULT_DATA_DIR / "kg_checkpoint.json"
+        return _DEFAULT_DATA_DIR / f"kg_{self.namespace}.json"
 
     def save_to_disk(self, path: Optional[str] = None) -> bool:
         """Save the knowledge graph to disk as JSON.
@@ -634,7 +949,7 @@ class KnowledgeGraphEngine(KnowledgeGraph):
         (.tmp → rename) for crash safety.
         """
         try:
-            save_path = Path(path) if path else _DEFAULT_DATA_DIR / "kg_checkpoint.json"
+            save_path = Path(path) if path else self.checkpoint_path
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
             graph_data = nx.node_link_data(self.graph_engine.graph)
@@ -654,6 +969,10 @@ class KnowledgeGraphEngine(KnowledgeGraph):
             node_count = self.graph_engine.graph.number_of_nodes()
             edge_count = self.graph_engine.graph.number_of_edges()
             logger.info(f"💾 KG checkpoint saved: {node_count} nodes, {edge_count} edges → {save_path}")
+            # 쓰기의 PG 반영은 여기서 하지 않는다 — 수동 변경은 service._pg_apply
+            # (surgical upsert/delete), 인제스트/빌드는 _mirror_to_pg(증분)가 이미
+            # 담당한다. 여기서 sync_from_graph 를 부르면 full-graph diff 라 중복이고,
+            # in-memory 그래프가 부분일 때 PG 를 잘못 삭제할 위험이 있다(축 5).
             return True
         except Exception as e:
             logger.error(f"KG checkpoint save failed: {e}")
@@ -665,7 +984,7 @@ class KnowledgeGraphEngine(KnowledgeGraph):
         Uses nx.node_link_graph() and re-syncs the visualization engine.
         """
         try:
-            load_path = Path(path) if path else _DEFAULT_DATA_DIR / "kg_checkpoint.json"
+            load_path = Path(path) if path else self.checkpoint_path
             if not load_path.exists():
                 logger.info(f"No KG checkpoint found at {load_path} — starting fresh")
                 return False
@@ -698,22 +1017,47 @@ class KnowledgeGraphEngine(KnowledgeGraph):
 
 # ─── Module-level singleton ─────────────────────────────────────────
 
-_knowledge_graph_engine_instance: Optional[KnowledgeGraphEngine] = None
+_kg_instances: Dict[str, KnowledgeGraphEngine] = {}
 
 
-def get_knowledge_graph_engine() -> KnowledgeGraphEngine:
-    """Return the shared KnowledgeGraphEngine singleton.
+def get_knowledge_graph_engine(namespace: str = "default") -> KnowledgeGraphEngine:
+    """Return the shared KnowledgeGraphEngine for a namespace.
 
-    On first call, creates the instance and loads the latest checkpoint
-    from disk (if any). All components should use this instead of
-    creating their own KnowledgeGraphEngine.
+    Each namespace is an independent ontology with its own graph and
+    checkpoint file (default → kg_checkpoint.json, others → kg_{ns}.json).
+    On first call per namespace, creates the instance and loads its
+    checkpoint from disk (if any).
     """
-    global _knowledge_graph_engine_instance
-    if _knowledge_graph_engine_instance is None:
-        _knowledge_graph_engine_instance = KnowledgeGraphEngine(fast_mode=True)
-        _knowledge_graph_engine_instance.load_from_disk()
-        logger.info("🧠 KG singleton initialized (with checkpoint load attempt)")
-    return _knowledge_graph_engine_instance
+    if namespace not in _kg_instances:
+        engine = KnowledgeGraphEngine(fast_mode=True, namespace=namespace)
+        # PG 가 진실 — pg_backed 네임스페이스는 JSON 대신 PG 에서 하이드레이트한다
+        # (축 5). PG 미가용/실패 시 JSON 체크포인트로 degrade(조용한 손실 방지).
+        loaded = False
+        try:
+            from ..core import graph_store, pg
+            aschema = graph_store.aicoach_source(namespace)
+            if aschema and pg.available():
+                # aicoach 라이브 스토어 직접 소비 — 복사본 아님(축 5 위, 서비스 연동)
+                counts = graph_store.hydrate_graph_aicoach(namespace, engine.graph, aschema)
+                engine.visualization_engine.graph = engine.graph
+                logger.info(f"🗄️ KG hydrated from aicoach live ({aschema}): "
+                            f"{counts['nodes']} nodes, {counts['edges']} edges "
+                            f"(namespace={namespace})")
+                loaded = True
+            elif graph_store.pg_backed(namespace) and pg.available():
+                counts = graph_store.hydrate_graph(namespace, engine.graph)
+                engine.visualization_engine.graph = engine.graph
+                logger.info(f"🗄️ KG hydrated from PG: {counts['nodes']} nodes, "
+                            f"{counts['edges']} edges (namespace={namespace})")
+                loaded = True
+        except Exception as ex:
+            logger.warning(f"⚠️ PG hydrate 실패 → JSON fallback "
+                           f"(namespace={namespace}): {ex}")
+        if not loaded:
+            engine.load_from_disk()
+        _kg_instances[namespace] = engine
+        logger.info(f"🧠 KG singleton initialized (namespace={namespace})")
+    return _kg_instances[namespace]
 
 
 logger.info("🧠 Integrated ontology knowledge graph engine loaded!")

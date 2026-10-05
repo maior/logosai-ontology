@@ -1,8 +1,17 @@
 """
-Query Planner
+Query Planner — Logos 운영 플래너.
 
 Uses gemini-2.5-flash-lite (non-thinking) for single-call execution planning.
 Based on 4-model comparison test: Flash-Lite achieves 100% accuracy at 3.63s avg.
+
+계획 흐름(메커니즘)은 logosai.orchestration.planner 가 정본이다 (2026-10-04,
+orchestrator-unify P2). 이 모듈은 그 기반 클래스를 상속해 Logos 의 지식을 훅으로 넣는다:
+  _build_planning_prompt  Logos 라우팅 규칙·예시가 담긴 프롬프트
+  _call_llm               Gemini 직접 호출 (모델·온도·재시도)
+  _recommend              HybridAgentSelector (GNN+RL) 힌트
+  _apply_exclusion_gate   description 의 "대상이 아닙니다" 배제 관문
+  _explicit_gap           "에이전트 만들어줘" 류 키워드 안전망
+옮기기 전후로 LLM 에 보내는 프롬프트와 최종 계획이 같음을 tests/test_planner_golden.py 가 확인한다.
 
 Key Design Principles:
 - Single LLM call for complete planning
@@ -11,6 +20,7 @@ Key Design Principles:
 - HybridAgentSelector (GNN+RL) for intelligent agent selection (v3.0)
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -28,6 +38,24 @@ from .progress_streamer import ProgressStreamer
 from .exceptions import PlanningError, NoSuitableAgentError
 
 logger = logging.getLogger(__name__)
+
+__sdk_base__ = "logosai.orchestration.planner"
+try:
+    from logosai.orchestration.planner import (  # noqa: F401 — 공개 이름 재노출
+        QueryPlanner as _SDKQueryPlanner,
+        backfill_gap_for_empty_plan,
+        critique_plan,
+        merge_independent_stages,
+        normalize_capability_gap,
+    )
+except ModuleNotFoundError as _e:
+    if _e.name not in ("logosai", "logosai.orchestration", "logosai.orchestration.planner"):
+        raise
+    raise ImportError(
+        "ontology.orchestrator 의 계획 흐름은 logosai.orchestration.planner 로 옮겨졌다 — "
+        "`pip install logosai-ontology[logosai]` 로 logosai 를 설치하라."
+    ) from _e
+
 
 # Import HybridAgentSelector for GNN+RL agent selection
 try:
@@ -83,76 +111,83 @@ def detect_explicit_capability_gap(query: str) -> Optional[Dict[str, Any]]:
     return {
         "detected": True,
         "missing_capabilities": ["explicit_agent_creation_request"],
+        "required_resources": [],  # unknown from an explicit-creation phrase; LLM/FORGE refine later
         "suggested_agent_description": query,
         "reason": "사용자가 명시적으로 새 에이전트 생성을 요청 (code safety net)",
     }
 
 
-def merge_independent_stages(stages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """LLM 이 만든 stages 에서 데이터 의존성 없는 1-agent stages 를 parallel 로 병합.
+EXCLUSION_MARKER = "대상이 아닙니다"
 
-    flash-lite 의 흔한 실수 (독립적 multi-domain 쿼리를 1-agent-per-stage 로 분리) 의 backstop.
 
-    Rules:
-      - 인접한 stages 들이 모두 1 agent 이고 input_from 이 모두 null 이면 → 같은 parallel stage 로 병합
-      - 데이터 의존성 (input_from 에 stage_X 참조) 있으면 그 자리에서 분리 유지
-      - 이미 parallel 인 stage 는 건드리지 않음
+async def enforce_exclusion_gate(
+    query: str,
+    plan_data: Dict[str, Any],
+    agent_descriptions: Dict[str, str],
+    llm_invoke,
+) -> tuple:
+    """배제 관문 (2026-07-11): 계획에 선택된 에이전트의 description 배제 조건
+    ("~는 대상이 아닙니다") 위반을 좁은 단일 LLM 판정으로 집행한다.
 
-    Args:
-        stages: LLM 이 만든 raw stages list (각 dict: stage_id, execution_type, agents)
+    배경: C-3 프롬프트 규칙 + 추천 기각 단서에도 flash-lite 가 temperature 0
+    에서 배제를 무시 (점자→모스, 추천 주입 없이도 재현). 계획 전체를 시키면
+    무시하지만 좁은 매칭 질문은 안정적 — find_equivalent 관문과 동일 원리.
 
     Returns:
-        Post-processed stages with stage_ids renumbered.
+        (plan_data, violations) — 위반 에이전트는 stages 에서 제거되고,
+        남는 stage 가 없으면 capability_gap 을 강제한다 (기존 detected=true
+        는 보존). LLM 에러는 fail-open (계획을 막지 않음).
     """
-    if not stages or len(stages) < 2:
-        return stages
+    stages = plan_data.get("stages") or []
+    # 배제 마커 보유 에이전트만 검사 (대부분의 쿼리는 LLM 콜 0회)
+    candidates: Dict[str, str] = {}
+    for st in stages:
+        for ag in st.get("agents", []):
+            aid = ag.get("agent_id", "")
+            desc = agent_descriptions.get(aid, "") or ""
+            if EXCLUSION_MARKER in desc:
+                candidates[aid] = desc
 
-    def _is_independent_singleton(stage: Dict[str, Any]) -> bool:
-        agents = stage.get("agents", [])
-        if len(agents) != 1:
-            return False
-        input_from = agents[0].get("input_from")
-        # input_from 이 None / [] / 빈 리스트 면 의존성 없음
-        if input_from is None:
-            return True
-        if isinstance(input_from, list) and len(input_from) == 0:
-            return True
-        return False
+    violations: List[str] = []
+    for aid, desc in candidates.items():
+        prompt = (
+            "다음 에이전트 설명에는 배제 조건이 명시되어 있습니다.\n"
+            f"에이전트 설명: {desc}\n\n"
+            f"사용자 요청: {query}\n\n"
+            "이 요청이 설명의 배제 조건('~는 대상이 아닙니다'에 해당하는 작업)에 "
+            "해당합니까? 반드시 '해당' 또는 '무관' 한 단어로만 답하세요."
+        )
+        try:
+            answer = str(await llm_invoke(prompt)).strip()
+        except Exception as e:  # 관문 실패는 계획을 막지 않는다 (fail-open)
+            logger.warning(f"[ExclusionGate] 판정 실패 ({aid}): {e}")
+            continue
+        if answer.startswith("해당"):
+            violations.append(aid)
+            logger.info(f"[ExclusionGate] 배제 위반 기각: {aid} (query: {query[:40]})")
 
-    out: List[Dict[str, Any]] = []
-    i = 0
-    while i < len(stages):
-        cur = stages[i]
-        if _is_independent_singleton(cur):
-            # 인접한 independent singletons 수집
-            group_agents = list(cur.get("agents", []))
-            j = i + 1
-            while j < len(stages) and _is_independent_singleton(stages[j]):
-                group_agents.extend(stages[j].get("agents", []))
-                j += 1
-            if len(group_agents) > 1:
-                # 병합
-                out.append({
-                    "stage_id": len(out) + 1,
-                    "execution_type": "parallel",
-                    "agents": group_agents,
-                })
-                i = j
-                continue
-        # 그대로 추가 + stage_id 재번호
-        new_stage = dict(cur)
-        new_stage["stage_id"] = len(out) + 1
-        out.append(new_stage)
-        i += 1
-
-    # 후속 stages 의 input_from 참조도 새 stage_id 로 매핑해야 하지만,
-    # 현재 input_from 형식이 "stage_N.agent_id" 인데 stage 번호 변경이 일어남.
-    # 안전성: ExecutionEngine 이 stage 번호 의존성보다는 stage 순서로 처리한다고 가정 (검증 필요).
-    # 단, 1-agent → parallel 병합은 stage 1 에서 일어나므로 stage 1 이름은 유지됨.
-    return out
+    if violations:
+        new_stages = []
+        for st in stages:
+            kept = [a for a in st.get("agents", []) if a.get("agent_id") not in violations]
+            if kept:
+                new_stages.append({**st, "agents": kept})
+        plan_data["stages"] = new_stages
+        existing = plan_data.get("capability_gap")
+        if not new_stages and not (isinstance(existing, dict) and existing.get("detected")):
+            plan_data["capability_gap"] = {
+                "detected": True,
+                "missing_capabilities": ["excluded_capability"],
+                "required_resources": [],
+                "suggested_agent_description": query,
+                "reason": f"선택 후보가 description 배제 조건 위반으로 기각됨: {violations}",
+            }
+    return plan_data, violations
 
 
-class QueryPlanner:
+
+
+class QueryPlanner(_SDKQueryPlanner):
     """
     Query analysis and execution planning using gemini-2.5-flash-lite.
 
@@ -195,8 +230,7 @@ class QueryPlanner:
             api_key: Google API key (uses env var if not provided)
             hybrid_selector: HybridAgentSelector for GNN+RL agent selection
         """
-        self.registry = registry or get_registry()
-        self.streamer = streamer
+        super().__init__(registry=registry, streamer=streamer)
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
 
         # Initialize HybridAgentSelector
@@ -230,83 +264,65 @@ class QueryPlanner:
 
         self.client = genai.Client(api_key=self.api_key)
 
-    async def create_plan(
-        self,
-        query: str,
-        context: Optional[Dict[str, Any]] = None,
-    ) -> ExecutionPlan:
-        """
-        Create execution plan for the given query.
+    async def _recommend(self, query: str):
+        """Phase 0: GNN+RL Agent Selection (if enabled) — 프롬프트에 넣을 힌트."""
+        recommended_agent = None
+        hybrid_metadata = None
+        if self._hybrid_selector_enabled and self._hybrid_selector:
+            try:
+                recommended_agent, hybrid_metadata = await self._select_agent_via_hybrid(query)
+                if recommended_agent:
+                    logger.info(
+                        f"[QueryPlanner] GNN+RL recommended: {recommended_agent} "
+                        f"(confidence: {hybrid_metadata.get('confidence', 0):.1%})"
+                    )
+            except Exception as e:
+                logger.warning(f"[QueryPlanner] HybridAgentSelector failed: {e}")
+        return recommended_agent, hybrid_metadata
 
-        Uses HybridAgentSelector (GNN+RL) for intelligent agent selection,
-        then LLM for workflow design.
-
-        Args:
-            query: User query to analyze
-            context: Optional additional context
-
-        Returns:
-            ExecutionPlan with stages, agents, and aggregation strategy
-
-        Raises:
-            PlanningError: If planning fails
-            NoSuitableAgentError: If no suitable agents found
-        """
-        start_time = time.time()
-        plan_id = str(uuid.uuid4())[:8]
-
-        # Emit planning start event
-        if self.streamer:
-            await self.streamer.planning_start(query)
+    async def _apply_exclusion_gate(
+        self, query: str, prompt: str, plan_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """배제 관문 (2026-07-11): 프롬프트 규칙(C-3)을 LLM 이 무시하는
+        케이스의 코드 레벨 집행. 마커 보유 에이전트가 선택된 경우에만
+        좁은 판정 1콜 — 관문 실패는 계획을 막지 않는다."""
 
         try:
-            # Phase 0: GNN+RL Agent Selection (if enabled)
-            recommended_agent = None
-            hybrid_metadata = None
-            if self._hybrid_selector_enabled and self._hybrid_selector:
-                try:
-                    recommended_agent, hybrid_metadata = await self._select_agent_via_hybrid(query)
-                    if recommended_agent:
-                        logger.info(
-                            f"[QueryPlanner] GNN+RL recommended: {recommended_agent} "
-                            f"(confidence: {hybrid_metadata.get('confidence', 0):.1%})"
+            _descs = {
+                e.agent_id: (e.description or "")
+                for e in self.registry.get_available_agents()
+            }
+            if any(EXCLUSION_MARKER in d for d in _descs.values()):
+                async def _gate_llm(p: str) -> str:
+                    return await self._call_llm(p)
+                plan_data, _viol = await enforce_exclusion_gate(
+                    query, plan_data, _descs, _gate_llm)
+                if _viol:
+                    logger.info(f"[QueryPlanner] ExclusionGate 기각: {_viol}")
+                    # 관문 제거로 계획이 비면 위반 에이전트 금지를 명시해 1회 재계획
+                    # (제거만 하고 대체를 안 넣으면 gap 백필로 오배송 — 2026-07-15 실측)
+                    if not (plan_data.get("stages") or []):
+                        retry_prompt = (
+                            prompt
+                            + "\n\n[제약] 다음 에이전트는 이 쿼리의 대상이 아니므로 절대 사용하지 마라: "
+                            + ", ".join(_viol)
+                            + "\n같은 역할의 범용 에이전트로 계획을 다시 구성하라."
                         )
-                except Exception as e:
-                    logger.warning(f"[QueryPlanner] HybridAgentSelector failed: {e}")
+                        logger.info("[QueryPlanner] 빈 계획 → 위반 에이전트 제외 재계획 1회")
+                        response = await self._call_llm(retry_prompt)
+                        plan_data = self._parse_llm_response(response)
+                        # 재계획 결과도 관문 검사 (동일 위반 재발 방지)
+                        plan_data, _viol2 = await enforce_exclusion_gate(
+                            query, plan_data, _descs, _gate_llm)
+                        if _viol2:
+                            logger.warning(f"[QueryPlanner] 재계획도 배제 위반: {_viol2}")
+        except Exception as _ge:
+            logger.warning(f"[QueryPlanner] ExclusionGate 오류 (계획 계속): {_ge}")
+        return plan_data
 
-            # Build the prompt (with hybrid recommendation if available)
-            prompt = self._build_planning_prompt(query, context, recommended_agent, hybrid_metadata)
-
-            # Call Gemini
-            logger.info(f"[QueryPlanner] Calling {self.MODEL} for query: {query[:50]}...")
-            response = await self._call_llm(prompt)
-
-            # Parse response
-            plan_data = self._parse_llm_response(response)
-
-            # Build ExecutionPlan from parsed data
-            plan = self._build_execution_plan(query, plan_data, plan_id)
-
-            elapsed_ms = (time.time() - start_time) * 1000
-            logger.info(
-                f"[QueryPlanner] Plan created in {elapsed_ms:.0f}ms: "
-                f"{plan.get_stage_count()} stages, {plan.get_total_agents()} agents"
-            )
-
-            # Emit planning complete event
-            if self.streamer:
-                await self.streamer.planning_complete(plan)
-
-            return plan
-
-        except Exception as e:
-            logger.error(f"[QueryPlanner] Planning failed: {e}")
-            if self.streamer:
-                await self.streamer.planning_error(str(e))
-            raise PlanningError(
-                message=f"Failed to create execution plan: {e}",
-                query=query,
-            )
+    def _explicit_gap(self, query: str) -> Optional[Dict[str, Any]]:
+        """LLM 이 놓친 명시적 생성 요청의 코드 안전망 (Logos 키워드 목록)."""
+        return detect_explicit_capability_gap(query)
 
     async def _select_agent_via_hybrid(
         self,
@@ -422,6 +438,9 @@ GNN+RL 지능형 시스템이 아래 에이전트를 추천합니다 (신뢰도 
 - **선택 근거**: {selection_source}
 
 💡 이 에이전트가 쿼리에 적합한지 description/capabilities를 확인하고, 적합하면 우선 사용하세요.
+⚠️ 단, 이 에이전트의 description 에 명시된 **배제 조건**("~는 대상이 아닙니다")에
+쿼리가 해당하면 이 추천을 **기각**하세요 — 추천은 과거 유사 패턴 학습일 뿐,
+배제 조건이 항상 우선합니다.
 """
             else:
                 gnn_rl_section = f"""
@@ -433,6 +452,10 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 
 ⚠️ **중요**: GNN+RL 신뢰도가 60% 이상이면 이 에이전트를 **반드시 첫 번째 단계**에서 사용하세요.
 다른 에이전트를 선택하려면 명확한 이유가 있어야 합니다.
+⚠️ **예외 (추천보다 우선)**: 이 에이전트의 description 에 명시된 **배제 조건**
+("~는 대상이 아닙니다")에 쿼리가 해당하면 신뢰도와 무관하게 추천을 **기각**하세요.
+추천은 과거 유사 패턴 학습의 산물이라 배제 조건을 모릅니다 — 기각 후 전문
+에이전트가 없으면 capability_gap detected=true 로 선언하세요.
 """
 
         # Build conversation history section
@@ -775,6 +798,22 @@ GNN+RL 지능형 시스템이 아래 에이전트를 **강력 추천**합니다:
 internet_agent / analysis_agent / llm_search_agent 같은 범용 에이전트가 있다고 해서
 특화 도메인 쿼리를 그쪽으로 fallback 하면 안 됨. 약한 매칭은 detected=true 와 같다.
 
+### 시그널 C-2 — 결과를 원하는 질문에 '코드 산출물' 에이전트 매칭 금지
+산출물이 코드인 에이전트(코드 생성·구현류)는 사용자가 "코드 짜줘/구현해줘"처럼
+**코드 작성을 명시 요청**할 때만 선택한다. 사용자가 계산·검증·판정·변환의 **결과 값**을
+원하는 질문(예: "~가 유효한지 검증해줘", "~를 변환해줘", "~인지 판정해줘")에
+코드 산출물 에이전트를 배정하면 답이 **코드 덤프**가 되어 질문에 답하지 못한다 —
+이것도 약한 매칭이다. 그 기능의 전문 에이전트가 등록돼 있으면 그쪽을 쓰고,
+없으면 detected=true 로 선언한다. (사용자가 코드를 작성해 달라고 한 경우는
+정상적으로 코드 생성 에이전트를 쓴다.)
+
+### 시그널 C-3 — description 의 배제 조건 존중 (CRITICAL)
+에이전트 description 에 "~는 대상이 아닙니다" 같은 **배제 조건**이 명시돼 있으면
+그 배제를 반드시 존중한다. 배제된 작업을 그 에이전트에 배정하는 것은
+"비슷해 보인다"는 이유의 약한 매칭이다 (예: 점자 변환을 '모스 부호 전용,
+점자는 대상 아님' 에이전트에 배정 — 결과는 오답). 배제를 피해 갈 전문
+에이전트가 없으면 detected=true 로 선언한다.
+
 ### 출력 형식
 ```
 {{
@@ -783,9 +822,19 @@ internet_agent / analysis_agent / llm_search_agent 같은 범용 에이전트가
   "capability_gap": {{
     "detected": true,
     "missing_capabilities": ["mastodon_api", "sentiment_analysis"],
+    "required_resources": ["api:mastodon"],
     "suggested_agent_description": "Mastodon API 로 toot fetch + sentiment 분석",
     "reason": "Mastodon 전용 에이전트 부재, internet_agent 의 일반 검색으로 대체 불가"
   }},
+
+### required_resources (배치 힌트)
+새 에이전트가 **런타임에 의존할 자원**을 태그로 명시한다 (없으면 `[]`). logos_api 가 이 태그로
+자원을 갖춘 ACP 노드에 에이전트를 배치한다. 형식:
+- `api:<name>` — 외부 API 의존 (예: `api:mastodon`, `api:stripe`)
+- `desktop:<app>` — 데스크톱 앱 필요 (예: `desktop:kakaotalk`)
+- `region:<code>` — 지역 제약 (예: `region:kr`)
+- `db:<name>` — 특정 DB 접근 (예: `db:logosus`)
+특정 에이전트 이름을 넣지 말 것 — 자원 태그만.
   "reasoning": "...",
   "final_aggregation": {{"type": "single"}}
 }}
@@ -821,6 +870,12 @@ query: "Mastodon API 로 toot 5개 가져와서 sentiment 분석하는 에이전
    - "파일 찾아줘" → sub_query: "oars 관련 파일 검색" (O) — "데스크탑 폴더에서 oars 파일 검색" (X, 사용자가 데스크탑이라고 안 함)
    - "날씨 알려줘" → sub_query: "서울 날씨" (O, 대화 맥락에서 추론) — "내일 오전 서울 강남구 날씨" (X, 과도한 추가)
    - 에이전트가 알아서 판단할 영역(검색 범위, 정렬 순서 등)을 sub_query에서 제한하지 마세요
+6. **사용자가 명시한 조건(특히 시간 범위)은 sub_query에서 삭제·축소하지 마세요** (CRITICAL)
+   - 사용자가 직접 말한 시간 범위(이번주/오늘/내일/이번달/올해/지난주/최근 N일 등)는 그대로 보존
+   - "이번주 날씨" → sub_query: "이번주 날씨" (O) — "현재 날씨" (X, 사용자가 말한 '이번주'를 임의로 '현재'로 좁힘)
+   - "오늘 환율" → sub_query: "오늘 환율" (O) — "현재 환율" (X)
+   - '현재'는 사용자가 시간을 명시하지 않았고 대화 맥락상 최신 값이 필요할 때만 추론 (예: 주식 후속질문 "현재가는?" → "삼성전자 현재 주가")
+   - 5번(명시 안 한 조건 추가 금지)과 6번(명시한 조건 삭제 금지)은 하나의 원칙 — 사용자 의도를 그대로 유지하라는 것
 
 위 쿼리에 대한 실행 계획을 JSON 형식으로 작성하세요.
 반드시 위 JSON 형식을 정확히 따르세요.
@@ -830,165 +885,45 @@ JSON 외에 다른 텍스트는 포함하지 마세요.
 """
         return prompt
 
+    # 일시 오류(수요 스파이크) 백오프 — 503 은 수십 초 지속 실측 (2026-07-14)
+    _TRANSIENT_RETRY_DELAYS = (1.5, 3.0, 6.0)
+    _TRANSIENT_MARKERS = ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "overloaded")
+
     async def _call_llm(self, prompt: str) -> str:
-        """Call Gemini API"""
-        try:
-            config = types.GenerateContentConfig(
-                temperature=self.TEMPERATURE,
-                max_output_tokens=self.MAX_TOKENS,
-            )
-
-            response = self.client.models.generate_content(
-                model=self.MODEL,
-                config=config,
-                contents=prompt,
-            )
-
-            return response.text
-
-        except Exception as e:
-            logger.error(f"[QueryPlanner] Gemini API call failed: {e}")
-            raise
-
-    def _parse_llm_response(self, response: str) -> Dict[str, Any]:
-        """Parse the JSON response from LLM"""
-        try:
-            # Clean up response - extract JSON
-            text = response.strip()
-
-            # Remove markdown code blocks if present
-            if text.startswith("```json"):
-                text = text[7:]
-            elif text.startswith("```"):
-                text = text[3:]
-
-            if text.endswith("```"):
-                text = text[:-3]
-
-            text = text.strip()
-
-            # Parse JSON
-            return json.loads(text)
-
-        except json.JSONDecodeError as e:
-            logger.error(f"[QueryPlanner] Failed to parse JSON: {e}")
-            logger.error(f"[QueryPlanner] Raw response: {response[:500]}...")
-            raise PlanningError(
-                message=f"Invalid JSON in LLM response: {e}",
-                llm_response=response[:500],
-            )
-
-    def _build_execution_plan(
-        self,
-        query: str,
-        plan_data: Dict[str, Any],
-        plan_id: str,
-    ) -> ExecutionPlan:
-        """Build ExecutionPlan from parsed LLM response.
-
-        Post-processing safety net (2026-05-09): merge_independent_stages 가
-        flash-lite 의 흔한 실수 (의존성 없는 1-agent stages 의 sequential 분리) 를
-        자동으로 parallel 로 병합. prompt 가 안 통할 때의 backstop.
-        """
-
-        raw_stages = plan_data.get("stages", [])
-        merged_stages = merge_independent_stages(raw_stages)
-
-        # workflow_strategy 도 함께 갱신 (병합 결과 반영)
-        workflow_strategy = plan_data.get("workflow_strategy", "sequential")
-        if len(merged_stages) != len(raw_stages):
-            n_parallel = sum(1 for s in merged_stages if s.get("execution_type") == "parallel")
-            n_seq = sum(1 for s in merged_stages if s.get("execution_type") != "parallel")
-            workflow_strategy = (
-                "parallel" if n_parallel > 0 and n_seq == 0
-                else "hybrid" if n_parallel > 0 and n_seq > 0
-                else "sequential"
-            )
-            logger.info(
-                f"  Stage merger: {len(raw_stages)} → {len(merged_stages)} stages "
-                f"(strategy: {plan_data.get('workflow_strategy')} → {workflow_strategy})"
-            )
-            plan_data["workflow_strategy"] = workflow_strategy
-
-        stages = []
-        for stage_data in merged_stages:
-            agents = []
-            for agent_data in stage_data.get("agents", []):
-                agent = AgentTask(
-                    agent_id=agent_data.get("agent_id"),
-                    sub_query=agent_data.get("sub_query", query),
-                    input_from=agent_data.get("input_from"),
-                    output_to=agent_data.get("output_to"),
-                    expected_output=agent_data.get("expected_output"),
-                )
-                agents.append(agent)
-
-            stage = ExecutionStage(
-                stage_id=stage_data.get("stage_id", len(stages) + 1),
-                execution_type=stage_data.get("execution_type", "sequential"),
-                agents=agents,
-            )
-            stages.append(stage)
-
-        # capability_gap 결정 (LLM 응답 우선, safety net 으로 backfill)
-        capability_gap = plan_data.get("capability_gap")
-        if not (isinstance(capability_gap, dict) and capability_gap.get("detected")):
-            # LLM 이 안 잡았으면 safety net (명시적 패턴) 검사
-            safety = detect_explicit_capability_gap(query)
-            if safety:
-                logger.info(
-                    f"  Code safety net: 명시적 에이전트 생성 패턴 감지 → "
-                    f"capability_gap 강제 trigger (LLM 누락 보강)"
-                )
-                capability_gap = safety
-            else:
-                capability_gap = None
-
-        plan = ExecutionPlan(
-            query=query,
-            workflow_strategy=plan_data.get("workflow_strategy", "sequential"),
-            stages=stages,
-            final_aggregation=plan_data.get("final_aggregation", {"type": "combine"}),
-            reasoning=plan_data.get("reasoning", ""),
-            plan_id=plan_id,
-            capability_gap=capability_gap,
+        """Call Gemini API (일시 오류는 백오프 재시도)"""
+        config = types.GenerateContentConfig(
+            temperature=self.TEMPERATURE,
+            max_output_tokens=self.MAX_TOKENS,
         )
 
-        return plan
+        last_error: Exception = RuntimeError("no attempt")
+        for attempt, delay in enumerate((0,) + self._TRANSIENT_RETRY_DELAYS):
+            if delay:
+                await asyncio.sleep(delay)
+            try:
+                # 동기 API 를 스레드로 — 그대로 부르면 호출 내내 이벤트 루프가 멈춘다
+                # (실측 0.92s 정지). logos_api 는 루프 하나로 모든 사용자를 처리한다.
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.MODEL,
+                    config=config,
+                    contents=prompt,
+                )
+                return response.text
+            except Exception as e:
+                last_error = e
+                msg = str(e)
+                if not any(m in msg for m in self._TRANSIENT_MARKERS):
+                    logger.error(f"[QueryPlanner] Gemini API call failed: {e}")
+                    raise
+                logger.warning(
+                    f"[QueryPlanner] 일시 오류 (attempt {attempt + 1}/"
+                    f"{len(self._TRANSIENT_RETRY_DELAYS) + 1}): {msg[:120]}"
+                )
 
-    async def validate_query(self, query: str) -> Dict[str, Any]:
-        """
-        Quick validation of query before full planning.
+        logger.error(f"[QueryPlanner] Gemini API call failed after retries: {last_error}")
+        raise last_error
 
-        Returns:
-            Dict with validation results
-        """
-        # Check for empty query
-        if not query or not query.strip():
-            return {
-                "valid": False,
-                "error": "Empty query",
-            }
-
-        # Check for minimum length
-        if len(query.strip()) < 2:
-            return {
-                "valid": False,
-                "error": "Query too short",
-            }
-
-        # Check for available agents
-        agents = self.registry.get_available_agents()
-        if not agents:
-            return {
-                "valid": False,
-                "error": "No agents available",
-            }
-
-        return {
-            "valid": True,
-            "available_agents": len(agents),
-        }
 
 
 # Factory function for creating QueryPlanner

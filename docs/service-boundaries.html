@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서비스 역할 경계 — 온톨로지는 온톨로지 역할만</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: #f6f7fb; color: #1a2233; line-height: 1.65; padding: 40px 24px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  .sub { color: #5b6577; margin-bottom: 8px; font-size: 14px; }
+  .motto {
+    background: #1e293b; color: #e2e8f0; border-radius: 14px; padding: 18px 24px;
+    font-size: 16px; margin: 24px 0 40px; text-align: center;
+  }
+  .motto b { color: #7dd3fc; }
+  h2 { font-size: 20px; margin: 46px 0 8px; padding-top: 22px; border-top: 2px solid #e4e8f0; }
+  h2 .num { color: #4f46e5; margin-right: 8px; }
+  .desc { color: #5b6577; font-size: 13.5px; margin-bottom: 18px; }
+  .svc-map { display: flex; flex-direction: column; gap: 0; margin: 22px 0; }
+  .tier { display: flex; gap: 12px; flex-wrap: wrap; }
+  .tier > .svc { flex: 1; min-width: 220px; }
+  .svc {
+    background: #fff; border: 2px solid #dfe4ee; border-radius: 14px;
+    padding: 14px 18px; box-shadow: 0 1px 3px rgba(20,30,60,.05);
+  }
+  .svc h3 { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .svc .port { font-size: 11px; font-weight: 700; background: #eef1f8; color: #4b5568;
+               padding: 1px 8px; border-radius: 20px; }
+  .svc .role { font-size: 13px; margin-top: 4px; }
+  .svc .own { font-size: 12px; color: #8a94a8; margin-top: 6px; }
+  .svc-web   { border-color: #0891b2; }
+  .svc-api   { border-color: #d97706; }
+  .svc-acp   { border-color: #7c3aed; }
+  .svc-onto  { border-color: #2563eb; background: #f5f9ff; }
+  .svc-fw    { border-color: #94a0b8; border-style: dashed; }
+  .svc-con   { border-color: #94a0b8; }
+  .arrow { text-align: center; color: #94a0b8; font-size: 15px; padding: 6px 0; }
+  .arrow small { display:block; font-size: 11px; }
+  code, .path {
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
+    background: #eef1f8; padding: 1px 6px; border-radius: 5px; color: #384252;
+  }
+  .layerbar { display: flex; gap: 10px; margin: 10px 0 0; font-size: 11.5px; }
+  .layerbar span { padding: 2px 10px; border-radius: 20px; font-weight: 700; }
+  .l-user { background: #cffafe; color: #155e75; }
+  .l-judge { background: #ede9fe; color: #5b21b6; }
+  .l-fact { background: #dbeafe; color: #1e40af; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; background: #fff;
+          border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(20,30,60,.05); }
+  th { background: #f0f2f8; text-align: left; padding: 9px 12px; font-size: 12px; color: #4b5568; }
+  td { padding: 9px 12px; border-top: 1px solid #edf0f6; vertical-align: top; }
+  .no { color: #b91c1c; font-weight: 700; }
+  .go { color: #15803d; font-weight: 700; }
+  .note {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+    padding: 12px 16px; font-size: 13px; margin: 14px 0; color: #713f12;
+  }
+  .evidence {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
+    padding: 12px 16px; font-size: 13px; margin: 14px 0; color: #14532d;
+  }
+  .stack { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+  .stack .box { flex: 1; min-width: 230px; background: #fff; border: 1px solid #dfe4ee;
+                border-radius: 12px; padding: 14px 16px; font-size: 13px; }
+  .stack .box b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .box.es { border: 2px solid #d97706; background: #fffdf5; }
+  .formula { background: #1e293b; color: #a5f3fc; font-family: Menlo, monospace; font-size: 12.5px;
+             padding: 10px 16px; border-radius: 10px; margin: 12px 0; overflow-x: auto; white-space: nowrap; }
+  ul { margin: 6px 0 0 18px; font-size: 13.5px; }
+  li { margin: 3px 0; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e4e8f0; color: #8a94a8; font-size: 12px; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f1420; color: #dde3ee; }
+    .svc, table, .stack .box { background: #171e2e; border-color: #2a3245; box-shadow: none; }
+    .svc-onto { background: #14203a; }
+    .box.es { background: #251d0e; }
+    h2 { border-color: #2a3245; }
+    th { background: #1c2436; color: #9aa5bb; } td { border-color: #242d42; }
+    code, .path, .svc .port { background: #242d42; color: #b9c3d8; }
+    .sub, .desc, .svc .own { color: #8a94a8; }
+    .note { background: #2a2410; border-color: #4d3f12; color: #e5cf7a; }
+    .evidence { background: #10251a; border-color: #1e4732; color: #86dcae; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🧭 서비스 역할 경계 — 각 서비스는 각자의 역할만</h1>
+<div class="sub">2026-07-18 · Logos 스택 · 근거: 축 1 실측 (역할 혼합 = 채택 0 의 원인) · 규범 문서: ontology/CLAUDE.md "서비스 역할 경계"</div>
+
+<div class="motto">온톨로지의 단 하나의 일 —<br>
+<b>물으면 검증 가능한 사실을, 출처와 함께, 빠르고 결정적으로 돌려주는 것.</b><br>
+<span style="font-size:13px; color:#94a3b8;">trust · 묘비 · span provenance · 골든셋은 전부 이 하나를 위한 장치다</span></div>
+
+<!-- ═══════ 1. 서비스 지도 ═══════ -->
+<h2><span class="num">1</span>서비스 지도 — 의존은 아래로만 흐른다</h2>
+<div class="desc">판단 기준은 코드가 어느 폴더에 있느냐가 아니라 <b>의존 방향</b>이다. 아래층은 위층을 모른다.</div>
+
+<div class="svc-map">
+  <div class="tier">
+    <div class="svc svc-web">
+      <h3>logos_web <span class="port">8010</span></h3>
+      <div class="role">최종 사용자 UI — 온톨로지 기능의 <b>제품</b> 노출은 여기서</div>
+      <div class="layerbar"><span class="l-user">사용자의 층</span></div>
+    </div>
+    <div class="svc svc-con">
+      <h3>ontology/frontend <span class="port">9275</span></h3>
+      <div class="role"><b>개발·관리 콘솔</b> (제품 UI 아님) — 감식 게이트·검수·샘플 열람</div>
+      <div class="own">REST 만 호출하는 순수 소비자 · wheel 에 미포함 (실측: 오염 0)</div>
+    </div>
+  </div>
+  <div class="arrow">▼ <small>HTTP</small></div>
+
+  <div class="svc svc-api">
+    <h3>logos_api <span class="port">8090</span></h3>
+    <div class="role"><b>사용자 · 인증 · 오케스트레이션</b> — 온톨로지를 <b>내부 서비스</b>로 소비.
+    네임스페이스 소유권 매핑도 여기의 몫 (온톨로지에 인증을 넣지 않는 이유)</div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <div class="tier">
+    <div class="svc svc-acp">
+      <h3>acp_server <span class="port">8888</span></h3>
+      <div class="role"><b>판단의 층</b> — 에이전트 런타임. 브리지 에이전트가 온톨로지 API 를
+      grounded 도구로 소비 (aicoach 6에이전트가 /kg/* 를 쓰는 패턴 그대로)</div>
+      <div class="layerbar"><span class="l-judge">판단의 층</span></div>
+    </div>
+    <div class="svc svc-fw">
+      <h3>logosai <span class="port">framework</span></h3>
+      <div class="role">에이전트 프레임워크 (SimpleAgent 등)</div>
+      <div class="own">온톨로지 커널은 이것을 import 하지 않는다 — 커널 경계 (축 1)</div>
+    </div>
+  </div>
+  <div class="arrow">▼ <small>HTTP — 사실은 여기서만 나온다</small></div>
+
+  <div class="svc svc-onto">
+    <h3>🧠 ontology <span class="port">9274</span></h3>
+    <div class="role"><b>사실의 층</b> — 지식 표현 · is_a 추론 · grounded 검색(의미/하이브리드/그래프-조건부)
+    · 원문 span provenance · 학습 데이터셋 추출 · 검수 품질 도구 6종</div>
+    <div class="layerbar"><span class="l-fact">사실의 층</span></div>
+    <div class="own">pip 설치 가능 커널 (격리 venv 실증) · 에이전트 스택 import 0</div>
+  </div>
+</div>
+
+<!-- ═══════ 2. 검색 스택 (ES) ═══════ -->
+<h2><span class="num">2</span>검색 스택 — Elasticsearch = 벡터DB + 키워드 검색</h2>
+<div class="desc">온톨로지 검색은 3층 백엔드 위에 그래프-조건부 융합이 얹힌 구조다. ES 가 하이브리드 층을 맡는다.</div>
+
+<div class="stack">
+  <div class="box"><b>memory (tier 0)</b>기본 · &lt;2K 노드<br>numpy 정확 코사인, 무의존</div>
+  <div class="box"><b>npy (tier 1)</b>자동 · 2K+ 노드<br>+ 디스크 캐시 — 콜드스타트 <b>8.5s → 0s</b> (실측 6,930배)</div>
+  <div class="box es"><b>⚡ elasticsearch</b><code>ONTOLOGY_VECTOR_BACKEND=elasticsearch</code><br>
+    <b>BM25(키워드) + dense_vector(벡터) 하이브리드</b> — 한 질의 안에서 결합.<br>
+    조문번호·고유명사처럼 <b>문자 그대로 맞아야 하는</b> 질의는 임베딩만으로 놓친다 → 청크(원문) 검색이 주 사용처.<br>
+    <span style="font-size:12px;">인덱스 <code>ontology-{ns}</code> · cjk analyzer · int8_hnsw · ES 죽으면 memory 로 degrade (온톨로지가 같이 죽지 않는다)</span></div>
+</div>
+
+<div class="formula">_score = BM25 × 0.1 &nbsp;+&nbsp; (cosineSimilarity(질의벡터, 청크벡터) + 1.0) &nbsp;&nbsp;// aicoach KII 골든셋 실측값 이식 (recall@5 = 0.944)</div>
+
+<div class="evidence"><b>그 위의 융합 (축 4, /retrieve):</b> 질의 → 진입 노드(의미) → 온톨로지 확장(별칭·is_a 폐포) → 확장 질의 + 노드가 달린 청크,
+두 채널을 RRF 로 결합. <b>온톨로지 · 벡터 · 키워드 세 신호의 결합</b>이 이 시스템의 차별점이다 — 실측: 임베딩 단독이 틀리던 2/4 질의를 교정
+(aicoach 는 이 결합이 비어 있었다: 동의어 테이블이 ES 에 닿지 않았다).</div>
+
+<!-- ═══════ 3. 하지 않는 것 ═══════ -->
+<h2><span class="num">3</span>온톨로지가 하지 않는 것 — 얹고 싶어지면 그 서비스로 가라</h2>
+
+<table>
+  <tr><th style="width:30%;">유혹</th><th style="width:20%;">판정</th><th>그 역할의 주인</th></tr>
+  <tr><td>인증 · 사용자 · 테넌트 관리</td><td class="no">넣지 않는다</td><td>logos_api. 온톨로지는 신뢰 경계 안의 내부 서비스로 남는다 (<code>PROTECTED_NAMESPACES</code> 는 사고 방지용이지 권한 체계가 아니다)</td></tr>
+  <tr><td>대화 · 에이전트 판단 · 오케스트레이션</td><td class="no">넣지 않는다</td><td>acp / logosai. 커널 안의 검수 도구 6종은 예외가 아니다 — 자기 데이터에 grounded 되고, 추천까지만 하며, 대화하지 않는다</td></tr>
+  <tr><td>최종 사용자 UI · 화려한 화면</td><td class="no">넣지 않는다</td><td>logos_web. 9275 는 개발·관리 콘솔 지위 유지</td></tr>
+  <tr><td>물으면 사실을 출처와 함께 돌려주는 것</td><td class="go">이것만 잘한다</td><td>— 온톨로지 자신</td></tr>
+</table>
+
+<div class="note"><b>장기 이전 대상 (역사적 혼합):</b> <code>orchestrator/</code> 와 <code>ml/</code> 은 에이전트 라우팅이라 온톨로지의 역할이
+아니다. 축 1 이 지연 로딩으로 격리했지만(import 비용 0), 완전한 역할 분리는 acp/logos_api 쪽으로의 이사다 — 호환성을 깨는 작업이라 별도 계획으로.</div>
+
+<div class="evidence"><b>왜 이 원칙인가 (실측):</b> 온톨로지 프로젝트 3개(Logos/ontology · aicoach · KorAct) 중 Logos/ontology 채택이 0 이었던
+이유는 기능이 아니라 <b>역할 혼합의 import 비용</b>이었다 — aicoach 는 KG 엔진 API 를 그대로 베끼면서도 "without pulling its heavy
+transitive deps" 라는 주석과 함께 재구현을 택했다. 역할 분리는 취향이 아니라 채택의 조건이다.</div>
+
+<footer>Logos/ontology · docs/service-boundaries.html · 규범: CLAUDE.md "서비스 역할 경계" · 모든 수치는 세션 실측과 대조 확인됨</footer>
+</div>
+</body>
+</html>

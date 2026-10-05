@@ -1,0 +1,1007 @@
+{
+ "single": {
+  "stream": {
+   "events": [
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Analyzing query and creating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "planning_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "capability_gap": null,
+      "reasoning": "r",
+      "stage_count": 1,
+      "stages": [
+       {
+        "agents": [
+         "weather_agent"
+        ],
+        "execution_type": "sequential",
+        "stage_id": 1
+       }
+      ],
+      "total_agents": 1,
+      "workflow_strategy": "hybrid"
+     },
+     "msg": "Execution plan created: 1 stages, 1 agents",
+     "stage": null,
+     "status": "completed",
+     "type": "planning_complete"
+    },
+    {
+     "agent": null,
+     "data": null,
+     "msg": "Validating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "validation_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "error_count": 0,
+      "errors": [],
+      "reason": "계획 검증 통과",
+      "verdict": "pass",
+      "warning_count": 0,
+      "warnings": []
+     },
+     "msg": "Execution plan validated",
+     "stage": null,
+     "status": "completed",
+     "type": "validation_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Starting workflow execution",
+     "stage": null,
+     "status": "running",
+     "type": "workflow_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "agents": [
+       "weather_agent"
+      ],
+      "execution_type": "sequential"
+     },
+     "msg": "Starting stage 1 (sequential): 1 agent(s)",
+     "stage": 1,
+     "status": "running",
+     "type": "stage_start"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "sub_query": "weather_agent 할 일"
+     },
+     "msg": "Agent 'weather_agent' queued",
+     "stage": 1,
+     "status": "queued",
+     "type": "agent_queued"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "sub_query": "weather_agent 할 일"
+     },
+     "msg": "Agent 'weather_agent' started",
+     "stage": 1,
+     "status": "running",
+     "type": "agent_start"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "full_result": {
+       "result": {
+        "answer": "weather_agent 결과"
+       },
+       "success": true
+      },
+      "result_preview": "{'success': True, 'result': {'answer': 'weather_agent 결과'}}"
+     },
+     "msg": "Agent 'weather_agent' completed in <dur>",
+     "stage": 1,
+     "status": "completed",
+     "type": "agent_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "results_count": 1
+     },
+     "msg": "Stage 1 completed (1 results)",
+     "stage": 1,
+     "status": "completed",
+     "type": "stage_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "final_output": [
+       {
+        "agent_id": "weather_agent",
+        "data": {
+         "result": {
+          "answer": "weather_agent 결과"
+         },
+         "success": true
+        },
+        "stage_id": 1
+       }
+      ]
+     },
+     "msg": "Workflow completed successfully",
+     "stage": null,
+     "status": "completed",
+     "type": "workflow_complete"
+    }
+   ],
+   "error": null,
+   "feedback": [
+    [
+     "weather_agent",
+     true
+    ]
+   ]
+  },
+  "run": {
+   "error": null,
+   "error_agent": null,
+   "error_stage": null,
+   "executed": 1,
+   "failed": 0,
+   "final": [
+    {
+     "agent_id": "weather_agent",
+     "data": {
+      "result": {
+       "answer": "weather_agent 결과"
+      },
+      "success": true
+     },
+     "stage_id": 1
+    }
+   ],
+   "ok": 1,
+   "success": true
+  },
+  "plan_only": {
+   "capability_gap": null,
+   "final_aggregation": {
+    "type": "combine"
+   },
+   "query": "질문",
+   "reasoning": "r",
+   "stages": [
+    {
+     "agents": [
+      {
+       "agent_id": "weather_agent",
+       "input_from": null,
+       "output_to": null,
+       "sub_query": "weather_agent 할 일"
+      }
+     ],
+     "execution_type": "sequential",
+     "stage_id": 1
+    }
+   ],
+   "validation_errors": [],
+   "workflow_strategy": "hybrid"
+  }
+ },
+ "parallel_then_seq": {
+  "stream": {
+   "events": [
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Analyzing query and creating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "planning_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "capability_gap": null,
+      "reasoning": "r",
+      "stage_count": 2,
+      "stages": [
+       {
+        "agents": [
+         "weather_agent",
+         "currency_exchange_agent"
+        ],
+        "execution_type": "parallel",
+        "stage_id": 1
+       },
+       {
+        "agents": [
+         "llm_search_agent"
+        ],
+        "execution_type": "sequential",
+        "stage_id": 2
+       }
+      ],
+      "total_agents": 3,
+      "workflow_strategy": "hybrid"
+     },
+     "msg": "Execution plan created: 2 stages, 3 agents",
+     "stage": null,
+     "status": "completed",
+     "type": "planning_complete"
+    },
+    {
+     "agent": null,
+     "data": null,
+     "msg": "Validating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "validation_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "error_count": 0,
+      "errors": [],
+      "reason": "계획 검증 통과",
+      "verdict": "pass",
+      "warning_count": 0,
+      "warnings": []
+     },
+     "msg": "Execution plan validated",
+     "stage": null,
+     "status": "completed",
+     "type": "validation_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Starting workflow execution",
+     "stage": null,
+     "status": "running",
+     "type": "workflow_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "agents": [
+       "weather_agent",
+       "currency_exchange_agent"
+      ],
+      "execution_type": "parallel"
+     },
+     "msg": "Starting stage 1 (parallel): 2 agent(s)",
+     "stage": 1,
+     "status": "running",
+     "type": "stage_start"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "sub_query": "weather_agent 할 일"
+     },
+     "msg": "Agent 'weather_agent' queued",
+     "stage": 1,
+     "status": "queued",
+     "type": "agent_queued"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "sub_query": "weather_agent 할 일"
+     },
+     "msg": "Agent 'weather_agent' started",
+     "stage": 1,
+     "status": "running",
+     "type": "agent_start"
+    },
+    {
+     "agent": "currency_exchange_agent",
+     "data": {
+      "sub_query": "currency_exchange_agent 할 일"
+     },
+     "msg": "Agent 'currency_exchange_agent' queued",
+     "stage": 1,
+     "status": "queued",
+     "type": "agent_queued"
+    },
+    {
+     "agent": "currency_exchange_agent",
+     "data": {
+      "sub_query": "currency_exchange_agent 할 일"
+     },
+     "msg": "Agent 'currency_exchange_agent' started",
+     "stage": 1,
+     "status": "running",
+     "type": "agent_start"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "full_result": {
+       "result": {
+        "answer": "weather_agent 결과"
+       },
+       "success": true
+      },
+      "result_preview": "{'success': True, 'result': {'answer': 'weather_agent 결과'}}"
+     },
+     "msg": "Agent 'weather_agent' completed in <dur>",
+     "stage": 1,
+     "status": "completed",
+     "type": "agent_complete"
+    },
+    {
+     "agent": "currency_exchange_agent",
+     "data": {
+      "full_result": {
+       "result": {
+        "answer": "currency_exchange_agent 결과"
+       },
+       "success": true
+      },
+      "result_preview": "{'success': True, 'result': {'answer': 'currency_exchange_agent 결과'}}"
+     },
+     "msg": "Agent 'currency_exchange_agent' completed in <dur>",
+     "stage": 1,
+     "status": "completed",
+     "type": "agent_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "results_count": 2
+     },
+     "msg": "Stage 1 completed (2 results)",
+     "stage": 1,
+     "status": "completed",
+     "type": "stage_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "agents": [
+       "llm_search_agent"
+      ],
+      "execution_type": "sequential"
+     },
+     "msg": "Starting stage 2 (sequential): 1 agent(s)",
+     "stage": 2,
+     "status": "running",
+     "type": "stage_start"
+    },
+    {
+     "agent": "llm_search_agent",
+     "data": {
+      "sub_query": "llm_search_agent 할 일"
+     },
+     "msg": "Agent 'llm_search_agent' queued",
+     "stage": 2,
+     "status": "queued",
+     "type": "agent_queued"
+    },
+    {
+     "agent": "llm_search_agent",
+     "data": {
+      "sub_query": "llm_search_agent 할 일"
+     },
+     "msg": "Agent 'llm_search_agent' started",
+     "stage": 2,
+     "status": "running",
+     "type": "agent_start"
+    },
+    {
+     "agent": "llm_search_agent",
+     "data": {
+      "full_result": {
+       "result": {
+        "answer": "llm_search_agent 결과"
+       },
+       "success": true
+      },
+      "result_preview": "{'success': True, 'result': {'answer': 'llm_search_agent 결과'}}"
+     },
+     "msg": "Agent 'llm_search_agent' completed in <dur>",
+     "stage": 2,
+     "status": "completed",
+     "type": "agent_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "results_count": 1
+     },
+     "msg": "Stage 2 completed (1 results)",
+     "stage": 2,
+     "status": "completed",
+     "type": "stage_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "final_output": [
+       {
+        "agent_id": "weather_agent",
+        "data": {
+         "result": {
+          "answer": "weather_agent 결과"
+         },
+         "success": true
+        },
+        "stage_id": 1
+       },
+       {
+        "agent_id": "currency_exchange_agent",
+        "data": {
+         "result": {
+          "answer": "currency_exchange_agent 결과"
+         },
+         "success": true
+        },
+        "stage_id": 1
+       },
+       {
+        "agent_id": "llm_search_agent",
+        "data": {
+         "result": {
+          "answer": "llm_search_agent 결과"
+         },
+         "success": true
+        },
+        "stage_id": 2
+       }
+      ]
+     },
+     "msg": "Workflow completed successfully",
+     "stage": null,
+     "status": "completed",
+     "type": "workflow_complete"
+    }
+   ],
+   "error": null,
+   "feedback": [
+    [
+     "weather_agent",
+     true
+    ]
+   ]
+  },
+  "run": {
+   "error": null,
+   "error_agent": null,
+   "error_stage": null,
+   "executed": 3,
+   "failed": 0,
+   "final": [
+    {
+     "agent_id": "weather_agent",
+     "data": {
+      "result": {
+       "answer": "weather_agent 결과"
+      },
+      "success": true
+     },
+     "stage_id": 1
+    },
+    {
+     "agent_id": "currency_exchange_agent",
+     "data": {
+      "result": {
+       "answer": "currency_exchange_agent 결과"
+      },
+      "success": true
+     },
+     "stage_id": 1
+    },
+    {
+     "agent_id": "llm_search_agent",
+     "data": {
+      "result": {
+       "answer": "llm_search_agent 결과"
+      },
+      "success": true
+     },
+     "stage_id": 2
+    }
+   ],
+   "ok": 3,
+   "success": true
+  },
+  "plan_only": {
+   "capability_gap": null,
+   "final_aggregation": {
+    "type": "combine"
+   },
+   "query": "질문",
+   "reasoning": "r",
+   "stages": [
+    {
+     "agents": [
+      {
+       "agent_id": "weather_agent",
+       "input_from": null,
+       "output_to": null,
+       "sub_query": "weather_agent 할 일"
+      },
+      {
+       "agent_id": "currency_exchange_agent",
+       "input_from": null,
+       "output_to": null,
+       "sub_query": "currency_exchange_agent 할 일"
+      }
+     ],
+     "execution_type": "parallel",
+     "stage_id": 1
+    },
+    {
+     "agents": [
+      {
+       "agent_id": "llm_search_agent",
+       "input_from": [
+        "stage_1"
+       ],
+       "output_to": null,
+       "sub_query": "llm_search_agent 할 일"
+      }
+     ],
+     "execution_type": "sequential",
+     "stage_id": 2
+    }
+   ],
+   "validation_errors": [],
+   "workflow_strategy": "hybrid"
+  }
+ },
+ "validation_fail": {
+  "stream": {
+   "events": [
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Analyzing query and creating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "planning_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "capability_gap": null,
+      "reasoning": "r",
+      "stage_count": 1,
+      "stages": [
+       {
+        "agents": [
+         "nonexistent_agent"
+        ],
+        "execution_type": "sequential",
+        "stage_id": 1
+       }
+      ],
+      "total_agents": 1,
+      "workflow_strategy": "hybrid"
+     },
+     "msg": "Execution plan created: 1 stages, 1 agents",
+     "stage": null,
+     "status": "completed",
+     "type": "planning_complete"
+    },
+    {
+     "agent": null,
+     "data": null,
+     "msg": "Validating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "validation_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "error_count": 1,
+      "errors": [
+       "Agent 'nonexistent_agent' not found in registry. Available agents: weather_agent, currency_exchange_agent, llm_search_agent, broken_agent"
+      ],
+      "reason": "Agent 'nonexistent_agent' not found in registry. Available agents: weather_agent, currency_exchange_agent, llm_search_agent, broken_agent",
+      "validation_errors": [
+       "Agent 'nonexistent_agent' not found in registry. Available agents: weather_agent, currency_exchange_agent, llm_search_agent, broken_agent"
+      ],
+      "verdict": "fail",
+      "warning_count": 0,
+      "warnings": []
+     },
+     "msg": "Plan validation failed: 1 errors",
+     "stage": null,
+     "status": "failed",
+     "type": "validation_error"
+    }
+   ],
+   "error": "PlanValidationError",
+   "feedback": [
+    [
+     "nonexistent_agent",
+     false
+    ]
+   ]
+  },
+  "run": {
+   "raised": "PlanValidationError"
+  },
+  "plan_only": {
+   "capability_gap": null,
+   "final_aggregation": {
+    "type": "combine"
+   },
+   "query": "질문",
+   "reasoning": "r",
+   "stages": [
+    {
+     "agents": [
+      {
+       "agent_id": "nonexistent_agent",
+       "input_from": null,
+       "output_to": null,
+       "sub_query": "nonexistent_agent 할 일"
+      }
+     ],
+     "execution_type": "sequential",
+     "stage_id": 1
+    }
+   ],
+   "validation_errors": [
+    "Agent 'nonexistent_agent' not found in registry. Available agents: weather_agent, currency_exchange_agent, llm_search_agent, broken_agent"
+   ],
+   "workflow_strategy": "hybrid"
+  }
+ },
+ "agent_fails": {
+  "stream": {
+   "events": [
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Analyzing query and creating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "planning_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "capability_gap": null,
+      "reasoning": "r",
+      "stage_count": 2,
+      "stages": [
+       {
+        "agents": [
+         "weather_agent"
+        ],
+        "execution_type": "sequential",
+        "stage_id": 1
+       },
+       {
+        "agents": [
+         "broken_agent"
+        ],
+        "execution_type": "sequential",
+        "stage_id": 2
+       }
+      ],
+      "total_agents": 2,
+      "workflow_strategy": "hybrid"
+     },
+     "msg": "Execution plan created: 2 stages, 2 agents",
+     "stage": null,
+     "status": "completed",
+     "type": "planning_complete"
+    },
+    {
+     "agent": null,
+     "data": null,
+     "msg": "Validating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "validation_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "error_count": 0,
+      "errors": [],
+      "reason": "계획 검증 통과",
+      "verdict": "pass",
+      "warning_count": 0,
+      "warnings": []
+     },
+     "msg": "Execution plan validated",
+     "stage": null,
+     "status": "completed",
+     "type": "validation_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Starting workflow execution",
+     "stage": null,
+     "status": "running",
+     "type": "workflow_start"
+    },
+    {
+     "agent": null,
+     "data": {
+      "agents": [
+       "weather_agent"
+      ],
+      "execution_type": "sequential"
+     },
+     "msg": "Starting stage 1 (sequential): 1 agent(s)",
+     "stage": 1,
+     "status": "running",
+     "type": "stage_start"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "sub_query": "weather_agent 할 일"
+     },
+     "msg": "Agent 'weather_agent' queued",
+     "stage": 1,
+     "status": "queued",
+     "type": "agent_queued"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "sub_query": "weather_agent 할 일"
+     },
+     "msg": "Agent 'weather_agent' started",
+     "stage": 1,
+     "status": "running",
+     "type": "agent_start"
+    },
+    {
+     "agent": "weather_agent",
+     "data": {
+      "full_result": {
+       "result": {
+        "answer": "weather_agent 결과"
+       },
+       "success": true
+      },
+      "result_preview": "{'success': True, 'result': {'answer': 'weather_agent 결과'}}"
+     },
+     "msg": "Agent 'weather_agent' completed in <dur>",
+     "stage": 1,
+     "status": "completed",
+     "type": "agent_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "results_count": 1
+     },
+     "msg": "Stage 1 completed (1 results)",
+     "stage": 1,
+     "status": "completed",
+     "type": "stage_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "agents": [
+       "broken_agent"
+      ],
+      "execution_type": "sequential"
+     },
+     "msg": "Starting stage 2 (sequential): 1 agent(s)",
+     "stage": 2,
+     "status": "running",
+     "type": "stage_start"
+    },
+    {
+     "agent": "broken_agent",
+     "data": {
+      "sub_query": "broken_agent 할 일"
+     },
+     "msg": "Agent 'broken_agent' queued",
+     "stage": 2,
+     "status": "queued",
+     "type": "agent_queued"
+    },
+    {
+     "agent": "broken_agent",
+     "data": {
+      "sub_query": "broken_agent 할 일"
+     },
+     "msg": "Agent 'broken_agent' started",
+     "stage": 2,
+     "status": "running",
+     "type": "agent_start"
+    },
+    {
+     "agent": "broken_agent",
+     "data": {
+      "full_result": {
+       "error": "의도된 실패",
+       "success": false
+      },
+      "result_preview": "{'success': False, 'error': '의도된 실패'}"
+     },
+     "msg": "Agent 'broken_agent' failed: 의도된 실패",
+     "stage": 2,
+     "status": "failed",
+     "type": "agent_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "results_count": 1
+     },
+     "msg": "Stage 2 completed (1 results)",
+     "stage": 2,
+     "status": "completed",
+     "type": "stage_complete"
+    },
+    {
+     "agent": null,
+     "data": {
+      "final_output": [
+       {
+        "agent_id": "weather_agent",
+        "data": {
+         "result": {
+          "answer": "weather_agent 결과"
+         },
+         "success": true
+        },
+        "stage_id": 1
+       },
+       {
+        "agent_id": "broken_agent",
+        "data": {
+         "error": "의도된 실패",
+         "success": false
+        },
+        "stage_id": 2
+       }
+      ]
+     },
+     "msg": "Workflow completed successfully",
+     "stage": null,
+     "status": "completed",
+     "type": "workflow_complete"
+    }
+   ],
+   "error": null,
+   "feedback": [
+    [
+     "weather_agent",
+     true
+    ]
+   ]
+  },
+  "run": {
+   "error": null,
+   "error_agent": null,
+   "error_stage": null,
+   "executed": 2,
+   "failed": 1,
+   "final": [
+    {
+     "agent_id": "weather_agent",
+     "data": {
+      "result": {
+       "answer": "weather_agent 결과"
+      },
+      "success": true
+     },
+     "stage_id": 1
+    },
+    {
+     "agent_id": "broken_agent",
+     "data": {
+      "error": "의도된 실패",
+      "success": false
+     },
+     "stage_id": 2
+    }
+   ],
+   "ok": 1,
+   "success": true
+  },
+  "plan_only": {
+   "capability_gap": null,
+   "final_aggregation": {
+    "type": "combine"
+   },
+   "query": "질문",
+   "reasoning": "r",
+   "stages": [
+    {
+     "agents": [
+      {
+       "agent_id": "weather_agent",
+       "input_from": null,
+       "output_to": null,
+       "sub_query": "weather_agent 할 일"
+      }
+     ],
+     "execution_type": "sequential",
+     "stage_id": 1
+    },
+    {
+     "agents": [
+      {
+       "agent_id": "broken_agent",
+       "input_from": [
+        "stage_1"
+       ],
+       "output_to": null,
+       "sub_query": "broken_agent 할 일"
+      }
+     ],
+     "execution_type": "sequential",
+     "stage_id": 2
+    }
+   ],
+   "validation_errors": [],
+   "workflow_strategy": "hybrid"
+  }
+ },
+ "planning_error": {
+  "stream": {
+   "events": [
+    {
+     "agent": null,
+     "data": {
+      "query": "질문"
+     },
+     "msg": "Analyzing query and creating execution plan",
+     "stage": null,
+     "status": "running",
+     "type": "planning_start"
+    },
+    {
+     "agent": null,
+     "data": null,
+     "msg": "Failed to create execution plan: Invalid JSON in LLM response: Expecting value: line 1 column 1 (char 0)",
+     "stage": null,
+     "status": "failed",
+     "type": "planning_error"
+    }
+   ],
+   "error": "PlanningError",
+   "feedback": []
+  },
+  "run": {
+   "raised": "PlanningError"
+  },
+  "plan_only": {
+   "raised": "PlanningError"
+  }
+ }
+}

@@ -2,11 +2,15 @@
 🔄 Agent Sync Service
 Synchronization service for Agent Marketplace ↔ Knowledge Graph ↔ Agent Registry
 
+Sync sources (priority order):
+1. ACP config (acp_server/configs/agents.json) — richest metadata:
+   description, structured capabilities, tags
+2. ACP agent code (acp_server/agents/*.py) — regex-parsed fallback
+3. Agent Metadata JSON (agents/config/agent_metadata.json) — legacy fallback
+
 Sync targets:
-1. ACP Server (logosai/logosai/examples/agents/) - Source of Truth
-2. Agent Metadata JSON (agents/config/agent_metadata.json)
-3. Agent Registry (orchestrator/agent_registry.py)
-4. Knowledge Graph (knowledge_graph_clean.py)
+- Agent Registry (orchestrator/agent_registry.py)
+- Knowledge Graph (knowledge_graph_clean.py)
 
 Sync methods:
 - Full sync on startup (full_sync)
@@ -27,6 +31,7 @@ from loguru import logger
 _PROJECT_ROOT = Path(__file__).parent.parent.parent  # /Users/maior/Development/skku/Logos
 DEFAULT_AGENTS_DIR = _PROJECT_ROOT / "acp_server" / "agents"
 DEFAULT_METADATA_FILE = _PROJECT_ROOT / "agents" / "config" / "agent_metadata.json"
+DEFAULT_ACP_CONFIG_FILE = _PROJECT_ROOT / "acp_server" / "configs" / "agents.json"
 
 
 class AgentSyncService:
@@ -43,6 +48,7 @@ class AgentSyncService:
         metadata_file: Optional[Path] = None,
         knowledge_graph=None,
         agent_registry=None,
+        acp_config_file: Optional[Path] = None,
     ):
         """
         Args:
@@ -50,9 +56,11 @@ class AgentSyncService:
             metadata_file: Agent metadata JSON file path
             knowledge_graph: KnowledgeGraphEngine instance
             agent_registry: AgentRegistry instance
+            acp_config_file: ACP runtime config (agents.json) — primary metadata source
         """
         self.agents_dir = agents_dir or DEFAULT_AGENTS_DIR
         self.metadata_file = metadata_file or DEFAULT_METADATA_FILE
+        self.acp_config_file = acp_config_file or DEFAULT_ACP_CONFIG_FILE
 
         self._knowledge_graph = knowledge_graph
         self._agent_registry = agent_registry
@@ -114,6 +122,7 @@ class AgentSyncService:
             "added": [],
             "updated": [],
             "removed": [],
+            "deactivated_kg": [],
             "errors": [],
             "total_agents": 0,
         }
@@ -121,16 +130,8 @@ class AgentSyncService:
         try:
             logger.info("🔄 Starting full agent synchronization...")
 
-            # 1. Scan ACP Server agents
-            acp_agents = await self._scan_acp_agents()
-            logger.info(f"   📁 ACP agent scan complete: {len(acp_agents)} agents")
-
-            # 2. Load metadata file
-            metadata_agents = await self._load_metadata_file()
-            logger.info(f"   📄 Metadata file loaded: {len(metadata_agents)} agents")
-
-            # 3. Merge agent information
-            merged_agents = self._merge_agent_info(acp_agents, metadata_agents)
+            # 1-3. Collect from all sources and merge (config > code > metadata)
+            merged_agents = await self.collect_agents()
             result["total_agents"] = len(merged_agents)
 
             # 4. Update Agent Registry
@@ -143,8 +144,19 @@ class AgentSyncService:
             if kg_result.get("errors"):
                 result["errors"].extend(kg_result["errors"])
 
-            # 6. Update sync state
-            self._synced_agents = set(merged_agents.keys())
+            # 6. Reconcile: agents that disappeared from the registry of record are
+            #    deactivated (never deleted) in both targets. Without this the sync is
+            #    add-only and deregistered agents linger indefinitely.
+            live_ids = set(merged_agents.keys())
+            if live_ids:
+                result["removed"] = self._deactivate_stale_registry_agents(live_ids)
+                result["deactivated_kg"] = self._deactivate_stale_kg_agents(live_ids)
+            else:
+                # No source produced any agent — a read failure, not an empty fleet.
+                logger.warning("⚠️ Full sync collected 0 agents, skipping deactivation")
+
+            # 7. Update sync state
+            self._synced_agents = live_ids
             self._last_sync = datetime.now()
 
             elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -152,6 +164,7 @@ class AgentSyncService:
                 f"✅ Full sync complete: "
                 f"{len(result['added'])} added, "
                 f"{len(result['updated'])} updated, "
+                f"{len(result['removed'])} deactivated, "
                 f"{elapsed_ms:.0f}ms"
             )
 
@@ -163,6 +176,86 @@ class AgentSyncService:
             self._sync_in_progress = False
 
         return result
+
+    async def collect_agents(self) -> Dict[str, Dict[str, Any]]:
+        """Collect agent info from all sources and merge.
+
+        Priority: ACP config (agents.json) > code parsing > metadata file.
+        """
+        code_agents = await self._scan_acp_agents()
+        logger.info(f"   📁 ACP agent code scan: {len(code_agents)} agents")
+
+        config_agents = await self._load_acp_config()
+        logger.info(f"   ⚙️ ACP config (agents.json): {len(config_agents)} agents")
+
+        metadata_agents = await self._load_metadata_file()
+        logger.info(f"   📄 Metadata file: {len(metadata_agents)} agents")
+
+        return self._merge_agent_info(code_agents, metadata_agents, config_agents)
+
+    async def _load_acp_config(self) -> Dict[str, Dict[str, Any]]:
+        """Load agent metadata from the ACP runtime config (agents.json).
+
+        This is the primary source: it carries curated descriptions,
+        structured capabilities ({id, name, description}) and tags.
+        """
+        agents: Dict[str, Dict[str, Any]] = {}
+
+        if not self.acp_config_file.exists():
+            logger.debug(f"ACP config not found: {self.acp_config_file}")
+            return agents
+
+        try:
+            with open(self.acp_config_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            for entry in data.get("agents", []):
+                agent_id = entry.get("agent_id")
+                if not agent_id:
+                    continue
+
+                # 수명주기 상태 (B1, 2026-07-31): active 만 라우팅 후보다.
+                # draft(생성 직후·미검증)·deprecated(대체됨)·retired 는 선택에서 뺀다.
+                # 미기재는 active 로 읽으므로 필드가 없던 기존 항목은 동작 불변.
+                #
+                # 여기가 단일 지점인 이유: 소속(membership)이 곧 후보다.
+                # `get_available_agents()` 가 선택의 모든 경로를 막고 있으므로
+                # 여기서 빼면 KG·GNN·LLM 프롬프트 어디에도 들어가지 않는다.
+                _st = str(entry.get("status") or "active").strip().lower()
+                if _st != "active":
+                    logger.debug(f"라우팅 후보 제외: {agent_id} (status={_st})")
+                    continue
+
+                # capabilities may be structured dicts or plain strings
+                capability_ids: List[str] = []
+                capability_details: List[Dict[str, Any]] = []
+                for cap in entry.get("capabilities") or []:
+                    if isinstance(cap, dict):
+                        cap_id = cap.get("id") or cap.get("name")
+                        if cap_id:
+                            capability_ids.append(cap_id)
+                            capability_details.append({
+                                "id": cap_id,
+                                "name": cap.get("name", ""),
+                                "description": cap.get("description", ""),
+                            })
+                    elif cap:
+                        capability_ids.append(str(cap))
+
+                agents[agent_id] = {
+                    "agent_id": agent_id,
+                    "name": entry.get("name", agent_id),
+                    "description": entry.get("description", ""),
+                    "capabilities": capability_ids,
+                    "capability_details": capability_details,
+                    "tags": [str(t) for t in (entry.get("tags") or [])],
+                    "source": "acp_config",
+                }
+
+        except Exception as e:
+            logger.warning(f"⚠️ ACP config load failed ({self.acp_config_file}): {e}")
+
+        return agents
 
     async def _scan_acp_agents(self) -> Dict[str, Dict[str, Any]]:
         """Scan ACP Server agent directory"""
@@ -274,29 +367,58 @@ class AgentSyncService:
     def _merge_agent_info(
         self,
         acp_agents: Dict[str, Dict[str, Any]],
-        metadata_agents: Dict[str, Dict[str, Any]]
+        metadata_agents: Dict[str, Dict[str, Any]],
+        config_agents: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Dict[str, Any]]:
-        """Merge agent information from multiple sources (ACP takes priority)"""
+        """Merge agent information from all sources.
+
+        Field priority: ACP config (agents.json) > code parsing > metadata file.
+        """
+        config_agents = config_agents or {}
         merged = {}
 
-        # Based on ACP agents
-        all_agent_ids = set(acp_agents.keys()) | set(metadata_agents.keys())
+        # Membership (which agents exist) comes from the ACP runtime config alone —
+        # it is the registry of record. Code scan and the legacy metadata file remain
+        # *field* fallbacks only.
+        #
+        # Unioning membership across all three sources injected agents that were never
+        # registered: unregistered *_agent.py files under acp_server/agents/ and stale
+        # entries in agents/config/agent_metadata.json. Those reached the Knowledge Graph
+        # and the registry as if they were live.
+        #
+        # When the config is unavailable (missing/unreadable/empty) fall back to the union
+        # rather than syncing nothing — an unreadable config must not wipe the graph.
+        if config_agents:
+            all_agent_ids = set(config_agents.keys())
+        else:
+            logger.warning(
+                "⚠️ ACP config empty/unavailable — falling back to union membership "
+                "(code scan + metadata file)"
+            )
+            all_agent_ids = (
+                set(acp_agents.keys()) | set(metadata_agents.keys())
+            )
 
         for agent_id in all_agent_ids:
+            cfg_info = config_agents.get(agent_id, {})
             acp_info = acp_agents.get(agent_id, {})
             meta_info = metadata_agents.get(agent_id, {})
 
-            # ACP info takes priority, supplemented by metadata
             merged[agent_id] = {
                 "agent_id": agent_id,
-                "name": acp_info.get("name") or meta_info.get("name") or agent_id,
+                "name": cfg_info.get("name") or acp_info.get("name") or meta_info.get("name") or agent_id,
                 "class_name": acp_info.get("class_name") or meta_info.get("class_name", ""),
-                "description": acp_info.get("description") or meta_info.get("description", ""),
-                "capabilities": acp_info.get("capabilities") or meta_info.get("capabilities", []),
-                "tags": acp_info.get("tags") or meta_info.get("tags", []),
+                "description": cfg_info.get("description") or acp_info.get("description") or meta_info.get("description", ""),
+                "capabilities": cfg_info.get("capabilities") or acp_info.get("capabilities") or meta_info.get("capabilities", []),
+                "capability_details": cfg_info.get("capability_details", []),
+                "tags": cfg_info.get("tags") or acp_info.get("tags") or meta_info.get("tags", []),
                 "version": meta_info.get("version", "1.0.0"),
                 "file_path": acp_info.get("file_path"),
-                "sources": [s for s in ["acp_server" if acp_info else None, "metadata_file" if meta_info else None] if s],
+                "sources": [s for s in [
+                    "acp_config" if cfg_info else None,
+                    "acp_server" if acp_info else None,
+                    "metadata_file" if meta_info else None,
+                ] if s],
                 "synced_at": datetime.now().isoformat(),
             }
 
@@ -349,6 +471,44 @@ class AgentSyncService:
 
         return result
 
+    def _deactivate_stale_registry_agents(self, live_agent_ids: Set[str]) -> List[str]:
+        """Mark registry entries absent from the registry of record as unavailable.
+
+        This is the candidate gate: `AgentRegistry.get_available_agents()` filters on
+        `is_available`, and that list is what the planner hands to the selector as
+        `available_agents`. Entries are deactivated, not unregistered, so execution
+        metadata (success_rate, average_execution_time_ms) survives.
+
+        Returns:
+            IDs of the registry entries newly deactivated by this call.
+        """
+        deactivated: List[str] = []
+
+        registry = self.agent_registry
+        if not registry:
+            return deactivated
+
+        try:
+            for agent_id in registry.get_agent_ids():
+                if agent_id in live_agent_ids:
+                    continue
+                entry = registry.get_agent_safe(agent_id)
+                if entry is None or entry.is_available is False:
+                    continue
+                entry.is_available = False
+                deactivated.append(agent_id)
+
+            if deactivated:
+                logger.info(
+                    f"📋 Registry: {len(deactivated)} stale agents deactivated "
+                    f"(dropped from selection candidates, entries preserved)"
+                )
+
+        except Exception as e:
+            logger.warning(f"⚠️ Registry deactivation failed: {e}")
+
+        return deactivated
+
     async def _sync_to_knowledge_graph(
         self,
         agents: Dict[str, Dict[str, Any]]
@@ -377,12 +537,21 @@ class AgentSyncService:
                 )
 
                 # Add capability nodes and relationships
+                # (structured details from agents.json enrich the capability node)
+                cap_details = {
+                    d.get("id"): d for d in info.get("capability_details", []) if d.get("id")
+                }
                 for capability in info.get("capabilities", []):
                     cap_id = f"capability_{capability}"
+                    detail = cap_details.get(capability, {})
                     await self.knowledge_graph.add_concept(
                         cap_id,
                         "capability",
-                        {"name": capability}
+                        {
+                            "name": capability,
+                            "display_name": detail.get("name", ""),
+                            "description": detail.get("description", ""),
+                        }
                     )
                     await self.knowledge_graph.add_relationship(
                         agent_id, cap_id, "has_capability"
@@ -409,6 +578,54 @@ class AgentSyncService:
             result["errors"].append(str(e))
 
         return result
+
+    def _deactivate_stale_kg_agents(self, live_agent_ids: Set[str]) -> List[str]:
+        """Mark KG agent nodes that no longer exist in the registry as unavailable.
+
+        Deactivation, not deletion. These nodes carry learning history —
+        query_agent_mapping edges, capability/tag relationships and their accumulated
+        success rates. Deleting them would sever that history; `is_available=False`
+        records that the agent is gone while keeping the evidence of what it did.
+
+        `is_available` is a real signal, not bookkeeping: the GNN encoder reads it as a
+        node feature (ml/gnn_encoder.py) and the KG engine exposes it to consumers.
+
+        Returns:
+            IDs of the agent nodes newly deactivated by this call.
+        """
+        deactivated: List[str] = []
+
+        kg = self.knowledge_graph
+        if not kg or not hasattr(kg, "graph_engine"):
+            return deactivated
+
+        try:
+            graph = kg.graph_engine.graph
+            now = datetime.now().isoformat()
+
+            for node_id, attrs in graph.nodes(data=True):
+                if attrs.get("type") != "agent":
+                    continue
+                if node_id in live_agent_ids:
+                    continue
+                if attrs.get("is_available") is False:
+                    continue  # already deactivated — don't rewrite the timestamp
+
+                attrs["is_available"] = False
+                attrs["deactivated_at"] = now
+                attrs["last_updated"] = now
+                deactivated.append(node_id)
+
+            if deactivated:
+                logger.info(
+                    f"📊 Knowledge graph: {len(deactivated)} stale agent nodes deactivated "
+                    f"(is_available=False, history preserved)"
+                )
+
+        except Exception as e:
+            logger.warning(f"⚠️ Knowledge graph deactivation failed: {e}")
+
+        return deactivated
 
     async def sync_single_agent(self, agent_id: str, agent_info: Dict[str, Any]) -> bool:
         """
@@ -449,9 +666,18 @@ class AgentSyncService:
         changes = {"added": [], "modified": [], "removed": []}
 
         try:
-            # Scan current ACP agents
-            current_agents = await self._scan_acp_agents()
+            # Use the same canonical source as full_sync (registry of record, with code
+            # scan as a field fallback). Scanning the agent directory directly would
+            # report every unregistered *_agent.py file as "added" and the watcher would
+            # sync it back in — resurrecting exactly what full_sync just deactivated.
+            current_agents = await self.collect_agents()
             current_ids = set(current_agents.keys())
+
+            if not current_ids:
+                # Every source came back empty — a read failure, not "all agents gone".
+                # Reporting removals here would deactivate the entire fleet.
+                logger.warning("⚠️ Change detection: no agents collected, skipping")
+                return changes
 
             # Added agents
             changes["added"] = list(current_ids - self._synced_agents)
@@ -468,6 +694,9 @@ class AgentSyncService:
                     if old_hash and new_hash != old_hash:
                         changes["modified"].append(agent_id)
                     self._file_hashes[agent_id] = new_hash
+
+            # Advance sync state so a removal is reported once, not every interval.
+            self._synced_agents = current_ids
 
         except Exception as e:
             logger.warning(f"⚠️ Change detection failed: {e}")
@@ -583,11 +812,21 @@ class AgentFileWatcher:
                         f"-{len(changes.get('removed', []))}"
                     )
 
-                    # 변경된 에이전트만 동기화
-                    for agent_id in changes.get("added", []) + changes.get("modified", []):
-                        acp_agents = await self.sync_service._scan_acp_agents()
-                        if agent_id in acp_agents:
-                            await self.sync_service.sync_single_agent(agent_id, acp_agents[agent_id])
+                    # 변경된 에이전트만 동기화 (canonical source — 미등록 코드 파일 유입 차단)
+                    touched = changes.get("added", []) + changes.get("modified", [])
+                    if touched:
+                        current = await self.sync_service.collect_agents()
+                        for agent_id in touched:
+                            if agent_id in current:
+                                await self.sync_service.sync_single_agent(
+                                    agent_id, current[agent_id]
+                                )
+
+                    # 사라진 에이전트는 비활성 표시 (삭제 아님 — 학습 이력 보존)
+                    if changes.get("removed"):
+                        live_ids = self.sync_service._synced_agents
+                        self.sync_service._deactivate_stale_registry_agents(live_ids)
+                        self.sync_service._deactivate_stale_kg_agents(live_ids)
 
                 await asyncio.sleep(self._check_interval)
 

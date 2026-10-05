@@ -88,8 +88,13 @@ class TestPublicImports:
         assert isinstance(ML_AVAILABLE, bool)
 
     def test_version(self):
+        # 값 자체는 pyproject 가 정본 — 일치 계약은
+        # test_packaging.py::test_version_string_matches_pyproject 가 지킨다.
+        # 여기 릴리즈 번호를 하드코딩하면 릴리즈마다 이 테스트가 깨진다
+        # (2.0.2 릴리즈에서 실제로 깨졌다).
+        import re
         from ontology import __version__
-        assert __version__ == "2.0.0"
+        assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
 
 
 # ─── Enum Tests ─────────────────────────────────────────────────────

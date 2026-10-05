@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>grounded 검색·인용·에이전트 분업 — aicoach 대조와 보강 과제</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#161b2c; --panel2:#1d2437; --line:#2a3350;
+    --ink:#e8ebf5; --ink2:#aab3cf; --faint:#71809f;
+    --accent:#7c8cff; --accent2:#5eead4;
+    --pg:#5b9bff; --es:#f5b74e; --nx:#9aa4c0; --vec:#c084fc;
+    --green:#34d399; --amber:#fbbf24; --red:#fb7185;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0e1220 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 90px}
+  header.hero{margin-bottom:40px}
+  .eyebrow{color:var(--accent2);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2.05rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .2em;line-height:1.15}
+  h1 .grad{background:linear-gradient(90deg,var(--pg),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:820px}
+  h2{font-size:1.35rem;font-weight:750;margin:56px 0 8px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:.8rem;color:var(--bg);background:var(--accent);border-radius:7px;padding:2px 9px;font-weight:800}
+  h3{font-size:1.02rem;font-weight:700;margin:26px 0 6px;color:var(--ink)}
+  p{color:var(--ink2);margin:.5em 0}
+  .lead{color:var(--ink);font-size:1.05rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin:16px 0}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin:20px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:12px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:#0b0f1c;
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c7d0ee}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.92rem}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-weight:650;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td b{color:var(--ink)}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;border:1px solid}
+  .pill.pg{color:var(--pg);border-color:#2f4d80;background:#12203a}
+  .pill.es{color:var(--es);border-color:#5c4a1f;background:#2a220f}
+  .pill.vec{color:var(--vec);border-color:#4a3670;background:#241a36}
+  .pill.nx{color:var(--nx);border-color:#3a4260;background:#1a2036}
+  .pill.gr{color:var(--green);border-color:#1f6b4c;background:#0f2a20}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  ul{color:var(--ink2);margin:.4em 0;padding-left:1.2em}
+  li{margin:.3em 0}
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:.82rem}
+  .callout{background:linear-gradient(90deg,#12203a,#161b2c);border:1px solid #2f4d80;border-radius:var(--radius);padding:18px 22px;margin:18px 0}
+  .callout .t{color:var(--pg);font-weight:750;margin-bottom:4px}
+  .verdict{background:linear-gradient(90deg,#0f2a20,#161b2c);border:1px solid #1f6b4c}
+  .verdict .t{color:var(--green)}
+  .warn{background:linear-gradient(90deg,#2a1618,#161b2c);border:1px solid #7a3540}
+  .warn .t{color:var(--red)}
+  .tag{font-size:.68rem;font-weight:800;letter-spacing:.06em;padding:2px 8px;border-radius:6px;background:#241a36;color:var(--vec);border:1px solid #6d4fa0;text-transform:uppercase}
+  .tag.no{background:#2a1618;color:var(--red);border-color:#7a3540}
+  .tag.yes{background:#0f2a20;color:var(--green);border-color:#1f6b4c}
+  .tag.p0{background:#2a1618;color:var(--red);border-color:#7a3540}
+  .tag.p1{background:#2a220f;color:var(--es);border-color:#5c4a1f}
+  .tag.p2{background:#12203a;color:var(--pg);border-color:#2f4d80}
+  .tag.p3{background:#1a2036;color:var(--nx);border-color:#3a4260}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  svg text{font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Logos · Ontology · grounded 검색 분석</div>
+  <h1>계산기가 근거를 만들고, <span class="grad">에이전트가 그 위에서 판단한다</span></h1>
+  <p class="sub">온톨로지 <code>/retrieve</code>가 <b>조항 단위로 검증 가능한 근거를 출처와 함께</b>
+  돌려주는 방식, aicoach 검색과의 대조, 환각이 0인 구조, 그리고 <b>지금 무엇을 보강해야 하는지</b>를
+  코드 근거로 정리한다. 모든 주장은 실제 파일·라인 인용.</p>
+</header>
+
+<!-- 1 -->
+<h2><span class="n">1</span> 검색 경로 — 계산기가 하는 일 (결정론)</h2>
+<p class="lead">"온톨로지가 검색한다"는 <b>결정론 함수가 돈다</b>는 뜻이다. LLM·추론 루프·자율 판단 0.
+각 hit 은 <b>왜·어디서</b> 왔는지 출처를 실어 나른다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 250" role="img" aria-label="retrieve 검색 경로와 출처를 실은 결과">
+  <defs><marker id="a1" markerWidth="10" markerHeight="10" refX="8" refY="3.2" orient="auto"><path d="M0,0 L8,3.2 L0,6.4 Z" fill="#5b9bff"/></marker></defs>
+  <text x="500" y="26" text-anchor="middle" fill="#e8ebf5" font-size="14" font-weight="800">query → /retrieve → hits(출처 포함)</text>
+  <rect x="20" y="48" width="180" height="70" rx="11" fill="#12203a" stroke="#2f4d80"/>
+  <text x="110" y="74" text-anchor="middle" fill="#5b9bff" font-size="12.5" font-weight="800">① 진입</text>
+  <text x="110" y="93" text-anchor="middle" fill="#aab3cf" font-size="10.5">임베딩 코사인</text>
+  <text x="110" y="108" text-anchor="middle" fill="#c7d0ee" font-size="10" class="mono">semantic_search</text>
+  <rect x="228" y="48" width="180" height="70" rx="11" fill="#0f2a20" stroke="#1f6b4c"/>
+  <text x="318" y="74" text-anchor="middle" fill="#34d399" font-size="12.5" font-weight="800">② 확장</text>
+  <text x="318" y="93" text-anchor="middle" fill="#aab3cf" font-size="10.5">is_a 폐포 + 인접</text>
+  <text x="318" y="108" text-anchor="middle" fill="#c7d0ee" font-size="10" class="mono">networkx</text>
+  <rect x="436" y="48" width="180" height="70" rx="11" fill="#2a220f" stroke="#5c4a1f"/>
+  <text x="526" y="74" text-anchor="middle" fill="#f5b74e" font-size="12.5" font-weight="800">③ 청크</text>
+  <text x="526" y="93" text-anchor="middle" fill="#aab3cf" font-size="10.5">ES BM25+dense</text>
+  <text x="526" y="108" text-anchor="middle" fill="#c7d0ee" font-size="10" class="mono">chunk_index</text>
+  <rect x="644" y="48" width="160" height="70" rx="11" fill="#241a36" stroke="#4a3670"/>
+  <text x="724" y="74" text-anchor="middle" fill="#c084fc" font-size="12.5" font-weight="800">④ RRF 융합</text>
+  <text x="724" y="93" text-anchor="middle" fill="#aab3cf" font-size="10.5">순위 결합</text>
+  <text x="724" y="108" text-anchor="middle" fill="#c7d0ee" font-size="10" class="mono">RRF_K=60</text>
+  <rect x="832" y="40" width="150" height="150" rx="11" fill="#161b2c" stroke="#2a3350"/>
+  <text x="907" y="62" text-anchor="middle" fill="#e8ebf5" font-size="12" font-weight="800">hit(출처)</text>
+  <text x="907" y="84" text-anchor="middle" fill="#5eead4" font-size="10.5" class="mono">section 제N조</text>
+  <text x="907" y="102" text-anchor="middle" fill="#aab3cf" font-size="10.5" class="mono">source</text>
+  <text x="907" y="120" text-anchor="middle" fill="#aab3cf" font-size="10.5" class="mono">char_start/end</text>
+  <text x="907" y="138" text-anchor="middle" fill="#aab3cf" font-size="10.5" class="mono">node_ids</text>
+  <text x="907" y="156" text-anchor="middle" fill="#c084fc" font-size="10.5" class="mono">matched_via</text>
+  <text x="907" y="174" text-anchor="middle" fill="#c084fc" font-size="10.5" class="mono">expansion</text>
+  <line x1="200" y1="83" x2="226" y2="83" stroke="#5b9bff" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="408" y1="83" x2="434" y2="83" stroke="#5b9bff" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="616" y1="83" x2="642" y2="83" stroke="#5b9bff" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="804" y1="83" x2="830" y2="83" stroke="#5b9bff" stroke-width="2" marker-end="url(#a1)"/>
+  <text x="500" y="228" text-anchor="middle" fill="#71809f" font-size="11.5">전 단계 LLM 0 · 재현 가능 · <tspan fill="#c7d0ee" class="mono">graph_retrieval.py</tspan> 순수 함수</text>
+</svg>
+<div class="cap">검색은 결정론 계산기. 결과에 조항 라벨·출처·문자 오프셋·근거 채널까지 실려 나온다.</div>
+</div>
+
+<!-- 2 -->
+<h2><span class="n">2</span> 조항 단위 인용 — 이미 지원, 더 정밀</h2>
+<p>aicoach <code>legal.py</code>의 조(article) 세그먼트 원리가 <b>이미 이식돼 있다</b>. <code>제N조</code>
+heading 으로 잘라 라벨을 <code>chunk.section</code>에 싣고, <code>/retrieve</code>가 그대로 노출한다.</p>
+<table>
+  <thead><tr><th>인용 요소</th><th>aicoach</th><th>온톨로지 /retrieve</th><th>근거</th></tr></thead>
+  <tbody>
+    <tr><td>조 단위 분할</td><td>legal.py 편/장/절/조</td><td><b>segmenter.py</b> 제N조 heading</td><td><code>segmenter.py:20,202</code></td></tr>
+    <tr><td>참조 오분할 방지</td><td>_is_reference_heading</td><td><b>동일 방어</b> _REF_IN_TITLE·_REF_AFTER</td><td><code>segmenter.py:26-34</code></td></tr>
+    <tr><td>조항 라벨</td><td>article 필드</td><td><b>chunk.section</b> = 제N조(제목)</td><td><code>segmenter.py:27</code></td></tr>
+    <tr><td>문자 오프셋 출처</td><td><span class="tag no">없음</span></td><td><b>char_start/end</b> · 불변식 보장</td><td>축 2 · <code>chunk_store.py:52</code></td></tr>
+    <tr><td>왜 이 결과인지</td><td>점수만</td><td><b>matched_via·channels·expansion</b></td><td><code>service.py:1221-1228</code></td></tr>
+  </tbody>
+</table>
+<div class="callout verdict">
+  <div class="t">판정 — 조항 단위 인용: 지원됨 (오히려 우위)</div>
+  <p style="margin:.3em 0 0"><code>/retrieve</code>는 <code>section</code>(제N조)·<code>source</code>·<b>문자 오프셋</b>·
+  <code>node_ids</code>·<code>matched_via</code>를 hit 마다 싣는다. <code>original[char_start:char_end] == chunk.text</code>
+  불변식(축 2)이라 인용이 <b>원문의 정확한 위치</b>를 가리킨다 — aicoach보다 검증 가능성이 높다.
+  단 <b><code>[N]</code> 번호 조립은 <code>/retrieve</code>가 아니라 소비 에이전트</b>(grounded_qa_agent)가 한다
+  — 계산기는 원재료, 에이전트는 인용문. 올바른 분업.</p>
+</div>
+
+<!-- 3 -->
+<h2><span class="n">3</span> aicoach ↔ 온톨로지 대조</h2>
+<table>
+  <thead><tr><th>축</th><th>aicoach</th><th>온톨로지</th></tr></thead>
+  <tbody>
+    <tr><td>검색</td><td>하이브리드 BM25×0.1 + cosine (한 script_score)</td><td>그래프-조건부: 확장질의 + 노드청크 <b>RRF 융합</b></td></tr>
+    <tr><td>조 세그먼트</td><td>legal.py (KII 교재)</td><td>segmenter.py (도메인-무관)</td></tr>
+    <tr><td>인용 출처</td><td>source·article</td><td>+ <b>char offset·matched_via·expansion</b></td></tr>
+    <tr><td>rerank</td><td><b>rank_clauses</b> (boilerplate 제거+조항 우선)</td><td><span class="tag no">없음</span> — RRF 순위 그대로</td></tr>
+    <tr><td>환각 통제</td><td>발췌 안에서만 조립 + [N]</td><td>동일 (에이전트가 조립)</td></tr>
+    <tr><td>튜닝</td><td>KII 골든셋으로 가중치 측정 (recall@5 0.944)</td><td>상수 <b>미측정</b> (RRF_K·entry_ratio 하드코딩)</td></tr>
+  </tbody>
+</table>
+
+<!-- 4 -->
+<h2><span class="n">4</span> 환각이 0인 이유 · 에이전트 분업</h2>
+<div class="grid2">
+  <div class="card">
+    <div class="pill gr">환각 0 메커니즘</div>
+    <p style="margin-top:8px">에이전트가 검색까지 LLM 으로 하면 출처를 <b>지어낸다</b>. 검색을 결정론
+    계산기로 떼어놓아 → 같은 질의에 같은 근거+출처. 에이전트는 그 <b>발췌 안에서만</b> 답을
+    조립하고 문장마다 <code>[N]</code> 인용. 근거 없으면 "없다"고 답한다.</p>
+    <p class="mono" style="color:#71809f;font-size:.82rem">grounded_qa_agent.py:55-67,78-80</p>
+  </div>
+  <div class="card">
+    <div class="pill vec">"모든 걸 에이전트가?" — 아니오</div>
+    <table style="margin:6px 0">
+      <tr><td>세그먼트·검색·융합·출처</td><td><span class="tag no">계산기</span></td></tr>
+      <tr><td><code>[N]</code> 인용 조립</td><td><span class="tag yes">에이전트</span></td></tr>
+      <tr><td>namespace·재검색·오케스트</td><td><span class="tag yes">에이전트</span></td></tr>
+    </table>
+    <p style="margin:.2em 0 0">계산기가 <b>검증 가능한 근거</b>를 만들고, 에이전트가 그 위에서 <b>판단</b>한다.</p>
+  </div>
+</div>
+
+<!-- 5 -->
+<h2><span class="n">5</span> 무엇을 보강해야 하는가</h2>
+<p class="lead">지금 구조는 옳다. 빠진 것은 <b>정교함이 아니라 "측정할 자"와 검색 품질 필터</b>다.
+우선순위대로.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 220" role="img" aria-label="보강 과제 우선순위 로드맵">
+  <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#71809f"/></marker></defs>
+  <rect x="20" y="40" width="300" height="140" rx="12" fill="#2a1618" stroke="#7a3540"/>
+  <text x="40" y="66" fill="#fb7185" font-size="13" font-weight="800">P0 · 검색 품질 직결</text>
+  <text x="40" y="90" fill="#e8ebf5" font-size="11.5">· 조항 우선 rerank + boilerplate 필터</text>
+  <text x="40" y="110" fill="#e8ebf5" font-size="11.5">· 네임스페이스별 골든셋</text>
+  <text x="40" y="130" fill="#e8ebf5" font-size="11.5">· 상수 파라미터화 + eval 측정</text>
+  <text x="40" y="158" fill="#aab3cf" font-size="10.5">= Phase 2. 없으면 개선을 증명 못 함</text>
+  <rect x="352" y="40" width="300" height="140" rx="12" fill="#2a220f" stroke="#5c4a1f"/>
+  <text x="372" y="66" fill="#f5b74e" font-size="13" font-weight="800">P1 · 성능</text>
+  <text x="372" y="90" fill="#e8ebf5" font-size="11.5">· L1 임베딩 캐시 (model+text)</text>
+  <text x="372" y="110" fill="#e8ebf5" font-size="11.5">· L2 결과 캐시 (ns+query+gen)</text>
+  <text x="372" y="130" fill="#e8ebf5" font-size="11.5">· CacheManager 서빙 배선</text>
+  <text x="372" y="158" fill="#aab3cf" font-size="10.5">지금 매 요청 전액 재계산</text>
+  <rect x="684" y="40" width="296" height="140" rx="12" fill="#12203a" stroke="#2f4d80"/>
+  <text x="704" y="66" fill="#5b9bff" font-size="13" font-weight="800">P2 · 정확성·위생</text>
+  <text x="704" y="90" fill="#e8ebf5" font-size="11.5">· article↔clause 링크 정합</text>
+  <text x="704" y="110" fill="#e8ebf5" font-size="11.5">· 문서 drift 정정</text>
+  <text x="704" y="130" fill="#e8ebf5" font-size="11.5">· 확산 확장(라플라시안) 재검토</text>
+  <text x="704" y="158" fill="#aab3cf" font-size="10.5">P0 골든셋 위에서만 측정 가능</text>
+  <line x1="320" y1="110" x2="350" y2="110" stroke="#71809f" stroke-width="1.6" marker-end="url(#a2)"/>
+  <line x1="652" y1="110" x2="682" y2="110" stroke="#71809f" stroke-width="1.6" marker-end="url(#a2)"/>
+</svg>
+<div class="cap">P0(측정 기반) 없이 P2(정교화)로 가면 개선인지 알 수 없다 — 자를 먼저 만든다.</div>
+</div>
+
+<table>
+  <thead><tr><th>우선</th><th>보강 과제</th><th>왜 (근거)</th><th>효과</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag p0">P0</span></td><td><b>조항 우선 rerank + boilerplate 필터</b>를 <code>/retrieve</code>에 배선</td><td>aicoach <code>rank_clauses</code>(요율표·사업비 제거+조항 가점) 대응이 검색 경로에 <b>없음</b>. boilerplate 처리는 dataset_curator 에만</td><td>요율표 오상위 방지, 인용 적합도↑</td></tr>
+    <tr><td><span class="tag p0">P0</span></td><td><b>네임스페이스별 골든셋</b> 스키마·저장소</td><td>골든셋이 <code>ins_cancer_demo</code> 1개뿐. 관련도 튜닝은 사람 라벨 전제</td><td>도메인별 품질 측정 가능</td></tr>
+    <tr><td><span class="tag p0">P0</span></td><td><b>상수 파라미터화 + eval 측정</b></td><td><code>RRF_K=60</code>·<code>entry_ratio=0.5</code>·<code>BM25×0.1</code> "측정값 아님"·하드코딩이라 sweep 불가</td><td>감→측정, 회귀 방지</td></tr>
+    <tr><td><span class="tag p1">P1</span></td><td><b>캐시 계층</b> (L1 임베딩·L2 결과)</td><td><code>/retrieve</code>·임베딩 매 요청 전액 재계산. CacheManager 있으나 미배선(구현≠사용)</td><td>반복·유사 질의 지연↓</td></tr>
+    <tr><td><span class="tag p2">P2</span></td><td><b>article↔clause 링크 정합</b></td><td>AI-Coach 링크 best-effort 54건 (feM)</td><td>인용↔그래프 노드 연결↑</td></tr>
+    <tr><td><span class="tag p2">P2</span></td><td><b>문서 drift 정정</b></td><td>"aicoach 6에이전트가 /kg/* 쓴다"는 실측과 다름 — 검색은 coach 레이어 직접 호출, 에이전트 파일 검색 참조 0</td><td>설계 문서 신뢰도</td></tr>
+    <tr><td><span class="tag p3">P3</span></td><td>확산 확장(라플라시안)·GNN+RL</td><td>확산은 P0 골든셋 위 A/B 측정 후. GNN+RL 채택 0%라 검색 품질과 무관</td><td>관망 — 측정 후 판단</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <div class="t">한 줄</div>
+  <p style="margin:.3em 0 0"><b>조항 단위 인용은 이미 되고(더 정밀), 검색·세그먼트·융합은 계산기가 결정론으로 하며
+  판단만 에이전트가 한다.</b> 보강의 핵심은 aicoach가 가진 <b>조항 우선 rerank/boilerplate 필터</b>를
+  검색 경로에 붙이고, 그것이 개선인지 <b>증명할 골든셋+eval(Phase 2)</b>을 세우는 것이다.
+  정교한 것보다 <b>측정할 자</b>를 먼저.</p>
+</div>
+
+<div class="foot">
+  Logos · Ontology — grounded 검색·인용·에이전트 분업 + 보강 과제 · 근거:
+  <span class="mono">core/graph_retrieval.py · core/chunk_store.py · builder/segmenter.py · server/service.py · agents/grounded_qa_agent.py</span> ·
+  대조: aicoach <span class="mono">rag/search.py · rag/legal.py</span> 실측.
+  연관: <span class="mono">ontology-architecture.html §6 · laplacian-and-learning.html</span>
+</div>
+
+</div>
+</body>
+</html>

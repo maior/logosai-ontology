@@ -174,6 +174,10 @@ await selector.store_feedback(query, agent, success=True)
 
 ### Workflow Orchestration
 
+> **Requires the `logosai` extra** — `pip install logosai-ontology[logosai]`.
+> The execution engine now lives in `logosai.orchestration`; `ontology.orchestrator`
+> keeps its import paths as aliases to it. The knowledge-graph kernel does not need logosai.
+
 ```python
 from ontology.orchestrator import WorkflowOrchestrator
 

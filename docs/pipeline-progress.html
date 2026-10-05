@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업로드 → 검색 가능한 사실 — 인제스트·검색 파이프라인 진행 현황</title>
+<style>
+  :root{
+    --bg:#0e1220; --bg2:#0c1020; --panel:#161b2c; --panel2:#1b2236; --line:#2a3350;
+    --ink:#e8ebf5; --ink2:#aab3cf; --faint:#71809f; --accent:#7c8cff;
+    --green:#34d399; --amber:#fbbf24; --pg:#5b9bff; --es:#f5b74e; --violet:#c4a3ff;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f6f7fb; --bg2:#eef1f8; --panel:#ffffff; --panel2:#f0f2f8; --line:#dfe4ee;
+      --ink:#1a2233; --ink2:#4b5568; --faint:#8a94a8; --accent:#4f46e5;
+      --green:#0f9d63; --amber:#b7791f; --pg:#2563eb; --es:#c2740a; --violet:#7c3aed;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,var(--bg2),var(--bg) 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;line-height:1.65}
+  .wrap{max-width:1020px;margin:0 auto;padding:48px 28px 90px}
+  .eyebrow{color:var(--green);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2.05rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .15em}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:760px}
+  .sub b{color:var(--ink)}
+  h2{font-size:1.32rem;font-weight:750;margin:52px 0 6px;letter-spacing:-.01em}
+  .lead{color:var(--faint);font-size:.92rem;margin:0 0 16px;max-width:780px}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:28px 0}
+  @media(max-width:720px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 16px}
+  .metric .v{font-size:1.65rem;font-weight:800;letter-spacing:-.02em}
+  .metric .k{color:var(--faint);font-size:.78rem;font-weight:600;margin-top:2px}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 20px;margin:22px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:12px}
+  .phase{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:var(--radius);padding:18px 22px;margin:14px 0}
+  .phase.done{border-left-color:var(--green)}
+  .phase.pg{border-left-color:var(--pg)}
+  .phase.es{border-left-color:var(--es)}
+  .phase.faint{border-left-color:var(--faint)}
+  .phase h3{margin:0 0 4px;font-size:1.06rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .phase .st{font-size:.7rem;font-weight:800;padding:2px 10px;border-radius:20px}
+  .st.ok{background:#0f2e24;color:#34d399;border:1px solid #1c5040}
+  .st.rej{background:#2e1414;color:#fb7185;border:1px solid #5a1c1c}
+  @media(prefers-color-scheme:light){.st.ok{background:#dcfce7;color:#15803d;border-color:#bbf7d0}.st.rej{background:#fee2e2;color:#b91c1c;border-color:#fecaca}}
+  .phase p{color:var(--ink2);margin:.4em 0 0;font-size:.94rem}
+  .phase .v{color:var(--faint);font-size:.84rem;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+  .phase .v b{color:var(--green)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.85em;background:var(--bg2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink2)}
+  .callout{background:linear-gradient(90deg,rgba(124,140,255,.10),transparent);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;margin:16px 0}
+  .callout b{color:var(--accent)}
+  .findings{list-style:none;padding:0;margin:12px 0}
+  .findings li{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin:9px 0;font-size:.92rem;color:var(--ink2)}
+  .findings li b{color:var(--ink)}
+  .findings .tag{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.04em;padding:2px 9px;border-radius:20px;margin-right:9px;vertical-align:1px}
+  .t-keep{background:#0f2e24;color:#34d399}
+  .t-rej{background:#2e1414;color:#fb7185}
+  @media(prefers-color-scheme:light){.t-keep{background:#dcfce7;color:#15803d}.t-rej{background:#fee2e2;color:#b91c1c}}
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:.82rem}
+  a{color:var(--accent)}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:20px;background:var(--panel2);color:var(--ink2);border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Ontology Ingest &amp; Search Pipeline · 진행 현황</div>
+  <h1>업로드 한 번 → 검색 가능한 사실</h1>
+  <p class="sub">"문서를 올리면 <b>검증 가능하고 에이전트가 소비 가능한 지식베이스</b>가 된다"를
+  실물로 만드는 작업. 네임스페이스 생성 → 업로드 → <b>자동</b>으로 지식그래프·벡터DB·원문 청크·검색
+  인덱스가 채워지고 → <code>/retrieve</code> 로 근거와 함께 답한다.
+  <b>인제스트 품질(Phase 1)</b>과 <b>검색 품질 측정 기반(Phase 2)</b>이 완료됐고,
+  측정이 이끈 정직한 결론들 — 되돌린 설계 포함 — 을 함께 기록한다.</p>
+
+  <div class="metrics">
+    <div class="metric"><div class="v" style="color:var(--pg)">315p→20p</div><div class="k">약관 본문 추출 (동양생명 암보험)</div></div>
+    <div class="metric"><div class="v" style="color:var(--green)">91<span style="font-size:1rem;color:var(--faint)">/92</span></div><div class="k">조 단위 인용 라벨 캡처</div></div>
+    <div class="metric"><div class="v" style="color:var(--es)">0.62→0.88</div><div class="k">/retrieve hit@5 (측정 후 개선)</div></div>
+    <div class="metric"><div class="v">219<span style="font-size:1rem;color:var(--faint)"> pass</span></div><div class="k">테스트 통과 (1 xfail)</div></div>
+  </div>
+
+  <!-- ═══════════ 파이프라인 개요 (센터피스) ═══════════ -->
+  <h2>북극성 — 하나의 업로드로 채워지는 네 개의 층</h2>
+  <p class="lead">사용자는 문서 하나를 올릴 뿐이다. 그 뒤로 네 가지가 <b>자동으로</b> 채워지고,
+  그 위에서 그래프-조건부 검색이 근거를 붙여 답한다. aicoach 가 "약관→벡터DB→(별도)KG" 였다면,
+  여기서는 업로드가 곧 전 층 적재다.</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 940 430" role="img" aria-label="인제스트·검색 파이프라인 흐름도">
+    <defs>
+      <marker id="arw" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#71809f"/>
+      </marker>
+      <marker id="arwg" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#34d399"/>
+      </marker>
+    </defs>
+
+    <!-- Step 1: namespace -->
+    <rect x="20" y="180" width="120" height="66" rx="12" fill="#161b2c" stroke="#2a3350" stroke-width="1.5"/>
+    <text x="80" y="207" text-anchor="middle" fill="#e8ebf5" font-size="13" font-weight="700">① 네임스페이스</text>
+    <text x="80" y="226" text-anchor="middle" fill="#71809f" font-size="10.5">생성 (테넌트 경계)</text>
+
+    <line x1="140" y1="213" x2="182" y2="213" stroke="#71809f" stroke-width="2" marker-end="url(#arw)"/>
+
+    <!-- Step 2: upload -->
+    <rect x="184" y="180" width="120" height="66" rx="12" fill="#161b2c" stroke="#7c8cff" stroke-width="1.8"/>
+    <text x="244" y="207" text-anchor="middle" fill="#e8ebf5" font-size="13" font-weight="700">② 문서 업로드</text>
+    <text x="244" y="226" text-anchor="middle" fill="#71809f" font-size="10.5">PDF · 약관 · 법령</text>
+
+    <!-- fan-out to 4 layers -->
+    <line x1="304" y1="200" x2="356" y2="70"  stroke="#34d399" stroke-width="2" marker-end="url(#arwg)"/>
+    <line x1="304" y1="208" x2="356" y2="150" stroke="#34d399" stroke-width="2" marker-end="url(#arwg)"/>
+    <line x1="304" y1="220" x2="356" y2="240" stroke="#34d399" stroke-width="2" marker-end="url(#arwg)"/>
+    <line x1="304" y1="228" x2="356" y2="330" stroke="#34d399" stroke-width="2" marker-end="url(#arwg)"/>
+
+    <!-- auto label -->
+    <rect x="316" y="392" width="308" height="26" rx="13" fill="none" stroke="#34d399" stroke-width="1" stroke-dasharray="4 3"/>
+    <text x="470" y="409" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">③ 업로드 시 자동 — 4개 층 동시 적재</text>
+
+    <!-- 4 layers -->
+    <rect x="358" y="42" width="266" height="58" rx="11" fill="#132033" stroke="#5b9bff" stroke-width="1.5"/>
+    <text x="374" y="66" fill="#5b9bff" font-size="12.5" font-weight="700">🧠 지식그래프 (KG)</text>
+    <text x="374" y="85" fill="#aab3cf" font-size="10.5">개체·관계·is_a — LLM 추출, 스키마 고정</text>
+
+    <rect x="358" y="122" width="266" height="58" rx="11" fill="#1a1508" stroke="#f5b74e" stroke-width="1.5"/>
+    <text x="374" y="146" fill="#f5b74e" font-size="12.5" font-weight="700">⚡ 벡터DB (임베딩)</text>
+    <text x="374" y="165" fill="#aab3cf" font-size="10.5">ko-sroberta · int8_hnsw · ES 하이브리드</text>
+
+    <rect x="358" y="212" width="266" height="58" rx="11" fill="#181228" stroke="#c4a3ff" stroke-width="1.5"/>
+    <text x="374" y="236" fill="#c4a3ff" font-size="12.5" font-weight="700">📄 원문 청크 (KB)</text>
+    <text x="374" y="255" fill="#aab3cf" font-size="10.5">조 단위 · 문자 오프셋 · 인용 라벨</text>
+
+    <rect x="358" y="302" width="266" height="58" rx="11" fill="#0f2e24" stroke="#34d399" stroke-width="1.5"/>
+    <text x="374" y="326" fill="#34d399" font-size="12.5" font-weight="700">🔎 검색 인덱스</text>
+    <text x="374" y="345" fill="#aab3cf" font-size="10.5">BM25 + dense_vector · ontology-{ns}</text>
+
+    <!-- converge to retrieve -->
+    <line x1="624" y1="71"  x2="686" y2="195" stroke="#71809f" stroke-width="1.6" marker-end="url(#arw)"/>
+    <line x1="624" y1="151" x2="686" y2="205" stroke="#71809f" stroke-width="1.6" marker-end="url(#arw)"/>
+    <line x1="624" y1="241" x2="686" y2="221" stroke="#71809f" stroke-width="1.6" marker-end="url(#arw)"/>
+    <line x1="624" y1="331" x2="686" y2="231" stroke="#71809f" stroke-width="1.6" marker-end="url(#arw)"/>
+
+    <!-- retrieve -->
+    <rect x="688" y="176" width="128" height="74" rx="12" fill="#161b2c" stroke="#7c8cff" stroke-width="1.8"/>
+    <text x="752" y="201" text-anchor="middle" fill="#e8ebf5" font-size="13" font-weight="700">④ /retrieve</text>
+    <text x="752" y="219" text-anchor="middle" fill="#71809f" font-size="10">그래프-조건부</text>
+    <text x="752" y="234" text-anchor="middle" fill="#71809f" font-size="10">의미 진입 + RRF</text>
+
+    <line x1="816" y1="213" x2="856" y2="213" stroke="#71809f" stroke-width="2" marker-end="url(#arw)"/>
+
+    <!-- consume -->
+    <rect x="858" y="176" width="70" height="74" rx="12" fill="#0f2e24" stroke="#34d399" stroke-width="1.6"/>
+    <text x="893" y="204" text-anchor="middle" fill="#34d399" font-size="12" font-weight="700">⑤</text>
+    <text x="893" y="222" text-anchor="middle" fill="#e8ebf5" font-size="10.5">에이전트</text>
+    <text x="893" y="236" text-anchor="middle" fill="#71809f" font-size="9.5">소비 (acp)</text>
+  </svg>
+  <div class="cap">② 업로드는 ③ 네 층을 <b style="color:var(--green)">자동으로</b> 채운다 — 신규 네임스페이스도 예외 없이.
+  ④ <code>/retrieve</code> 가 세 신호(온톨로지·벡터·키워드)를 융합해 근거와 함께 답하고, ⑤ 브리지 에이전트가 grounded 도구로 소비한다.</div>
+  </div>
+
+  <!-- ═══════════ Phase 1 ═══════════ -->
+  <h2>Phase 1 — 인제스트 품질: 쓰레기 넣으면 쓰레기 나온다</h2>
+  <p class="lead">검색·추출·인용의 상한은 청크 품질이 정한다. 약관 PDF 의 반복 노이즈와 무구조 분할을 먼저 잡았다.</p>
+
+  <div class="grid2">
+    <div class="phase done">
+      <h3>구조-인지 조문 세그먼터 <span class="st ok">완료</span></h3>
+      <p>약관·법령을 <b>조(제N조) 단위</b>로 정확히 분할하고 인용 라벨을 청크에 싣는다.
+      본문 속 외부 조문 참조("제1조의…", "제1항")는 조사 부착·인용부호로 판별해 <b>경계로 오인하지 않고</b>,
+      목차는 점 leader 밀도로 폐기하되 텍스트는 변형하지 않아 오프셋 불변식을 유지한다.
+      <span class="pill">aicoach legal.py 이식</span></p>
+      <div class="v">실측: 제1조【목적】…제2조【용어의 정의】… <b>91개 조-단위 청크</b>(92조 중), 대부분 정순, 오프셋 불변식 True</div>
+    </div>
+    <div class="phase done">
+      <h3>PDF 리더 정규화 <span class="st ok">완료</span></h3>
+      <p>반복 러닝헤더(숫자 정규화 후 빈도 ≥40%·≤60자), 쪽번호 줄("12 / 313"),
+      우측정렬 꼬리말 접두를 제거한다. <b>정규화본을 그대로 "원본"으로 저장</b>해 청크·오프셋·인용이 한 기준으로 일관.
+      한글 PDF 자간(단어 내 공백)은 건드리지 않는다 — 잘못 붙이면 의미가 훼손되고, cjk 검색은 자간이 있어도 동작한다.</p>
+      <div class="v">실측(본문 20p): 러닝헤더 완전 제거, 꼬리말 <b>20→1</b>, 조 라벨 91개, 오프셋 불변식 True</div>
+    </div>
+    <div class="phase done">
+      <h3>소스별 멱등 재적재 <span class="st ok">완료</span></h3>
+      <p>같은 문서를 다시 올리면(내용이 바뀌면 새 해시 id) 옛 청크가 쌓이던 문제를 해결.
+      청크는 source 와 1:1 이라 재처리 전에 그 소스 청크를 비우고 다시 넣어 <b>"교체"</b> 의미를 준다
+      — 첫 적재면 no-op, 다른 문서엔 무영향. 노드는 <code>type:name</code> upsert 로 이미 멱등.</p>
+      <div class="v">테스트: 소스 격리·역인덱스 정리·교체 3종 + 빌더 재적재 교체 1종</div>
+    </div>
+    <div class="phase done">
+      <h3>인용 칩 (제N조 라벨) <span class="st ok">완료</span></h3>
+      <p>세그먼터가 <code>chunk.section</code> 에 실은 조 라벨을 인스펙터 '근거 청크' 패널에 인용 칩으로 노출.
+      인용이 <b>"약관.pdf · [1234-1890]"</b> 이 아니라 <b>"제19조(청약의 철회)"</b> 를 가리킨다 — 사람이 검증 가능한 출처.</p>
+      <div class="v">근거 추적: 노드 → 청크 → 원문 문자 오프셋 → 조 라벨 사슬 완성</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 업로드 자동화 ═══════════ -->
+  <h2>업로드 자동화 — 게이트 뒤에 막혀 있던 검색 인덱스를 트다</h2>
+  <p class="lead">진짜 원인은 <code>_mirror_to_pg</code> 의 ES 투영이 <code>pg_backed</code> 게이트 뒤에 있어
+  <b>신규 네임스페이스는 검색·벡터 인덱스를 못 받던 것</b>. 게이트와 무관하게 채우도록 풀었다.</p>
+
+  <div class="phase done">
+    <h3>업로드 시 자동 색인 + 회수 추출 + 미리보기 + 관리 화면 <span class="st ok">완료</span></h3>
+    <p><b>A · 자동 인덱싱</b> — <code>index_namespace()</code> 가 ES 노드 인덱스와 청크 벡터 인덱스를
+    PG 게이트와 무관하게 채운다(best-effort — 인덱싱 실패가 빌드를 깨지 않음). 빌드 끝에 "indexing" 진행 단계 연결.</p>
+    <p><b>B · 토픽 회수 추출</b>(aicoach식 옵션) — <code>extraction_mode=topic</code>: 전 청크를 저장·임베딩(벡터DB 완전)한 뒤
+    토픽별 상위 청크만 LLM 추출 → 대용량 약관을 저비용·집중 처리. 토픽은 LLM 자동 도출(<b>도메인 하드코딩 없음</b>), 회수 0 시 전체 폴백.</p>
+    <p><b>C · 벡터화 전 미리보기(교감)</b> — 수집은 준-비가역·유상 작업인데 사용자가 '무엇으로 벡터화되는지' 모른 채 버튼을 눌렀다.
+    감식 응답에 <code>ingest_config</code> 를 실어 확인 단계에서 <b>임베딩 모델·청크 크기·ES 인덱스명</b>을 미리 보여준다.</p>
+    <p><b>D · 검색 인덱스 관리 화면</b> — <code>GET /index-status</code>(ES 문서수·동기·벡터 가용성), <code>POST /reindex</code>(과거 데이터·편집 후 drift 복구).</p>
+    <div class="v">실측: <code>ins_cancer_demo</code> 업로드→감식 시 미리보기 카드에 <b>ko-sroberta-nli · 800/120 · ES 하이브리드 · ontology-obj-ins_cancer_demo</b> 표시</div>
+  </div>
+
+  <!-- ═══════════ Phase 2 ═══════════ -->
+  <h2>Phase 2 — 검색 품질을 감이 아니라 숫자로</h2>
+  <p class="lead">"어느 knob 을 어느 방향으로" 가 나오도록, 질의를 시나리오 축으로 태깅하고
+  <code>/retrieve</code> 를 1급 측정 채널로 승격했다.</p>
+
+  <div class="grid2">
+    <div class="phase es">
+      <h3>골든셋 2축 태그 <span class="pill">시나리오</span></h3>
+      <p>질의를 <b>매칭 성격</b>(exact · semantic · graph)과 <b>의도</b>(coverage · definition · procedure …)로 태깅해
+      채널×태그로 분해. 생성기(QAGenerator)는 이름 금지 패러프레이즈만 만드므로 초안은 semantic 태그를 기본 부여,
+      exact/graph 는 손 시드 몫으로 남긴다. n=8 → 38 로 확장(손 8 + 생성 30, 생성분은 draft — 정식 확정은 사람).</p>
+    </div>
+    <div class="phase es">
+      <h3>/retrieve 를 1급 측정 채널로 <span class="pill">어댑터</span></h3>
+      <p>청크 반환 <code>/retrieve</code> 를 노드 단위 골든셋으로 재려면 어댑터가 필요하다.
+      <code>retrieve_result_to_nodes</code>(순수 함수)가 결과 전체를 노드 랭킹으로 매긴다 —
+      우선순위 <b>entry_nodes(질의 직접 매칭) → expanded_nodes(그래프 hop) → 청크 hit node_ids</b>, 첫 등장 유지 dedup.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>측정이 이끈 개선 (Phase 2-A):</b> 초기엔 <code>/retrieve</code> 를 청크 hit 의 node_ids 평탄화로만 랭킹해
+    정답 노드가 뒤로 밀려 <b>hit@1 이 구조적으로 0</b> 이었다("맞는 조항은 찾지만 노드 랭킹이 약하다").
+    entry-node 우선 재정렬로 <b style="color:var(--green)">hit@1 0.00→0.50, hit@5 0.62→0.88, mrr 0.22→0.61</b> —
+    태그별 definition/exact/procedure 는 0.33~0.50 → 1.00. 이로써 <b>retrieve = semantic 진입 + 그래프/청크 보강</b> 이라
+    semantic 이상이 구조적으로 보장된다.
+  </div>
+
+  <h2 style="font-size:1.1rem;margin:30px 0 8px">측정이 남긴 네 개의 정직한 결론</h2>
+  <ul class="findings">
+    <li><span class="tag t-keep">유지</span><b>(a) retrieve = semantic entry + 보강.</b> 진입 노드는 의미 매칭으로 잡고,
+    그래프 확장·청크 hit 로 보강한다. 이 구조 덕에 retrieve 는 semantic 채널 이상을 구조적으로 보장한다.</li>
+    <li><span class="tag t-rej">기각</span><b>(b) entry_ratio 는 레버가 아니다 — 스윕이 증명.</b>
+    골든셋으로 <code>er=0.3 · 0.5 · 0.7</code> 를 나란히 재니 지표가 <b>전부 동일</b>(hit@1=0.38, hit@5=0.88, mrr=0.56).
+    정답 노드가 대개 최상위 entry 라 저득점 entry floor 변경이 top-k 를 안 바꾼다. 스윕 하네스가 이 낭비를 미리 막았다.</li>
+    <li><span class="tag t-keep">진단</span><b>(c) coverage/semantic 갭은 임베딩 리콜 문제 — 랭킹이 아니다.</b>
+    실패 질의의 정답 노드가 <b>어느 채널에서도 상위에 없다</b>. 다음 레버는 임베더·질의확장(리콜)이지 노드 랭킹 재배열이 아니다.</li>
+    <li><span class="tag t-rej">되돌림</span><b>(d) 2-D RRF 3-소스 블렌드 → 측정이 기각 → 되돌림.</b>
+    coverage 회복을 노리고 노드 랭킹을 RRF 융합으로 바꿔봤으나 <b>더 나빴다</b>(retrieve hit@5 0.88→0.75, definition/exact/procedure 후퇴, coverage 0.60 그대로).
+    (c) 때문에 RRF 로는 못 고친다. 코드는 되돌리되 docstring 에 실험 결과를 남겨 <b>같은 재시도를 막는다</b>.</li>
+  </ul>
+
+  <!-- ═══════════ 가1 / 다-1 ═══════════ -->
+  <h2>가1 · 다-1 — 콜로퀄 리콜과 재현성</h2>
+  <div class="grid2">
+    <div class="phase done">
+      <h3>별칭에 통용 통칭 허용 <span class="st ok">가1</span></h3>
+      <p>coverage/semantic 미스의 한 축은 "유방암"(질의)↔"유방의 악성 신생물"(문서)처럼
+      문서엔 정식명만 있어 임베딩·BM25 가 못 잇는 것. definition·사실은 여전히 텍스트 근거 필수(반환각 금지 불변),
+      <b>aliases 만</b> 널리 통용되는 통칭·약칭을 허용 — "확실히 같은 대상일 때만" 가드.</p>
+      <div class="v">실측: <b>유방암 ↔ 유방의 악성 신생물 ↔ C50</b> 교차연결 다리, 통칭 44/118 노드. <span style="color:var(--faint)">하드코딩 어휘 아님 — 확장어는 그래프에서 읽는다</span></div>
+    </div>
+    <div class="phase pg">
+      <h3>재인제스트 스키마 고정 <span class="st ok">다-1</span></h3>
+      <p>auto 모드로 같은 문서를 다시 넣으면 LLM 이 매번 타입을 새로 지어(Disease vs DefinedTerm)
+      <code>node_id</code> 가 어긋나 <b>골든셋·인용이 깨졌다</b>. <code>BuilderSchema.from_graph</code> 가 기존 그래프의
+      타입·술어를 폐쇄 어휘로 추출해 재사용(그래프 비었으면 신규 ns 는 auto).</p>
+      <div class="v">실측(제자리 재인제스트): 타입 Disease/InsuranceTerm/InsuranceContract/ContractParty <b>유지(드리프트 X)</b> → 골든셋 유효 → recall 재측정 가능</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 핵심 원칙 ═══════════ -->
+  <h2>핵심 원칙 — 이 작업을 관통하는 세 가지</h2>
+  <div class="phase faint">
+    <p style="margin-top:0"><b style="color:var(--green)">① 측정 기반 개발.</b>
+    허영 개선을 강행하지 않는다. 측정이 기각한 설계(RRF 블렌드)는 되돌리고, 레버가 아닌 knob(entry_ratio)은
+    스윕으로 미리 걸러 낭비를 막는다. "되돌린 실험"은 약점이 아니라 <b>측정이 작동한다는 증거</b>다.</p>
+    <p><b style="color:var(--accent)">② 하드코딩 어휘 금지.</b>
+    별칭·확장어는 코드 리터럴이 아니라 <b>그래프에서 읽는다</b>. 토픽도 LLM 자동 도출이라 도메인 하드코딩이 없다.
+    aicoach 의 <code>_SYN</code> 동의어 테이블이 하려던 일을 데이터로 한다.</p>
+    <p><b style="color:var(--pg)">③ 서비스 경계.</b>
+    온톨로지 = <b>사실의 층</b>(지식 표현·grounded 검색·데이터셋), 판단 = acp, 오케스트레이션 = logos_api.
+    인제스트·검색 파이프라인은 전부 사실의 층 안에 머문다.</p>
+  </div>
+
+  <div class="callout" style="background:linear-gradient(90deg,rgba(52,211,153,.10),transparent)">
+    <b style="color:var(--green)">aicoach 대비 — 무엇이 다른가.</b>
+    aicoach 는 "약관→벡터DB→(별도)KG" 였고 동의어 테이블이 ES 에 닿지 않아 하드코딩 리터럴로 편향을 막아야 했다.
+    여기서는 (1) <b>더 일반적</b> — 도메인 하드코딩 없이 스키마·별칭·토픽을 데이터로 다루고,
+    (2) <b>업로드 통합</b> — 한 번의 업로드가 KG·벡터·청크·검색 인덱스 네 층을 동시에 채우며,
+    (3) <b>재현 가능</b> — 스키마 고정으로 재인제스트가 node_id 를 깨지 않아 골든셋이 계속 유효하다.
+  </div>
+
+  <div class="foot">
+    Logos/ontology · <code>docs/pipeline-progress.html</code> · 모든 수치는 세션 실측(라이브 <code>ins_cancer_demo</code> · 동양생명 암보험 통합약관)과 대조 확인됨<br>
+    관련 문서: <a href="axis5-progress.html">저장 엔진 재설계 →</a> · <a href="service-boundaries.html">서비스 역할 경계 →</a><br>
+    커널 경계: elasticsearch·sentence-transformers 는 extras+lazy — 커널 import 비용 0 · 없으면 degrade(죽지 않고 품질만 내려감).
+  </div>
+</div>
+</body>
+</html>

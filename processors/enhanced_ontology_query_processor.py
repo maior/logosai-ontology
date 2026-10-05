@@ -10,8 +10,23 @@ from dataclasses import dataclass, asdict
 import asyncio
 from enum import Enum
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from logosai.utils.llm_client import GoogleLangChainWrapper, LLMClient
+
+
+class _Msg:
+    """(type, content) duck 메시지 — 구 langchain 메시지 대체 (L2 스윕 2026-07-07)."""
+
+    def __init__(self, type_: str, content: str):
+        self.type = type_
+        self.content = content
+
+
+def SystemMessage(content: str) -> "_Msg":
+    return _Msg("system", content)
+
+
+def HumanMessage(content: str) -> "_Msg":
+    return _Msg("human", content)
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +77,13 @@ class EnhancedOntologyQueryProcessor:
     for better agent selection and query understanding
     """
     
-    def __init__(self, llm: Optional[ChatOpenAI] = None):
-        self.llm = llm or ChatOpenAI(
-            model="gpt-4o-mini",
+    def __init__(self, llm=None):
+        # LLMClient 기반 ainvoke 호환 래퍼 (구 OpenAI 챗 래퍼 대체 — 모델은
+        # config 기본, 관측·예산 하네스 편입)
+        self.llm = llm or GoogleLangChainWrapper(LLMClient(
             temperature=0.3,
-            max_tokens=2000
-        )
+            max_tokens=2000,
+        ))
         self.agent_capabilities_cache: Dict[str, AgentCapability] = {}
         
     async def analyze_query(self, query: str, available_agents: List[Dict[str, Any]]) -> QueryAnalysisResult:

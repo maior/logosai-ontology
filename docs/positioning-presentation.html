@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우리가 가는 길 — LLM-native Ontology의 자리</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700&family=Nanum+Pen+Script&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-snap-type:y mandatory; }
+  body {
+    font-family:'Noto Sans KR',sans-serif; background:#f6f3ec; color:#2b2822;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  .slide {
+    min-height:100vh; padding:72px 110px 90px; display:flex; flex-direction:column; justify-content:center;
+    scroll-snap-align:start; position:relative; border-bottom:1px solid #ddd8ca;
+  }
+  h1 { font-family:'Noto Serif KR',serif; font-size:2.9rem; font-weight:900; line-height:1.25; color:#1d1b16; }
+  h2 { font-family:'Noto Serif KR',serif; font-size:1.85rem; font-weight:700; line-height:1.3; color:#1d1b16; margin-bottom:8px; }
+  h3 { font-size:1.02rem; font-weight:700; color:#2b2822; margin-bottom:6px; }
+  p  { line-height:1.85; }
+  .secnum { font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:#b23a2e; letter-spacing:2px; margin-bottom:10px; }
+  .lede { font-size:1.02rem; color:#4a463c; line-height:1.9; max-width:820px; margin-top:14px; }
+  .lede b, p b { color:#1d1b16; }
+  .hl { background:linear-gradient(transparent 58%, #ffe28a 58%); padding:0 2px; }
+  .red { color:#b23a2e; }
+  .u { border-bottom:2.5px solid #b23a2e; padding-bottom:1px; }
+  code, .mono { font-family:'JetBrains Mono',monospace; }
+  .pen { font-family:'Nanum Pen Script',cursive; color:#b23a2e; font-size:1.35rem; line-height:1.35; transform:rotate(-1.4deg); display:inline-block; }
+  .margin-note { position:absolute; max-width:210px; }
+  .box { border:1.5px solid #3a372e; background:#fdfcf7; padding:18px 22px; border-radius:2px; }
+  .box.soft { border-color:#c9c3b2; }
+  .box p { font-size:0.87rem; color:#4a463c; line-height:1.75; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:34px; align-items:start; margin-top:26px; }
+  .three { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-top:24px; }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:0.85rem; }
+  th { text-align:left; font-size:0.72rem; letter-spacing:1px; color:#8a8371; padding:8px 10px; border-bottom:1.5px solid #3a372e; font-weight:700; }
+  td { padding:9px 10px; border-bottom:1px solid #e3ddcd; color:#4a463c; line-height:1.6; vertical-align:top; }
+  td.mono { font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:#2b2822; }
+  td.ok { color:#1e6b34; font-weight:700; text-align:center; }
+  td.no { color:#c2beb2; text-align:center; }
+  td.pa { color:#c88a2e; text-align:center; }
+  td.us { color:#b23a2e; font-weight:700; text-align:center; }
+  th.c, td.c { text-align:center; }
+  .tree { font-family:'JetBrains Mono',monospace; font-size:0.8rem; line-height:1.95; color:#4a463c; }
+  .tree .tc { color:#1d1b16; font-weight:700; }
+  .tree .tl { color:#20599c; }
+  .flow { margin-top:22px; }
+  .frow { display:flex; gap:14px; justify-content:center; align-items:stretch; flex-wrap:wrap; }
+  .fbox { border:1.5px solid #3a372e; background:#fdfcf7; padding:12px 18px; text-align:center; min-width:150px; border-radius:2px; }
+  .fbox .ft { font-size:0.85rem; font-weight:700; color:#1d1b16; }
+  .fbox .fs { font-size:0.71rem; color:#8a8371; margin-top:3px; line-height:1.55; }
+  .fbox.core { background:#fff7dd; border-width:2px; }
+  .farrow { text-align:center; color:#8a8371; font-size:0.95rem; padding:5px 0; }
+  .footer { position:absolute; bottom:26px; left:110px; right:110px; display:flex; justify-content:space-between; font-size:0.7rem; color:#a09a89; font-family:'JetBrains Mono',monospace; }
+  ol.toc { margin:26px 0 0 20px; }
+  ol.toc li { font-size:1.05rem; line-height:2.4; color:#4a463c; }
+  ol.toc li b { color:#1d1b16; }
+  .nav-dots { position:fixed; right:22px; top:50%; transform:translateY(-50%); z-index:100; display:flex; flex-direction:column; gap:9px; }
+  .nav-dot { width:7px; height:7px; border-radius:50%; background:#cfc9b8; cursor:pointer; transition:all .25s; }
+  .nav-dot.active { background:#b23a2e; height:20px; border-radius:4px; }
+  .kbd-hint { position:fixed; right:26px; bottom:20px; z-index:100; font-size:0.66rem; color:#b6b0a0; }
+  .pill { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:0.7rem; padding:3px 10px; border:1.2px solid #b23a2e; color:#b23a2e; border-radius:20px; margin:3px 4px 3px 0; }
+  .big5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-top:28px; }
+  .p5 { border:1.5px solid #3a372e; background:#fdfcf7; padding:16px 14px; border-radius:2px; }
+  .p5 .n { font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:#b23a2e; }
+  .p5 h3 { font-family:'Noto Serif KR',serif; font-size:1.05rem; margin:6px 0 8px; }
+  .p5 p { font-size:0.78rem; color:#5a554a; line-height:1.7; }
+  @media (max-width:1100px) {
+    .slide { padding:52px 40px 80px; }
+    .two, .three, .big5 { grid-template-columns:1fr; }
+    .footer { left:40px; right:40px; }
+    .margin-note { display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-dots" id="dots"></div>
+<div class="kbd-hint">↑ ↓ 로 이동</div>
+
+<!-- 1. COVER -->
+<section class="slide">
+  <div class="secnum">LOGOS ONTOLOGY · 방향 정리</div>
+  <h1>우리가 가는 길<br><span class="red">아무도 끝까지 안 하는 구간</span></h1>
+  <p class="lede" style="margin-top:26px;">
+    Neo4j는 <b>저장</b>하고, GraphDB는 <b>추론</b>하고, LangChain은 <b>오케스트레이션</b>하고,
+    LlamaIndex는 <b>인덱싱</b>한다. 그런데 <span class="hl">원시 데이터에서 시작해 쓸 만한 온톨로지까지</span>
+    끝까지 책임지는 도구는 — 지금, 없다.
+  </p>
+  <div style="margin-top:34px;">
+    <span class="pill">LLM-native 구축</span>
+    <span class="pill">의미검색</span>
+    <span class="pill">추론</span>
+    <span class="pill">위치성</span>
+    <span class="pill">학습데이터</span>
+  </div>
+  <div class="margin-note pen" style="top:120px; right:90px;">이 다섯 개를<br>하나로 잇는 게<br>우리의 정체성 ↗</div>
+  <div class="footer"><span>Logos Ontology — Positioning</span><span>01</span></div>
+</section>
+
+<!-- 2. 층위 오해 -->
+<section class="slide">
+  <div class="secnum">01 · 가장 흔한 오해</div>
+  <h2>이 넷은 같은 층위가 아니다</h2>
+  <p class="lede">"Neo4j vs LangChain"은 <b>사과와 오렌지</b>다. LangChain·LlamaIndex는 애초에
+  Neo4j나 RDF 스토어를 <span class="u">백엔드로 깔고</span> 그 위에서 돈다.</p>
+  <table>
+    <thead><tr><th style="width:22%">층위</th><th style="width:34%">도구</th><th>실제 역할</th></tr></thead>
+    <tbody>
+      <tr><td><b>저장 · 질의 엔진</b></td><td class="mono">Neo4j · GraphDB · Jena</td><td>그래프를 디스크에 저장하고 Cypher / SPARQL로 질의</td></tr>
+      <tr><td><b>오케스트레이션 · 앱</b></td><td class="mono">LangChain · LlamaIndex</td><td>LLM 파이프라인. 스토어를 <i>쓰지</i>, 스토어가 <i>아니다</i></td></tr>
+      <tr><td class="red"><b>우리</b></td><td class="mono red">Logos Ontology</td><td>둘을 잇는 <b>LLM-native 구축 계층</b> — 데이터에서 온톨로지까지</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:24px;">진짜 질문은 이거다 →
+  <span class="pen" style="font-size:1.5rem;">"원시 데이터 → 추론·검색 가능한 온톨로지, 그 길을 누가 소유하는가?"</span></p>
+  <div class="footer"><span>층위 정리</span><span>02</span></div>
+</section>
+
+<!-- 3. 강약점 -->
+<section class="slide">
+  <div class="secnum">02 · 정직한 진단</div>
+  <h2>넷의 강점과 약점</h2>
+  <div class="two" style="margin-top:20px;">
+    <div class="box">
+      <h3>Neo4j <span style="font-weight:400;color:#8a8371;font-size:0.8rem;">— 프로퍼티 그래프 DB</span></h3>
+      <p style="margin-top:8px;"><span style="color:#1e6b34;">강</span> · 수십억 엣지 트래버설, 성숙한 Cypher, 운영도구, GDS 그래프 알고리즘</p>
+      <p><span class="red">약</span> · <b>OWL 추론 없음.</b> is_a 전이추론·클래스 계층을 직접 짜야 함. 스키마가 느슨 — 온톨로지가 아니라 그냥 그래프</p>
+    </div>
+    <div class="box">
+      <h3>GraphDB / RDF <span style="font-weight:400;color:#8a8371;font-size:0.8rem;">— 트리플스토어</span></h3>
+      <p style="margin-top:8px;"><span style="color:#1e6b34;">강</span> · <b>진짜 OWL 추론</b> — 전이폐포·클래스 포섭을 엔진이 공짜로. SPARQL, 표준 준수</p>
+      <p><span class="red">약</span> · 무겁고 러닝커브 가파름. LLM 통합·의미검색 전무, 낡은 UX, 세팅 지옥</p>
+    </div>
+    <div class="box">
+      <h3>LangChain <span style="font-weight:400;color:#8a8371;font-size:0.8rem;">— 오케스트레이션</span></h3>
+      <p style="margin-top:8px;"><span style="color:#1e6b34;">강</span> · LLM 생태계, 프로바이더 추상화, LLMGraphTransformer 추출</p>
+      <p><span class="red">약</span> · 그래프는 얇은 래퍼. 영속성·TBox·추론 없음. "온톨로지"라 부르기 민망</p>
+    </div>
+    <div class="box">
+      <h3>LlamaIndex <span style="font-weight:400;color:#8a8371;font-size:0.8rem;">— PropertyGraphIndex</span></h3>
+      <p style="margin-top:8px;"><span style="color:#1e6b34;">강</span> · LLM 그래프 추출 + RAG 결합. <b>우리 빌더와 가장 직접 경쟁</b></p>
+      <p><span class="red">약</span> · 추출 품질 들쭉날쭉(환각), TBox 개념 약함, 위치·지도·학습데이터 export 없음</p>
+    </div>
+  </div>
+  <div class="footer"><span>강약점 진단</span><span>03</span></div>
+</section>
+
+<!-- 4. THE GAP -->
+<section class="slide">
+  <div class="secnum">03 · 빈 자리</div>
+  <h2>데이터 폴더 하나 던지면, 한 번에 —</h2>
+  <p class="lede">넷 중 누구도 <span class="u">끝까지</span> 하지 않는 다섯 가지.</p>
+  <div class="big5">
+    <div class="p5"><div class="n">01</div><h3>LLM-native 구축</h3><p>LLM이 TBox를 제안하고 인스턴스를 추출. 신뢰 데이터엔 <b>환각 0 결정론 ingest</b> 옵션</p></div>
+    <div class="p5"><div class="n">02</div><h3>의미검색</h3><p>별칭·정의까지 임베딩한 노드 벡터검색. 키워드 매칭이 아님</p></div>
+    <div class="p5"><div class="n">03</div><h3>추론</h3><p>TBox 클래스 계층, is_a 전이추론, 계층 롤업</p></div>
+    <div class="p5"><div class="n">04</div><h3>위치성</h3><p>위경도 + 카테고리 → 인터랙티브 지도, 그래프와 연동</p></div>
+    <div class="p5"><div class="n">05</div><h3>학습데이터</h3><p>triples / QA / surface-form JSONL — 모델 파인튜닝용 export</p></div>
+  </div>
+  <div class="box soft" style="margin-top:30px;">
+    <p>Neo4j는 1~5 <b>전부</b> 기본 미지원 · GraphDB는 추론(3)만, 1·2·4·5 없음 · LangChain/LlamaIndex는 1의 일부와 어쩌면 2, 3·4·5는 통합적으로 없음. <span class="red"><b>이 다섯의 통합이 곧 우리 제품이다.</b></span></p>
+  </div>
+  <div class="footer"><span>빈 자리 = 우리 자리</span><span>04</span></div>
+</section>
+
+<!-- 5. 안 하는 것 -->
+<section class="slide">
+  <div class="secnum">04 · 규율</div>
+  <h2>우리가 <span class="red">의도적으로</span> 하지 않는 것</h2>
+  <div class="two">
+    <div>
+      <div class="box" style="border-color:#b23a2e;">
+        <h3 class="red">✕ Neo4j의 저장엔진을 재발명하지 않는다</h3>
+        <p style="margin-top:8px;">수십억 엣지 스토리지·클러스터링은 10년+ 걸린 물건. 이길 수 없고, 시도하면 초점을 잃는다.</p>
+      </div>
+      <div class="box" style="border-color:#b23a2e; margin-top:18px;">
+        <h3 class="red">✕ 완전 OWL DL reasoner를 재발명하지 않는다</h3>
+        <p style="margin-top:8px;">GraphDB급 DL 추론은 별도 학문. 필요하면 <b>넘긴다</b>, 흉내내지 않는다.</p>
+      </div>
+    </div>
+    <div>
+      <div class="box" style="background:#fff7dd; border-width:2px;">
+        <h3>✓ 우리는 <span class="u">저장</span>하지 않고 <span class="u">지휘</span>한다</h3>
+        <p style="margin-top:10px;"><b>상호운용(interop)</b> — 백엔드 pluggable.<br>
+        · 기본: 임베디드 경량 그래프(NetworkX + JSON) → 제로 세팅<br>
+        · 대규모: Neo4j 어댑터<br>
+        · 완전 추론 필요: RDF export → GraphDB로 위임</p>
+        <p style="margin-top:12px;"><b>LLM-native 구축 계층을 소유한다</b> — 넷 다 미완인 바로 그 구간.</p>
+        <p style="margin-top:12px;"><b>환각 0 원칙</b>(aicoach 보험 온톨로지에서) — 결정론 record ingest + 검증 파이프라인. LlamaIndex가 흔들리는 곳에서 우리는 믿을 수 있다.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>하지 않을 것을 정하는 게 전략</span><span>05</span></div>
+</section>
+
+<!-- 6. 비교표 -->
+<section class="slide">
+  <div class="secnum">05 · 한눈에</div>
+  <h2>기능 비교</h2>
+  <table>
+    <thead><tr>
+      <th style="width:30%">능력</th>
+      <th class="c">Neo4j</th><th class="c">GraphDB</th><th class="c">LangChain</th><th class="c">LlamaIndex</th>
+      <th class="c" style="color:#b23a2e;">Logos</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>LLM-native 구축 (폴더→온톨로지)</td><td class="no">✕</td><td class="no">✕</td><td class="pa">~</td><td class="pa">~</td><td class="us">✓</td></tr>
+      <tr><td>TBox 스키마 제안</td><td class="no">✕</td><td class="pa">수동</td><td class="no">✕</td><td class="pa">~</td><td class="us">✓</td></tr>
+      <tr><td>is_a 전이추론</td><td class="pa">수동</td><td class="ok">✓</td><td class="no">✕</td><td class="no">✕</td><td class="us">✓ 실용</td></tr>
+      <tr><td>의미 벡터검색</td><td class="pa">플러그인</td><td class="pa">~</td><td class="pa">스토어경유</td><td class="ok">✓</td><td class="us">✓</td></tr>
+      <tr><td>위치성 · 지도</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="us">✓</td></tr>
+      <tr><td>학습데이터 export (JSONL)</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="us">✓</td></tr>
+      <tr><td>OWL / Turtle export</td><td class="pa">플러그인</td><td class="ok">✓</td><td class="no">✕</td><td class="no">✕</td><td class="us">✓</td></tr>
+      <tr><td>환각 0 결정론 ingest</td><td class="no">–</td><td class="no">–</td><td class="no">✕</td><td class="no">✕</td><td class="us">✓</td></tr>
+      <tr><td>완전 OWL DL 추론</td><td class="no">✕</td><td class="ok">✓</td><td class="no">✕</td><td class="no">✕</td><td class="pa">위임</td></tr>
+      <tr><td>수십억 엣지 저장</td><td class="ok">✓</td><td class="ok">✓</td><td class="no">–</td><td class="no">–</td><td class="pa">어댑터</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:16px; font-size:0.82rem;">
+    <span style="color:#1e6b34;">✓</span> 지원 · <span style="color:#c88a2e;">~</span> 부분/래퍼 · <span style="color:#c2beb2;">✕</span> 없음 · <b>위임/어댑터</b> = 소유하지 않고 interop으로</p>
+  <div class="footer"><span>기능 비교</span><span>06</span></div>
+</section>
+
+<!-- 7. 아키텍처 -->
+<section class="slide">
+  <div class="secnum">06 · 어떻게 이어지나</div>
+  <h2>아키텍처</h2>
+  <div class="flow">
+    <div class="frow"><div class="fbox" style="min-width:280px;"><div class="ft">데이터 폴더 · 파일 · 레코드</div><div class="fs">txt · md · json · csv · pdf</div></div></div>
+    <div class="farrow">▼</div>
+    <div class="frow"><div class="fbox core" style="min-width:420px;"><div class="ft">LLM-native 빌드 파이프라인</div><div class="fs">reader → segmenter → (TBox 제안) → extractor → validator · <b>환각 0 옵션</b></div></div></div>
+    <div class="farrow">▼</div>
+    <div class="frow"><div class="fbox" style="min-width:320px; background:#eef2f8;"><div class="ft">온톨로지 그래프</div><div class="fs">TBox + ABox · namespace 격리 · <b>pluggable 백엔드</b></div></div></div>
+    <div class="farrow">▼</div>
+    <div class="frow">
+      <div class="fbox"><div class="ft">의미검색</div><div class="fs">임베딩</div></div>
+      <div class="fbox"><div class="ft">추론</div><div class="fs">is_a · 롤업</div></div>
+      <div class="fbox"><div class="ft">위치성</div><div class="fs">위경도→지도</div></div>
+      <div class="fbox"><div class="ft">export</div><div class="fs">OWL · JSONL<br>Neo4j/RDF interop</div></div>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:26px;">그래프 계층은 <b>교체 가능</b> — 기본은 임베디드 NetworkX, 외부 스토어는 어댑터로. <span class="pen" style="font-size:1.4rem;">저장은 남에게, 구축은 우리가.</span></p>
+  <div class="footer"><span>아키텍처</span><span>07</span></div>
+</section>
+
+<!-- 8. 한 줄 요약 -->
+<section class="slide" style="justify-content:center; text-align:center; background:#2b2822; color:#e8e3d6; border:none;">
+  <div class="secnum" style="color:#e8b04f;">한 줄로</div>
+  <h1 style="color:#fdfcf7; font-size:2.4rem; max-width:900px; margin:0 auto; line-height:1.5;">
+    Neo4j는 저장한다. GraphDB는 추론한다.<br>
+    LangChain은 오케스트레이션한다. LlamaIndex는 인덱싱한다.<br><br>
+    <span style="color:#e8b04f;">Logos는 온톨로지를 만든다 — 끝까지 —<br>그리고 나머지는 가장 잘하는 쪽에 넘긴다.</span>
+  </h1>
+  <p style="margin-top:44px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#a09a89;">
+    LLM-native ontology construction · semantic search · reasoning · locality · training data
+  </p>
+  <div class="footer" style="color:#6b6557;"><span>Logos Ontology</span><span>08</span></div>
+</section>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dots=document.getElementById('dots');
+  slides.forEach((s,i)=>{const d=document.createElement('div');d.className='nav-dot';d.onclick=()=>s.scrollIntoView({behavior:'smooth'});dots.appendChild(d);});
+  const dotEls=[...dots.children];
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){const i=slides.indexOf(e.target);dotEls.forEach((d,j)=>d.classList.toggle('active',j===i));}});},{threshold:0.5});
+  slides.forEach(s=>io.observe(s));
+  document.addEventListener('keydown',(e)=>{const cur=slides.findIndex(s=>{const r=s.getBoundingClientRect();return r.top>=-window.innerHeight/2&&r.top<window.innerHeight/2;});if(e.key==='ArrowDown'&&cur<slides.length-1){e.preventDefault();slides[cur+1].scrollIntoView({behavior:'smooth'});}if(e.key==='ArrowUp'&&cur>0){e.preventDefault();slides[cur-1].scrollIntoView({behavior:'smooth'});}});
+</script>
+</body>
+</html>

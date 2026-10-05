@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>검수 협업 아키텍처 — 기각 관계 registry · 커버리지 게이트 · 트리아지 파이프라인</title>
+<style>
+  :root { --ink:#1c2330; --ink2:#5a6478; --line:#dfe4ee; --bg:#f7f9fc; --card:#fff;
+          --blue:#2a78d6; --green:#1baf7a; --orange:#e8842f; --red:#d64545; --violet:#7a5cd6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e6e9f2; --ink2:#9aa4b8; --line:#2a3245; --bg:#12161f; --card:#1a2030; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.65; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 44px 0 12px; padding-top: 18px; border-top: 2px solid var(--line); }
+  h3 { font-size: 15.5px; margin: 22px 0 8px; }
+  p, li { font-size: 14px; color: var(--ink); }
+  .sub { color: var(--ink2); font-size: 13.5px; }
+  .meta { display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 0; }
+  .chip { font-size:12px; padding:3px 10px; border-radius:12px; border:1px solid var(--line); color:var(--ink2); }
+  .chip.b { border-color:var(--blue); color:var(--blue); }
+  .chip.o { border-color:var(--orange); color:var(--orange); }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--blue) 7%, var(--card)); font-weight: 700; }
+  td code, p code, li code { background: color-mix(in srgb, var(--ink) 8%, transparent);
+        padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: ui-monospace,Menlo,monospace; }
+  pre { background: var(--card); border:1px solid var(--line); border-radius:10px; padding:14px;
+        overflow-x:auto; font-size:12px; line-height:1.55; font-family: ui-monospace,Menlo,monospace; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .warn { border-left: 4px solid var(--orange); }
+  .good { border-left: 4px solid var(--green); }
+  .bad  { border-left: 4px solid var(--red); }
+  /* 다이어그램 */
+  .flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; margin:16px 0; }
+  .node { background:var(--card); border:1.5px solid var(--line); border-radius:10px;
+          padding:10px 12px; font-size:12.5px; min-width:120px; text-align:center; }
+  .node b { display:block; font-size:13px; margin-bottom:3px; }
+  .node small { color:var(--ink2); font-size:11px; line-height:1.4; display:block; }
+  .node.llm { border-color:var(--violet); }
+  .node.det { border-color:var(--green); }
+  .node.human { border-color:var(--orange); background:color-mix(in srgb, var(--orange) 6%, var(--card)); }
+  .node.store { border-color:var(--blue); }
+  .arr { display:flex; align-items:center; padding:0 8px; color:var(--ink2); font-size:16px; }
+  .lane { border:1px dashed var(--line); border-radius:12px; padding:12px 14px; margin:10px 0; }
+  .lane > .lt { font-size:11.5px; font-weight:700; color:var(--ink2); letter-spacing:.4px; margin-bottom:8px; }
+  .cols { display:flex; gap:14px; flex-wrap:wrap; }
+  .cols > div { flex:1 1 300px; }
+  .band { display:inline-block; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:10px; margin-right:6px; }
+  .band.c { background:color-mix(in srgb, var(--green) 15%, transparent); color:var(--green); }
+  .band.r { background:color-mix(in srgb, var(--red) 13%, transparent); color:var(--red); }
+  .band.h { background:color-mix(in srgb, var(--orange) 15%, transparent); color:var(--orange); }
+  .phase { display:flex; gap:8px; align-items:center; margin:6px 0; font-size:13px; }
+  .ph { min-width:44px; text-align:center; font-weight:800; font-size:12px; border-radius:8px;
+        padding:4px 0; border:1.5px solid var(--line); }
+  .overflow { overflow-x:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>검수 협업 아키텍처</h1>
+<p class="sub">기각 관계 registry · 커버리지 expectation 게이트 · 사전판정 트리아지 파이프라인 — 설계 문서</p>
+<div class="meta">
+  <span class="chip">2026-08-03</span>
+  <span class="chip b">설계 확정 — 구현 대기</span>
+  <span class="chip">분석·설계 에이전트 2기 병렬 산출 + 교차 검증</span>
+  <span class="chip o">원칙: 추천 ≠ 판정 · 대화 없는 결정적 파이프라인 · 자 없이 자동화 없음</span>
+</div>
+
+<h2>1. 왜 — 세 병목의 실측</h2>
+<div class="cols">
+  <div class="card bad">
+    <b>① 사람 검수 처리량</b>
+    <p class="sub">PROJ-A node_review 1,596 · 재라벨 33 · 중복 45. 후보 생성은 싸졌는데
+    판정은 전부 사람 — 확률적 제안 시스템의 구조적 병목. 검수 에이전트 6종이 커널에
+    있으나 <b>recommend 배선은 1종(근거대조)뿐</b>이고 조율기가 없다.</p>
+  </div>
+  <div class="card bad">
+    <b>② 기각의 무기록 (관계)</b>
+    <p class="sub">관계 백필 기각 10건 중 <b>8건이 이전 라운드에서 이미 기각된
+    패턴의 재출현</b> (전이 3 · 시점 2 · 조건절 sameAs 2). 원인: 승인만
+    <code>relation_approve</code> 로 남고 기각은 <b>응답 JSON 으로만 반환</b>되어
+    디스크에 없다. 재출현 제외 시 신규 제안 정답률 87%.</p>
+  </div>
+  <div class="card bad">
+    <b>③ 커버리지의 사후 발견</b>
+    <p class="sub">추출 커버리지 12%(PROJ-A 요구서 초기)가 몇 주간 아무 경고 없이
+    방치됐다. <code>check_coverage</code> 호출 지점은 수동 API 1곳뿐 —
+    빌드 완료 시 지표 비교·경고가 전혀 없다.</p>
+  </div>
+</div>
+
+<h2>2. 전체 그림 — 루프에 세 부품이 어디에 붙는가</h2>
+<p>이 시스템의 차별점은 <b>확률적 제안 → 결정적 검증 → 사람 판정 → 측정</b> 루프다.
+A·B·C 는 새 루프가 아니라 이 루프의 세 구멍을 막는다.</p>
+
+<div class="lane"><div class="lt">생성 · 인제스트</div>
+<div class="flow">
+  <div class="node llm"><b>LLM 추출</b><small>개체·관계 제안<br>(비결정적, 싸다)</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>결정적 검증</b><small>원문 인용 실재 관문<br>quote_not_found 거절</small></div>
+  <div class="arr">→</div>
+  <div class="node store"><b>그래프 + 청크</b><small>근거 링크 사슬</small></div>
+  <div class="arr">→</div>
+  <div class="node det" style="border-color:var(--orange)"><b>Ⓑ 커버리지 게이트</b><small>빌드 직후 지표 vs 임계<br>경고 (빌드 실패 없음)</small></div>
+</div></div>
+
+<div class="lane"><div class="lt">검수 (사람 판정 전 — Ⓒ 트리아지)</div>
+<div class="flow">
+  <div class="node det"><b>결정적 렌즈 4</b><small>중복 · 일관성<br>구조단위 · 관계관문<br>(LLM 0콜, 병렬)</small></div>
+  <div class="arr">→</div>
+  <div class="node llm"><b>LLM 렌즈</b><small>근거대조 (노드당 1콜)<br>경계 확정분은 콜 생략</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>결합기 (신설 1)</b><small>core/review_triage.py<br>순수 함수 — 밴드 3분류</small></div>
+  <div class="arr">→</div>
+  <div class="node human"><b>사람 판정</b><small><span class="band c">추천승인 일괄</span><span class="band r">추천기각 일괄</span><br><span class="band h">경계 → 개별 검수</span></small></div>
+</div>
+<p class="sub" style="margin:4px 0 0">렌즈는 서로를 호출하지 않는다 — 각자 자기 데이터를 읽어
+신호를 내고, 결합은 순수 함수가 한다. 협업 = 대화가 아니라 <b>렌즈 분담 + 결정적 결합</b>.</p></div>
+
+<div class="lane"><div class="lt">기록 · 측정 (로그가 원본)</div>
+<div class="flow">
+  <div class="node store"><b>review_store</b><small>append-only JSONL replay<br><b>Ⓐ relation_reject 신설</b><br>recommend(밴드·신호 동봉)</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>Ⓐ 관계 묘비</b><small>다음 propose 에서<br>같은 청크 재출현 필터<br>다른 인용은 표시</small></div>
+  <div class="arr">→</div>
+  <div class="node det"><b>일치율 자</b><small>recommend ↔ 사람 판정<br>렌즈별 일치율 (replay 파생)</small></div>
+  <div class="arr">→</div>
+  <div class="node human"><b>일괄 UX 게이트</b><small>n&lt;20 이면 일괄 버튼 비활성<br>자 없이 자동화 없음</small></div>
+</div></div>
+
+<h2>3. Ⓐ 기각 관계 registry — 관계판 묘비</h2>
+<p>노드 묘비는 무조건 거른다. 관계는 <b>주장</b>이라 다르게 간다 — 혼합 스코프:</p>
+<table>
+<tr><th>상황</th><th>처리</th><th>근거</th></tr>
+<tr><td>기각 트리플이 <b>같은 청크</b>에서 재제안</td><td>거른다 (<code>rejected_filtered</code> 로 셈 보고)</td>
+    <td>같은 원문·같은 주장 — 재출현 정보가 0. 실측 8/10 이 이 부류</td></tr>
+<tr><td>기각 트리플이 <b>다른 청크</b>에서 재제안</td><td>표시 (<code>previously_rejected</code> 동봉) 후 사람에게</td>
+    <td>지난 기각은 "그 인용이 지지하지 않는다"였을 수 있다</td></tr>
+<tr><td>검수자가 <code>scope:"triple"</code> 기각 (기본값)</td><td>어느 청크에서 와도 거른다</td>
+    <td>실측 기각 사유 전부가 주장 자체의 왜곡 (전이→보장 등)</td></tr>
+</table>
+<pre>{"action": "relation_reject", "node_id": "&lt;subject&gt;", "reason": "전이를 보장으로 왜곡",
+ "after": {"predicate": "coversDisease", "target": "&lt;object&gt;",
+           "chunk_id": "…", "evidence_quote": "…", "scope": "triple"}}</pre>
+<ul>
+  <li>파생 상태 <code>_rejected_relations[(s,p,o)]</code> — 키 정규화는 <code>_squash_ws</code> 재사용 ('같다' 정의 한 벌)</li>
+  <li>나중 판정이 이긴다: <code>relation_approve</code> 가 같은 트리플 묘비를 걷는다 (replay 순서 = 시간)</li>
+  <li>approve 는 기각 트리플 기본 skip + 명시적 <code>override_rejected</code> 만 통과 (조용한 번복 차단)</li>
+  <li>API: <code>POST /review/relations/reject</code> (reason 필수) + 보드에 관계 패널 신설 (현재 관계 UI 는 0)</li>
+</ul>
+
+<h2>4. Ⓑ 커버리지 expectation 게이트 — 팔란티어 차용</h2>
+<div class="card good"><b>4대 결정</b>
+<ul style="margin:6px 0">
+  <li><b>자는 새로 안 만든다</b> — <code>graph_health.health_report</code> 의 기존 지표 + 임계 비교만 (게이트와 health 탭이 같은 자)</li>
+  <li><b>기본 임계 없음</b> — 미설정이면 <code>unconfigured</code> 로 지표만 보고 (ins 100% vs PROJ-A 25% — 네임스페이스마다 정답이 다름은 실측)</li>
+  <li><b>경고 게이트</b> — 빌드는 항상 완료, <code>coverage_gate.warnings</code> 만 리포트·콘솔에 (expectation 의 본뜻)</li>
+  <li><b>0/0 정직</b> — 청크 0 이면 경고 대신 <code>measured:false</code> ("측정 안 됨" ≠ "미달")</li>
+</ul></div>
+<ul>
+  <li><code>core/coverage_expectations.py</code> — <code>retrieval_config</code> 골격 복제 (_SPEC 검증 · 부분 오버라이드 · None=삭제 · 네임스페이스별 파일 · 감사)</li>
+  <li>배선 지점은 잡 러너 2곳 (<code>_run_build_job</code> / <code>_run_ingest_job</code>) — BuildReport 데이터클래스는 무변경</li>
+  <li><code>GET /coverage-gate</code> (현재 상태 재평가, 0콜) + <code>GET/POST /coverage-expectations</code></li>
+  <li>임계 미달 시 <code>check_coverage</code> 자동 실행은 <b>옵트인·기본 off</b> + 콜 예산 상한 (비용을 측정 없이 물리지 않는다)</li>
+</ul>
+
+<h2>5. Ⓒ 트리아지 파이프라인 — 신설은 결합기 하나뿐</h2>
+<div class="overflow"><table>
+<tr><th>렌즈</th><th>부품</th><th>재사용/신설</th><th>LLM</th><th>현재 배선 상태 (인벤토리)</th></tr>
+<tr><td>근거대조</td><td><code>EvidenceChecker</code> + precheck</td><td>재사용</td><td>노드당 1콜</td><td>✅ recommend 배선 유일 완비</td></tr>
+<tr><td>중복</td><td><code>dup_review</code> + <code>duplicate_clusters</code></td><td>재사용</td><td>0</td><td>큐 카드만 — recommend 미배선</td></tr>
+<tr><td>일관성</td><td><code>lint_graph</code></td><td>재사용</td><td>0</td><td>무저장 계약 (파생물 — 유지)</td></tr>
+<tr><td>구조단위</td><td><code>find_structural_candidates</code></td><td>재사용</td><td>0</td><td>큐 카드 완비</td></tr>
+<tr><td>관계인용</td><td><code>parse_relations</code> 관문 + <code>signature_seen</code> + Ⓐ<code>previously_rejected</code></td><td>재사용</td><td>propose 에 포함</td><td>❌ 프론트 소비처 0 — Ⓐ에서 신설</td></tr>
+<tr><td>재라벨</td><td><code>evaluate_golden_set</code> + <code>relabelRows</code></td><td>재사용</td><td>0</td><td>보드 온디맨드 완비</td></tr>
+<tr><td><b>결합기</b></td><td><code>core/review_triage.py</code> — 순수 함수</td><td><b>신설 (유일)</b></td><td>0</td><td>—</td></tr>
+</table></div>
+
+<h3>밴드 규칙 (결정적)</h3>
+<ul>
+  <li><span class="band c">strong_confirm</span> LLM confirm ∧ 인용 실재 ∧ 근거 ≥1 ∧ 중복 비소속 ∧ 일관성 0 ∧ 구조단위 아님</li>
+  <li><span class="band r">strong_reject</span> LLM reject ∧ 사유 있음 ∧ 인용 실재 — 결정적 신호만으로는 만들지 않는다 (근거 0 = relink 실패일 수 있음)</li>
+  <li><span class="band h">borderline</span> 그 외 전부 → 사람. 관계는 <b>2분류로 시작</b> (기계 기각 없음 — 시그니처 위반 다수가 정상이라는 실측 유지)</li>
+</ul>
+<div class="card warn"><b>일괄 승인의 안전핀 — 자 없이 자동화 없음</b>
+<p class="sub" style="margin:4px 0 0">일치율 자(<code>recommendation_agreement</code> — recommend ↔ 이후 사람 판정,
+로그 replay 에서 공짜 파생)가 렌즈별로 붙고, <b>표본 n&lt;20 이면 일괄 버튼이 비활성</b>된다.
+judge-batch 는 본문 불신(최신 추천 재대조, 낡은 추천 skip) + dry-run 미리보기 = 적용 계약.
+RL 채택률 0% 진단의 "하지 말 것"(측정 없는 자동화)과 같은 규율이다.</p></div>
+
+<h2>6. Phase 순서와 병렬 트랙</h2>
+<div class="cols">
+<div>
+<div class="phase"><span class="ph" style="border-color:var(--blue)">A1</span> review_store 관계 묘비 + replay·변이 테스트 <span class="sub">(+ clear 누락 버그 동시 수리)</span></div>
+<div class="phase"><span class="ph" style="border-color:var(--blue)">A2</span> propose 필터/표시 + approve skip/override + reject API</div>
+<div class="phase"><span class="ph" style="border-color:var(--blue)">A3</span> 보드 관계 패널 (제안·승인·기각 UI 신설)</div>
+<div class="phase"><span class="ph" style="border-color:var(--violet)">C1</span> 결합기 + triage API + recommend 기록 <span class="sub">(A2 이후 — previously_rejected 신호 필요)</span></div>
+<div class="phase"><span class="ph" style="border-color:var(--violet)">C2</span> 일치율 자 + quality API</div>
+<div class="phase"><span class="ph" style="border-color:var(--violet)">C3</span> 밴드 UI + judge-batch 일괄 승인 <span class="sub">(C2 이후 고정 — 자 먼저)</span></div>
+</div>
+<div>
+<div class="phase"><span class="ph" style="border-color:var(--green)">B1</span> expectations config + evaluate 순수 함수 <span class="sub">(A 와 병렬)</span></div>
+<div class="phase"><span class="ph" style="border-color:var(--green)">B2</span> 잡 러너 배선 + /coverage-gate + 콘솔 경고</div>
+<div class="phase"><span class="ph" style="border-color:var(--green)">B3</span> auto_check 옵트인 <span class="sub">(측정 후 기본값 재론)</span></div>
+<p class="sub" style="margin-top:10px">A2 까지만 배포돼도 다음 백필 라운드부터 8/10
+재출현이 사라진다 — 가장 싼 최대 효과. <b>A 트랙과 B 트랙은 파일 겹침이 거의 없어
+병렬 구현 가능</b>, C 는 A2 를 기다린다.</p>
+</div>
+</div>
+
+<h2>7. 인벤토리가 설계를 조정한 지점 + 발견된 기존 결함</h2>
+<table>
+<tr><th>사실 (분석 에이전트)</th><th>설계 반영</th></tr>
+<tr><td><code>relation_approve</code> 이벤트가 이미 있고 <code>skipped[]</code> 는 응답 전용(무영속)</td>
+    <td>Ⓐ는 대칭 이벤트 추가일 뿐 — 스키마 신설 없음. coverage gap 기각도 같은 결함류 (후속 후보)</td></tr>
+<tr><td>recommend 배선은 6종 중 근거대조 1종뿐, 조율기 0</td><td>Ⓒ C1 에서 렌즈별 recommend 기록을 결합기가 일괄 담당</td></tr>
+<tr><td>ReviewQueueBoard 는 recommendation 을 렌더하지 않음 (구 ReviewPanel 만)</td><td>C3 에서 보드에 통합 — 구화면 이관 항목</td></tr>
+<tr><td>후처리 훅 없음 — 잡 러너 2곳 직접 수정이 유일 경로</td><td>Ⓑ 배선 지점 확정 (플러그인 시스템은 만들지 않는다 — YAGNI)</td></tr>
+<tr><td>신규 영속 파일은 conftest 격리 목록 + 스캔 등록 필수</td><td>Ⓑ B1 체크리스트에 포함</td></tr>
+</table>
+<div class="card bad"><b>이번 조사가 발견한 기존 결함 2건 (설계와 무관하게 수리 대상)</b>
+<ul style="margin:6px 0">
+  <li><code>ReviewStore.load_from_disk()</code> 가 <code>_reclassified</code>·<code>_structural_types</code> 를
+      clear 하지 않는다 — 같은 인스턴스 재로드 시 재지도 중복 누적. <b>A1 에서 동시 수리</b></li>
+  <li>승인 경로들의 <code>skipped[]</code> 가 전부 무영속 — "왜 안 됐나"의 이력이 응답과 함께 증발</li>
+</ul></div>
+
+<h2>8. 위험과 완화</h2>
+<table>
+<tr><th>위험</th><th>완화</th></tr>
+<tr><td>자동화 안주 — 일괄 승인이 사실상 자동 판정화</td><td>일치율 자 + n&lt;20 비활성 + 배치 상한 + dry-run 강제 + recommend 전량 감사</td></tr>
+<tr><td>관계 묘비 과도 차단 (정당한 재제안까지)</td><td><code>rejected_filtered</code> 노출 + 묘비 목록 API + override 경로</td></tr>
+<tr><td>경고 피로 (warn 상시화)</td><td>기본 unconfigured — 임계는 운영자가 명시적으로 건다</td></tr>
+<tr><td>LLM 비용 폭주</td><td>결정적 렌즈 선행 콜 절감 + limit 예산 + 온디맨드 실행 + auto_check 옵트인</td></tr>
+<tr><td>트리플 키 정규화가 인용 검증과 갈라짐</td><td><code>_squash_ws</code> 단일 재사용 + 변이 테스트 (방향·쌍-키·정규화 mutant 사살)</td></tr>
+</table>
+
+<p class="sub" style="margin-top:36px">근거 문서: <code>docs/rl-adoption-zero-diagnosis.md</code> (측정 없는 자동화 금지),
+<code>docs/palantir-ontology-comparison.html</code> (expectation·adjudication 차용),
+CLAUDE.md 2026-08-03 (13) (기각 재출현 8/10 실측). 상세 데이터 계약·테스트 전략은 설계 에이전트 산출 전문 참조.</p>
+
+</div>
+</body>
+</html>

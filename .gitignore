@@ -98,4 +98,18 @@ ehthumbs.db
 # KG checkpoints and selector stats (runtime data, not tracked)
 data/*.json
 data/*.pkl
+# 청크·골든셋·검수 이벤트 로그도 같은 런타임 데이터다 (.json 만 막혀 있어
+# chunks_*.jsonl / goldenset_*.jsonl / reviews_*.jsonl 가 추적 후보로 올라왔다)
+data/*.jsonl
 
+
+# 되돌릴 수 없는 변경(노드 병합 등) 전에 뜨는 데이터 백업 — data/ 사본이므로
+# 같은 이유로 추적하지 않는다
+.backups/
+
+# Ontology Builder runtime artifacts
+data/datasets/
+data/*.backup-*.json
+frontend/.next/
+frontend/.next-dev/
+frontend/node_modules/

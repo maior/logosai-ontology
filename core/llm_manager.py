@@ -19,16 +19,17 @@ from datetime import datetime
 from loguru import logger
 import asyncio
 
-# LangChain imports for different providers
-from langchain_openai import ChatOpenAI
-
-# Optional imports for other providers
+# LLM 클라이언트 (2026-07-07 L2 스윕): langchain 제거 — 전 프로바이더를
+# logosai LLMClient(native) + ainvoke 호환 래퍼로 통일. 실행 경로였던
+# GeminiLLMWrapper(google native)는 그대로 유지.
 try:
-    from langchain_anthropic import ChatAnthropic
-    ANTHROPIC_AVAILABLE = True
+    from logosai.utils.llm_client import GoogleLangChainWrapper, LLMClient
+    LLMCLIENT_AVAILABLE = True
 except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    ChatAnthropic = None
+    LLMCLIENT_AVAILABLE = False
+    LLMClient = None
+    GoogleLangChainWrapper = None
+ANTHROPIC_AVAILABLE = LLMCLIENT_AVAILABLE
 
 try:
     from google import genai
@@ -39,9 +40,46 @@ except ImportError:
     genai = None
     types = None
 
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.language_models.base import BaseLanguageModel
+
+def _make_openai_llm(model: str, temperature: float = 0.1, max_tokens: int = None,
+                     provider: str = "openai"):
+    """openai/anthropic 계열 LLM — LLMClient 기반 ainvoke 호환 객체."""
+    if not LLMCLIENT_AVAILABLE:
+        raise ImportError("logosai LLMClient is required (pip install logosai)")
+    return GoogleLangChainWrapper(LLMClient(
+        provider=provider, model=model,
+        temperature=temperature, max_tokens=max_tokens,
+    ))
+
+
+class _SimpleMessage:
+    """(type, content) duck 메시지 — 구 langchain 메시지 대체."""
+
+    def __init__(self, type_: str, content: str):
+        self.type = type_
+        self.content = content
+
+
+class _SimplePromptTemplate:
+    """구 ChatPromptTemplate 대체 — (role, template) 튜플 + str.format.
+
+    format_messages 규약(f-string 스타일 {var}, 리터럴 중괄호는 {{}})은
+    LangChain 과 동일하므로 기존 템플릿 텍스트 무변경.
+    """
+
+    def __init__(self, messages):
+        self._messages = list(messages)
+
+    @classmethod
+    def from_messages(cls, messages):
+        return cls(messages)
+
+    def format_messages(self, **kwargs):
+        out = []
+        for role, tmpl in self._messages:
+            _type = "system" if role == "system" else "human"
+            out.append(_SimpleMessage(_type, tmpl.format(**kwargs)))
+        return out
 
 # Model imports
 from .models import LLMProvider, OntologyLLMType, OntologyLLMConfig
@@ -119,8 +157,8 @@ class OntologyLLMManager:
     def __init__(self, config_profile: str = None, config_path: str = None):
         """Initialize"""
         self.configs: Dict[OntologyLLMType, OntologyLLMConfig] = {}
-        self.instances: Dict[OntologyLLMType, BaseLanguageModel] = {}
-        self.prompt_templates: Dict[OntologyLLMType, ChatPromptTemplate] = {}
+        self.instances: Dict[OntologyLLMType, Any] = {}
+        self.prompt_templates: Dict[OntologyLLMType, Any] = {}
         self.call_counts: Dict[OntologyLLMType, int] = {}
         self.performance_metrics: Dict[str, Any] = {}
         
@@ -258,36 +296,18 @@ class OntologyLLMManager:
             logger.error(f"❌ Profile creation failed: {e}")
             raise e
     
-    def _create_llm_instance(self, config: OntologyLLMConfig) -> BaseLanguageModel:
+    def _create_llm_instance(self, config: OntologyLLMConfig) -> Any:
         """Create LLM instance"""
         try:
             if config.provider == LLMProvider.OPENAI:
-                return ChatOpenAI(
-                    model=config.model,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens,
-                    top_p=config.top_p,
-                    frequency_penalty=config.frequency_penalty,
-                    presence_penalty=config.presence_penalty,
-                    request_timeout=config.request_timeout,
-                    max_retries=config.max_retries,
-                    streaming=config.streaming,
-                    api_key=os.getenv("OPENAI_API_KEY")
-                )
+                return _make_openai_llm(config.model, config.temperature,
+                                        config.max_tokens, provider="openai")
             
             elif config.provider == LLMProvider.ANTHROPIC:
                 if not ANTHROPIC_AVAILABLE:
-                    raise ImportError("Anthropic provider is not available. Install langchain_anthropic package.")
-                return ChatAnthropic(
-                    model=config.model,
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens,
-                    top_p=config.top_p,
-                    timeout=config.request_timeout,
-                    max_retries=config.max_retries,
-                    streaming=config.streaming,
-                    api_key=os.getenv("ANTHROPIC_API_KEY")
-                )
+                    raise ImportError("Anthropic provider requires logosai LLMClient (anthropic SDK).")
+                return _make_openai_llm(config.model, config.temperature,
+                                        config.max_tokens, provider="anthropic")
             
             elif config.provider == LLMProvider.GOOGLE:
                 if not GOOGLE_AVAILABLE:
@@ -308,7 +328,7 @@ class OntologyLLMManager:
             # Smart fallback: try available providers in order
             return self._create_fallback_llm_instance(config)
     
-    def _create_fallback_llm_instance(self, original_config: OntologyLLMConfig) -> BaseLanguageModel:
+    def _create_fallback_llm_instance(self, original_config: OntologyLLMConfig) -> Any:
         """Create smart fallback LLM instance"""
         
         # Fallback priority: try providers from default profile first
@@ -329,19 +349,11 @@ class OntologyLLMManager:
                         api_key=os.getenv("GOOGLE_API_KEY")
                     )
                 elif first_config.provider == LLMProvider.OPENAI:
-                    return ChatOpenAI(
-                        model=first_config.model,
-                        temperature=original_config.temperature,
-                        max_tokens=original_config.max_tokens or 2000,
-                        api_key=os.getenv("OPENAI_API_KEY")
-                    )
+                    return _make_openai_llm(first_config.model, original_config.temperature,
+                                            original_config.max_tokens or 2000, provider="openai")
                 elif first_config.provider == LLMProvider.ANTHROPIC:
-                    return ChatAnthropic(
-                        model=first_config.model,
-                        temperature=original_config.temperature,
-                        max_tokens=original_config.max_tokens or 2000,
-                        api_key=os.getenv("ANTHROPIC_API_KEY")
-                    )
+                    return _make_openai_llm(first_config.model, original_config.temperature,
+                                            original_config.max_tokens or 2000, provider="anthropic")
         except Exception as e:
             logger.error(f"Profile-based fallback failed: {e}")
         
@@ -365,19 +377,11 @@ class OntologyLLMManager:
                             api_key=os.getenv(api_key_name)
                         )
                     elif provider == LLMProvider.OPENAI:
-                        return ChatOpenAI(
-                            model=model,
-                            temperature=original_config.temperature,
-                            max_tokens=original_config.max_tokens or 2000,
-                            api_key=os.getenv(api_key_name)
-                        )
+                        return _make_openai_llm(model, original_config.temperature,
+                                                original_config.max_tokens or 2000, provider="openai")
                     elif provider == LLMProvider.ANTHROPIC:
-                        return ChatAnthropic(
-                            model=model,
-                            temperature=original_config.temperature,
-                            max_tokens=original_config.max_tokens or 2000,
-                            api_key=os.getenv(api_key_name)
-                        )
+                        return _make_openai_llm(model, original_config.temperature,
+                                                original_config.max_tokens or 2000, provider="anthropic")
                         
                 except Exception as e:
                     logger.error(f"Fallback attempt failed ({provider.value}): {e}")
@@ -512,7 +516,7 @@ class OntologyLLMManager:
         """Initialize prompt templates"""
         
         # Semantic analysis prompt - specialized for complex queries
-        self.prompt_templates[OntologyLLMType.SEMANTIC_ANALYZER] = ChatPromptTemplate.from_messages([
+        self.prompt_templates[OntologyLLMType.SEMANTIC_ANALYZER] = _SimplePromptTemplate.from_messages([
             ("system", """당신은 온톨로지 시스템의 복합 쿼리 분석 전문가입니다.
 사용자의 쿼리를 분석하여 개별 작업들을 정확히 식별하고 분리해주세요.
 
@@ -584,7 +588,7 @@ class OntologyLLMManager:
         ])
         
         # Workflow design prompt
-        self.prompt_templates[OntologyLLMType.WORKFLOW_DESIGNER] = ChatPromptTemplate.from_messages([
+        self.prompt_templates[OntologyLLMType.WORKFLOW_DESIGNER] = _SimplePromptTemplate.from_messages([
             ("system", """당신은 복합 쿼리 전용 워크플로우 설계 전문가입니다.
 의미론적 분석 결과를 바탕으로 각 개별 작업에 최적의 에이전트를 매칭하고 효율적인 실행 워크플로우를 설계해주세요.
 
@@ -657,7 +661,7 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         ])
         
         # Knowledge reasoning prompt
-        self.prompt_templates[OntologyLLMType.KNOWLEDGE_REASONER] = ChatPromptTemplate.from_messages([
+        self.prompt_templates[OntologyLLMType.KNOWLEDGE_REASONER] = _SimplePromptTemplate.from_messages([
             ("system", """당신은 온톨로지 시스템의 지식 추론 전문가입니다.
 주어진 정보를 바탕으로 깊이 있는 추론을 수행해주세요.
 
@@ -672,7 +676,7 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         ])
         
         # Result integration prompt
-        self.prompt_templates[OntologyLLMType.RESULT_INTEGRATOR] = ChatPromptTemplate.from_messages([
+        self.prompt_templates[OntologyLLMType.RESULT_INTEGRATOR] = _SimplePromptTemplate.from_messages([
             ("system", """당신은 온톨로지 시스템의 결과 통합 전문가입니다.
 여러 에이전트의 실행 결과를 일관성 있고 사용자 친화적으로 통합해주세요.
 
@@ -689,7 +693,7 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
         
         logger.info("📝 Ontology prompt templates initialized")
     
-    def get_llm(self, llm_type: OntologyLLMType, force_new: bool = False) -> BaseLanguageModel:
+    def get_llm(self, llm_type: OntologyLLMType, force_new: bool = False) -> Any:
         """Get LLM instance (singleton pattern)"""
         try:
             if force_new or llm_type not in self.instances:
@@ -730,14 +734,14 @@ JSON 형식 외에는 다른 텍스트를 포함하지 마세요.""")
                     prompt = self.prompt_templates[llm_type]
                     formatted_messages = prompt.format_messages(query=messages, **kwargs)
                 else:
-                    formatted_messages = [HumanMessage(content=messages)]
+                    formatted_messages = [_SimpleMessage("human", messages)]
             elif isinstance(messages, dict):
                 # Use prompt template with parameters
                 if llm_type in self.prompt_templates:
                     prompt = self.prompt_templates[llm_type]
                     formatted_messages = prompt.format_messages(**messages)
                 else:
-                    formatted_messages = [HumanMessage(content=str(messages))]
+                    formatted_messages = [_SimpleMessage("human", str(messages))]
             else:
                 formatted_messages = messages
             
@@ -828,35 +832,35 @@ def get_ontology_llm_manager() -> OntologyLLMManager:
 
 # Convenience functions - individual LLM calls
 
-def get_semantic_analyzer() -> BaseLanguageModel:
+def get_semantic_analyzer() -> Any:
     """Get dedicated semantic analysis LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.SEMANTIC_ANALYZER)
 
-def get_workflow_designer() -> BaseLanguageModel:
+def get_workflow_designer() -> Any:
     """Get dedicated workflow design LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.WORKFLOW_DESIGNER)
 
-def get_knowledge_reasoner() -> BaseLanguageModel:
+def get_knowledge_reasoner() -> Any:
     """Get dedicated knowledge reasoning LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.KNOWLEDGE_REASONER)
 
-def get_result_integrator() -> BaseLanguageModel:
+def get_result_integrator() -> Any:
     """Get dedicated result integration LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.RESULT_INTEGRATOR)
 
-def get_query_processor() -> BaseLanguageModel:
+def get_query_processor() -> Any:
     """Get dedicated query processing LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.QUERY_PROCESSOR)
 
-def get_graph_builder() -> BaseLanguageModel:
+def get_graph_builder() -> Any:
     """Get dedicated graph building LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.GRAPH_BUILDER)
 
-def get_performance_optimizer() -> BaseLanguageModel:
+def get_performance_optimizer() -> Any:
     """Get dedicated performance optimization LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.PERFORMANCE_OPTIMIZER)
 
-def get_creative_reasoner() -> BaseLanguageModel:
+def get_creative_reasoner() -> Any:
     """Get dedicated creative reasoning LLM"""
     return get_ontology_llm_manager().get_llm(OntologyLLMType.CREATIVE_REASONER)
 

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온톨로지 시스템 아키텍처 — 사실의 층</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#161b2c; --panel2:#1d2437; --line:#2a3350;
+    --ink:#e8ebf5; --ink2:#aab3cf; --faint:#71809f;
+    --accent:#7c8cff; --accent2:#5eead4;
+    --pg:#5b9bff; --es:#f5b74e; --nx:#9aa4c0; --vec:#c084fc;
+    --green:#34d399; --amber:#fbbf24; --red:#fb7185;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0e1220 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 90px}
+  header.hero{margin-bottom:40px}
+  .eyebrow{color:var(--accent2);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2.1rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .2em;line-height:1.15}
+  h1 .grad{background:linear-gradient(90deg,var(--pg),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:780px}
+  h2{font-size:1.35rem;font-weight:750;margin:56px 0 8px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:.8rem;color:var(--bg);background:var(--accent);border-radius:7px;padding:2px 9px;font-weight:800}
+  h3{font-size:1.02rem;font-weight:700;margin:26px 0 6px;color:var(--ink)}
+  p{color:var(--ink2);margin:.5em 0}
+  .lead{color:var(--ink);font-size:1.05rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin:16px 0}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin:20px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:12px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:#0b0f1c;
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c7d0ee}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.92rem}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-weight:650;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td b{color:var(--ink)}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;border:1px solid}
+  .pill.pg{color:var(--pg);border-color:#2f4d80;background:#12203a}
+  .pill.es{color:var(--es);border-color:#5c4a1f;background:#2a220f}
+  .pill.vec{color:var(--vec);border-color:#4a3670;background:#241a36}
+  .pill.nx{color:var(--nx);border-color:#3a4260;background:#1a2036}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  ul{color:var(--ink2);margin:.4em 0;padding-left:1.2em}
+  li{margin:.3em 0}
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:.82rem}
+  .callout{background:linear-gradient(90deg,#12203a,#161b2c);border:1px solid #2f4d80;border-radius:var(--radius);padding:18px 22px;margin:18px 0}
+  .callout .t{color:var(--pg);font-weight:750;margin-bottom:4px}
+  .propose{background:linear-gradient(90deg,#241a36,#161b2c);border:1px dashed #6d4fa0}
+  .propose .t{color:var(--vec)}
+  .tag{font-size:.68rem;font-weight:800;letter-spacing:.06em;padding:2px 8px;border-radius:6px;
+    background:#241a36;color:var(--vec);border:1px solid #6d4fa0;text-transform:uppercase}
+  svg text{font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Logos · Ontology System Architecture</div>
+  <h1>사실의 층 — <span class="grad">물으면, 검증 가능한 답을 출처와 함께</span></h1>
+  <p class="sub">온톨로지의 단 하나의 일: <b>물으면 검증 가능한 사실을, 출처와 함께, 빠르고
+  결정적으로 돌려주는 것.</b> 지식 표현·추론·grounded 검색·데이터셋 추출이 전부 이 하나를
+  위해 존재한다. 이 문서는 그 시스템을 층·저장·검색·경계로 나눠 그린다.</p>
+</header>
+
+<!-- ─────────────────────────── 1. 한 장의 그림 ─────────────────────────── -->
+<h2><span class="n">1</span> 한 장의 그림</h2>
+<p class="lead">두 개의 반쪽이 한 디렉터리에 산다 — <b>커널</b>(사실의 층)과 <b>에이전트 스택</b>(라우팅).
+경계는 위치가 아니라 <b>의존 방향</b>으로 정의된다. 커널은 에이전트 스택을 모듈 레벨로 import 하지 않는다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 470" role="img" aria-label="온톨로지 시스템 층 구조">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#71809f"/>
+    </marker>
+  </defs>
+  <!-- 소비자 -->
+  <rect x="30" y="20" width="940" height="66" rx="10" fill="#12162a" stroke="#2a3350"/>
+  <text x="46" y="42" fill="#71809f" font-size="11" font-weight="700">소비자 (REST 만 호출)</text>
+  <g font-size="12.5" font-weight="700" text-anchor="middle" fill="#e8ebf5">
+    <rect x="60" y="50" width="150" height="26" rx="6" fill="#1a2036" stroke="#3a4260"/><text x="135" y="67">logos_api (8090)</text>
+    <rect x="230" y="50" width="150" height="26" rx="6" fill="#1a2036" stroke="#3a4260"/><text x="305" y="67">acp_server (8888)</text>
+    <rect x="400" y="50" width="130" height="26" rx="6" fill="#1a2036" stroke="#3a4260"/><text x="465" y="67">aicoach</text>
+    <rect x="550" y="50" width="150" height="26" rx="6" fill="#1a2036" stroke="#3a4260"/><text x="625" y="67">gov / desktopgui</text>
+    <rect x="720" y="50" width="230" height="26" rx="6" fill="#231a12" stroke="#5c4a1f"/><text x="835" y="67" fill="#f5b74e">관리 콘솔 (9275)</text>
+  </g>
+
+  <!-- API 게이트 -->
+  <rect x="30" y="108" width="940" height="40" rx="9" fill="#12203a" stroke="#2f4d80"/>
+  <text x="500" y="133" text-anchor="middle" fill="#8fb4ff" font-size="13" font-weight="800">Ontology REST API · :9274  (FastAPI · server/router.py)</text>
+
+  <!-- 커널 -->
+  <rect x="30" y="170" width="600" height="270" rx="12" fill="#131a2c" stroke="#3a4a76"/>
+  <text x="50" y="194" fill="#5eead4" font-size="12.5" font-weight="800">커널 — 사실의 층  (loguru·networkx·numpy·pyyaml·aiohttp 뿐)</text>
+  <g font-size="12" text-anchor="middle" fill="#e8ebf5" font-weight="650">
+    <rect x="50" y="210" width="270" height="44" rx="8" fill="#0f1526" stroke="#2a3350"/>
+    <text x="185" y="230">builder / engines</text><text x="185" y="246" fill="#aab3cf" font-size="10.5">문서→개체추출→KG(networkx)</text>
+    <rect x="340" y="210" width="270" height="44" rx="8" fill="#0f1526" stroke="#2a3350"/>
+    <text x="475" y="230">core/graph_retrieval</text><text x="475" y="246" fill="#aab3cf" font-size="10.5">그래프-조건부 하이브리드</text>
+    <rect x="50" y="266" width="175" height="44" rx="8" fill="#0f1526" stroke="#2a3350"/>
+    <text x="137" y="286">core/graph_store</text><text x="137" y="302" fill="#aab3cf" font-size="10.5">GraphStore seam</text>
+    <rect x="235" y="266" width="175" height="44" rx="8" fill="#0f1526" stroke="#2a3350"/>
+    <text x="322" y="286">core/chunk_store</text><text x="322" y="302" fill="#aab3cf" font-size="10.5">원문 청크·오프셋</text>
+    <rect x="420" y="266" width="190" height="44" rx="8" fill="#0f1526" stroke="#2a3350"/>
+    <text x="515" y="286">core/llm_provider</text><text x="515" y="302" fill="#aab3cf" font-size="10.5">LLM 단일 의존점</text>
+    <rect x="50" y="322" width="560" height="42" rx="8" fill="#0f1526" stroke="#2a3350"/>
+    <text x="330" y="343">검수 에이전트 6종 — 근거대조·일관성·커버리지·스키마·검색QA·데이터셋</text>
+    <text x="330" y="357" fill="#aab3cf" font-size="10">자기 데이터에 grounded · 추천만 · 대화 안 함</text>
+  </g>
+  <text x="50" y="392" fill="#71809f" font-size="10.5">무거운 것(임베더·ES·torch·FastAPI)은 pyproject extras — 없으면 죽지 않고 degrade</text>
+  <text x="50" y="422" fill="#5eead4" font-size="11" font-weight="700">계약은 테스트가 지킨다: test_kernel_decoupling · test_packaging</text>
+
+  <!-- 에이전트 스택 -->
+  <rect x="650" y="170" width="320" height="270" rx="12" fill="#1c1526" stroke="#5a3f6e"/>
+  <text x="668" y="194" fill="#c084fc" font-size="12.5" font-weight="800">에이전트 스택 — 라우팅</text>
+  <g font-size="12" text-anchor="middle" fill="#e8ebf5" font-weight="650">
+    <rect x="668" y="210" width="284" height="44" rx="8" fill="#140f1e" stroke="#3a2a4a"/>
+    <text x="810" y="230">orchestrator/query_planner</text><text x="810" y="246" fill="#aab3cf" font-size="10.5">LLM 계획·에이전트 선택</text>
+    <rect x="668" y="266" width="284" height="44" rx="8" fill="#140f1e" stroke="#3a2a4a"/>
+    <text x="810" y="286">ml/ — GNN + RL</text><text x="810" y="302" fill="#aab3cf" font-size="10.5">torch·임베더 (무거움)</text>
+    <rect x="668" y="322" width="284" height="42" rx="8" fill="#140f1e" stroke="#3a2a4a"/>
+    <text x="810" y="348">system/ · processors/</text>
+  </g>
+  <text x="668" y="392" fill="#71809f" font-size="10.5">의존: logosai·torch·GNN/RL</text>
+  <text x="668" y="418" fill="#fb7185" font-size="11" font-weight="700">⟂ 지연 로딩으로 격리 (import 비용 0)</text>
+
+  <!-- 화살표 -->
+  <line x1="500" y1="86" x2="500" y2="106" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="330" y1="148" x2="330" y2="168" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="740" y1="148" x2="740" y2="168" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar)"/>
+</svg>
+<div class="cap">그림 1 — 소비자는 REST 만 호출한다. 커널→server→frontend 방향 의존은 0. 에이전트 스택은
+  지연 로딩으로 격리돼 커널을 오염시키지 않는다.</div>
+</div>
+
+<div class="callout">
+  <div class="t">왜 이 경계인가 (실측 진단)</div>
+  <p style="margin:0">온톨로지 프로젝트가 3개인데 Logos/ontology 채택은 <b>0</b>이었다. 기능이 아니라
+  import 비용 때문이다 — aicoach 는 KG 엔진 API 를 그대로 베끼면서도 import 하지 않고
+  재구현했고, 코드에 이유를 남겼다: <i>"without pulling its heavy transitive deps."</i>
+  축 1(커밋 <code>69779fa</code>)에서 KG import 시 딸려오던 logosai 31개 모듈을 0으로 만들었다.</p>
+</div>
+
+<!-- ─────────────────────────── 2. 저장 스택 ─────────────────────────── -->
+<h2><span class="n">2</span> 저장 스택 — PG=진실, ES=투영</h2>
+<p class="lead">진실은 PostgreSQL 한 곳에 산다. Elasticsearch·벡터 캐시는 그 진실의 <b>투영</b>이다 —
+언제든 재생성 가능하고, 죽어도 온톨로지가 같이 죽지 않는다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 340" role="img" aria-label="저장 스택">
+  <defs>
+    <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#71809f"/></marker>
+  </defs>
+  <!-- 진실 -->
+  <rect x="40" y="40" width="250" height="260" rx="12" fill="#101a2e" stroke="#2f4d80"/>
+  <text x="165" y="66" text-anchor="middle" fill="#5b9bff" font-size="13" font-weight="800">PostgreSQL — 진실</text>
+  <g text-anchor="middle" font-size="11.5" fill="#e8ebf5">
+    <rect x="62" y="82" width="206" height="52" rx="8" fill="#0d1424" stroke="#22345a"/>
+    <text x="165" y="103" font-weight="700">ontology.node / edge</text>
+    <text x="165" y="120" fill="#aab3cf" font-size="10">네임스페이스별 그래프 (소유)</text>
+    <rect x="62" y="144" width="206" height="52" rx="8" fill="#0d1424" stroke="#22345a"/>
+    <text x="165" y="165" font-weight="700">aicoach.kg_node / kg_edge</text>
+    <text x="165" y="182" fill="#aab3cf" font-size="10">외부 원천 (직접 하이드레이트)</text>
+    <rect x="62" y="206" width="206" height="52" rx="8" fill="#0d1424" stroke="#22345a"/>
+    <text x="165" y="227" font-weight="700">chunk_store (JSONL)</text>
+    <text x="165" y="244" fill="#aab3cf" font-size="10">원문 + char 오프셋</text>
+  </g>
+  <text x="165" y="284" text-anchor="middle" fill="#71809f" font-size="10">content_hash 증분 · 재빌드해도 중복 0</text>
+
+  <!-- 투영 -->
+  <rect x="420" y="40" width="540" height="260" rx="12" fill="#161b2c" stroke="#2a3350"/>
+  <text x="440" y="66" fill="#f5b74e" font-size="13" font-weight="800">투영 — 검색 인덱스 (재생성 가능 · degrade-safe)</text>
+
+  <text x="440" y="96" fill="#aab3cf" font-size="11" font-weight="700">벡터 백엔드 3-tier</text>
+  <g text-anchor="middle" font-size="11" fill="#e8ebf5">
+    <rect x="440" y="106" width="160" height="60" rx="8" fill="#1a1230" stroke="#4a3670"/>
+    <text x="520" y="128" font-weight="700" fill="#c084fc">memory (tier 0)</text>
+    <text x="520" y="145" fill="#aab3cf" font-size="10">numpy 코사인 · &lt;2K</text>
+    <rect x="612" y="106" width="160" height="60" rx="8" fill="#1a1230" stroke="#4a3670"/>
+    <text x="692" y="128" font-weight="700" fill="#c084fc">npy (tier 1)</text>
+    <text x="692" y="145" fill="#aab3cf" font-size="10">디스크 캐시 · 8.5s→0s</text>
+    <rect x="784" y="106" width="160" height="60" rx="8" fill="#231a12" stroke="#5c4a1f"/>
+    <text x="864" y="128" font-weight="700" fill="#f5b74e">elasticsearch</text>
+    <text x="864" y="145" fill="#aab3cf" font-size="10">BM25+벡터 하이브리드</text>
+  </g>
+  <text x="440" y="196" fill="#aab3cf" font-size="11" font-weight="700">인덱스</text>
+  <g text-anchor="middle" font-size="11" fill="#e8ebf5">
+    <rect x="440" y="206" width="240" height="52" rx="8" fill="#12182a" stroke="#2a3350"/>
+    <text x="560" y="227" font-weight="700">ontology-obj-{ns} (노드)</text>
+    <text x="560" y="244" fill="#aab3cf" font-size="10">object_index · 소문자 강제</text>
+    <rect x="692" y="206" width="252" height="52" rx="8" fill="#231a12" stroke="#5c4a1f"/>
+    <text x="818" y="227" font-weight="700" fill="#f5b74e">aicoach-kb (청크)</text>
+    <text x="818" y="244" fill="#aab3cf" font-size="10">외부 원천 · recall@5 0.944</text>
+  </g>
+  <text x="700" y="284" text-anchor="middle" fill="#71809f" font-size="10">ES 다운 → memory 로 degrade. 온톨로지는 같이 죽지 않는다.</text>
+
+  <line x1="292" y1="120" x2="418" y2="130" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar2)"/>
+  <text x="355" y="112" text-anchor="middle" fill="#71809f" font-size="10">투영</text>
+  <line x1="292" y1="170" x2="418" y2="225" stroke="#71809f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar2)"/>
+</svg>
+<div class="cap">그림 2 — 쓰기는 진실(PG)에 먼저, 그다음 투영(ES/벡터)으로 미러. 읽기 경로도 PG 하이드레이트.
+  ES tier 는 노드 수가 아니라 "하이브리드가 필요한가"로 고르는 <b>명시 선택</b>.</div>
+</div>
+
+<table>
+  <thead><tr><th>계층</th><th>역할</th><th>특성</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill pg">PG</span></td><td><b>진실의 단일 출처</b> — 그래프·원문 청크</td><td>소유 NS 는 <code>ontology</code> 스키마, 외부는 원천 스키마(aicoach) 직접 하이드레이트</td></tr>
+    <tr><td><span class="pill vec">VEC</span></td><td>의미 검색 벡터 — 노드·청크</td><td>memory→npy→ES 3-tier · npy 는 build-once 디스크 캐시 (콜드스타트 8.5s→0s 실측)</td></tr>
+    <tr><td><span class="pill es">ES</span></td><td>하이브리드(BM25+dense) 검색</td><td>조문번호·고유명사처럼 문자 그대로 맞아야 하는 질의 담당 · 명시 선택 전용</td></tr>
+    <tr><td><span class="pill nx">NX</span></td><td>인메모리 networkx 그래프</td><td>PG 에서 1회 하이드레이트 후 상주 — 뷰·통계·확장의 즉답 층</td></tr>
+  </tbody>
+</table>
+
+<!-- ─────────────────────────── 3. 검색 스택 ─────────────────────────── -->
+<h2><span class="n">3</span> 검색 스택 — 그래프-조건부 하이브리드</h2>
+<p class="lead">이 시스템의 차별점: <b>온톨로지·벡터·키워드 세 신호의 결합.</b> 질의를 그래프로
+확장한 뒤(별칭·is_a 폐포), 청크 채널과 그래프 채널을 <b>RRF</b>로 융합한다. 하드코딩 어휘 없이,
+확장어는 전부 그래프에서 읽는다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 300" role="img" aria-label="그래프-조건부 검색">
+  <defs>
+    <marker id="ar3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#71809f"/></marker>
+  </defs>
+  <rect x="30" y="128" width="130" height="44" rx="10" fill="#12203a" stroke="#2f4d80"/>
+  <text x="95" y="155" text-anchor="middle" fill="#8fb4ff" font-size="13" font-weight="800">질의</text>
+
+  <!-- 채널 A: 청크 -->
+  <rect x="240" y="30" width="360" height="90" rx="10" fill="#231a12" stroke="#5c4a1f"/>
+  <text x="258" y="52" fill="#f5b74e" font-size="12" font-weight="800">채널 A · 청크 (벡터+키워드)</text>
+  <text x="258" y="74" fill="#e8ebf5" font-size="11">ES aicoach-kb 또는 로컬 ChunkIndex</text>
+  <text x="258" y="94" fill="#aab3cf" font-size="10.5">BM25×0.1 + (cosine+1.0) — 원문 인용</text>
+  <text x="258" y="110" fill="#aab3cf" font-size="10.5">조문번호·고유명사 문자 매칭</text>
+
+  <!-- 채널 B: 그래프 -->
+  <rect x="240" y="180" width="360" height="90" rx="10" fill="#131a2c" stroke="#3a4a76"/>
+  <text x="258" y="202" fill="#5eead4" font-size="12" font-weight="800">채널 B · 그래프 (온톨로지 확장)</text>
+  <text x="258" y="224" fill="#e8ebf5" font-size="11">진입 노드 → 별칭·is_a 폐포·인접</text>
+  <text x="258" y="244" fill="#aab3cf" font-size="10.5">확장 질의 + 노드에 달린 청크</text>
+  <text x="258" y="260" fill="#aab3cf" font-size="10.5">확장어는 데이터(그래프)에서 — 하드코딩 0</text>
+
+  <!-- RRF -->
+  <rect x="680" y="105" width="130" height="90" rx="10" fill="#1a2440" stroke="#3a4a76"/>
+  <text x="745" y="140" text-anchor="middle" fill="#7c8cff" font-size="14" font-weight="800">RRF</text>
+  <text x="745" y="160" text-anchor="middle" fill="#aab3cf" font-size="10">순위 융합</text>
+  <text x="745" y="176" text-anchor="middle" fill="#aab3cf" font-size="10">1/(k+rank)</text>
+
+  <rect x="860" y="128" width="120" height="44" rx="10" fill="#12261e" stroke="#2f6d4a"/>
+  <text x="920" y="149" text-anchor="middle" fill="#5eead4" font-size="12" font-weight="800">근거 히트</text>
+  <text x="920" y="164" text-anchor="middle" fill="#aab3cf" font-size="9">matched_via·channels</text>
+
+  <line x1="160" y1="150" x2="238" y2="82" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar3)"/>
+  <line x1="160" y1="150" x2="238" y2="220" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar3)"/>
+  <line x1="600" y1="75" x2="678" y2="130" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar3)"/>
+  <line x1="600" y1="225" x2="678" y2="170" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar3)"/>
+  <line x1="810" y1="150" x2="858" y2="150" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar3)"/>
+</svg>
+<div class="cap">그림 3 — 두 채널 점수는 의미가 달라(청크 코사인 vs 노드 코사인) 선형 가중합이 성립하지 않는다.
+  그래서 RRF(순위 융합). 모든 히트는 <code>matched_via</code>/<code>channels</code>를 달고 나온다.</div>
+</div>
+
+<!-- ─────────────────────────── 4. 인제스트 & 출처 사슬 ─────────────────────────── -->
+<h2><span class="n">4</span> 인제스트 파이프라인 & 출처 사슬</h2>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">인제스트</h3>
+    <p style="margin:.2em 0">문서 → 청크 분할(800/120) → LLM 개체 추출 → KG(networkx) →
+    PG 미러(<code>_mirror_to_pg</code>) + ES/벡터 투영.</p>
+    <p style="margin:.6em 0 0"><code>chunk_id</code>는 내용 해시(sha1)라 재빌드해도 중복이 안 쌓인다.
+    JSONL 은 한 줄이 깨져도 나머지가 산다.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">출처 사슬 (provenance)</h3>
+    <p style="margin:.2em 0"><b>노드</b> → <b>청크</b> → <b>원문 char 오프셋</b></p>
+    <p style="margin:.2em 0;color:#aab3cf">불변식: <code>original[char_start:char_end] == chunk.text</code>.
+    깨지면 인용이 엉뚱한 곳을 가리켜 무의미해진다.</p>
+    <p style="margin:.6em 0 0">데이터셋 <code>evidence</code> = 원문→개체 추출 지도학습쌍.
+    양쪽 다 실제 데이터 → 환각 0.</p>
+  </div>
+</div>
+
+<!-- ─────────────────────────── 5. 서비스 경계 ─────────────────────────── -->
+<h2><span class="n">5</span> 서비스 경계</h2>
+<table>
+  <thead><tr><th>서비스</th><th>역할</th><th>온톨로지와의 관계</th></tr></thead>
+  <tbody>
+    <tr><td><b>ontology (9274)</b></td><td>사실의 층 — 표현·추론·grounded 검색·데이터셋</td><td>이 저장소</td></tr>
+    <tr><td>logos_api (8090)</td><td>사용자·인증·오케스트레이션</td><td>9274 를 <b>내부 서비스</b>로 소비 · 네임스페이스 소유권 매핑</td></tr>
+    <tr><td>acp_server (8888)</td><td>판단의 층 — 에이전트 런타임</td><td>브리지 에이전트가 9274 를 grounded 도구로 소비</td></tr>
+    <tr><td>aicoach</td><td>외부 제품(보험)</td><td>원천(kg_node/kg_edge·aicoach-kb)을 온톨로지가 <b>직접 사용</b> — 복사본 0</td></tr>
+    <tr><td>logos_web (8010)</td><td>최종 사용자 UI</td><td>제품 노출 지점</td></tr>
+    <tr><td>ontology/frontend (9275)</td><td><b>개발·관리 콘솔</b> (제품 UI 아님)</td><td>REST 만 호출 · wheel 에 미포함</td></tr>
+  </tbody>
+</table>
+<p><b>온톨로지가 하지 않는 것:</b> 인증·테넌트 관리(→logos_api) · 대화·판단·오케스트레이션(→acp/logosai)
+· 최종 사용자 UI(→logos_web). 판단 기준은 위치가 아니라 <b>의존 방향</b>.</p>
+
+<!-- ─────────────────────────── 6. 온톨로지 ↔ 에이전트 ─────────────────────────── -->
+<h2><span class="n">6</span> 온톨로지 ↔ 에이전트 — 계산기와 사람</h2>
+<p class="lead">"온톨로지가 검색한다"는 <b>결정론 계산기가 돈다</b>는 뜻이다 — numpy 코사인·networkx 순회·RRF 산수,
+LLM·추론 루프·자율 판단 0. PostgreSQL 이 <code>SELECT</code> 를 "실행"하지만 에이전트가 아닌 것과 같다.
+agentic AI(logosai)는 그 계산기를 <b>언제·어떤 질의로 쓸지 판단하고 결과를 답으로 조립</b>하는 층이며,
+계산기 계산 자체를 대신하지 않는다. 둘은 경쟁이 아니라 <b>계산기와 사람처럼 상보적</b>이다.</p>
+
+<div class="grid2">
+  <div class="card">
+    <div class="pill vec">사람 = 에이전트 (판단)</div>
+    <h3 style="margin-top:10px">agentic AI · logosai</h3>
+    <ul>
+      <li>무엇을·어디(namespace)서 물을지 결정</li>
+      <li>질의 재작성 · 재검색(multi-hop) 판단</li>
+      <li>근거 발췌 → 답 조립 + <b>번호 인용</b></li>
+      <li>환각 통제 · graceful degrade · 오케스트레이션</li>
+    </ul>
+    <p class="mono" style="color:#71809f;font-size:.82rem">grounded_qa_agent.py · SimpleAgent</p>
+  </div>
+  <div class="card">
+    <div class="pill pg">계산기 = 온톨로지 (도구)</div>
+    <h3 style="margin-top:10px">결정론 검색 · 9274</h3>
+    <ul>
+      <li>진입: 임베딩 코사인 <span class="mono">semantic_search</span></li>
+      <li>확장: <code>is_a</code> 폐포 + 인접 (networkx)</li>
+      <li>청크: ES 하이브리드 BM25+dense_vector</li>
+      <li>융합: RRF — <b>LLM 0, 재현 가능, 출처 보존</b></li>
+    </ul>
+    <p class="mono" style="color:#71809f;font-size:.82rem">graph_retrieval.py · 순수 함수</p>
+  </div>
+</div>
+
+<h3>계산기를 에이전트에 "담기" — 참조로, 복사로 아님</h3>
+<p>계산기는 에이전트라는 기능 단위로 포장돼 에이전트 메시에 들어간다(<code>grounded_qa_agent</code> 가
+능력을 광고하고 협업). 단 "담는" 방식이 성패를 가른다 — <b>코드를 복사</b>하면 안 되고,
+<b>클라이언트로 참조</b>해야 한다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 340" role="img" aria-label="프린터 모델 — 공유 계산기를 어댑터 에이전트로 참조">
+  <defs>
+    <marker id="arA" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5b9bff"/></marker>
+  </defs>
+  <!-- 공유 계산기 -->
+  <rect x="380" y="128" width="240" height="86" rx="14" fill="#12203a" stroke="#2f4d80" stroke-width="2"/>
+  <text x="500" y="158" text-anchor="middle" fill="#5b9bff" font-size="15" font-weight="800">온톨로지 (9274)</text>
+  <text x="500" y="180" text-anchor="middle" fill="#aab3cf" font-size="12">공유 계산기 · 프린터</text>
+  <text x="500" y="199" text-anchor="middle" fill="#71809f" font-size="11">KG · 벡터 · ES · RRF — 한 곳</text>
+
+  <!-- 어댑터 에이전트 3종 (드라이버) -->
+  <rect x="60" y="40" width="200" height="60" rx="11" fill="#241a36" stroke="#4a3670"/>
+  <text x="160" y="65" text-anchor="middle" fill="#c084fc" font-size="12.5" font-weight="800">grounded_qa_agent</text>
+  <text x="160" y="84" text-anchor="middle" fill="#aab3cf" font-size="10.5">어댑터 · HTTP 클라이언트만</text>
+
+  <rect x="60" y="140" width="200" height="60" rx="11" fill="#241a36" stroke="#4a3670"/>
+  <text x="160" y="165" text-anchor="middle" fill="#c084fc" font-size="12.5" font-weight="800">proposal_coverage_agent</text>
+  <text x="160" y="184" text-anchor="middle" fill="#aab3cf" font-size="10.5">어댑터 · 코드 복사 0</text>
+
+  <rect x="60" y="240" width="200" height="60" rx="11" fill="#241a36" stroke="#4a3670"/>
+  <text x="160" y="265" text-anchor="middle" fill="#c084fc" font-size="12.5" font-weight="800">rfp_requirement_agent</text>
+  <text x="160" y="284" text-anchor="middle" fill="#aab3cf" font-size="10.5">어댑터 · 참조로 담김</text>
+
+  <!-- 어댑터 → 계산기 (참조) -->
+  <path d="M260,70 C330,80 350,140 378,150" fill="none" stroke="#5b9bff" stroke-width="1.8" marker-end="url(#arA)"/>
+  <path d="M260,170 L376,170" fill="none" stroke="#5b9bff" stroke-width="1.8" marker-end="url(#arA)"/>
+  <path d="M260,270 C330,260 350,200 378,192" fill="none" stroke="#5b9bff" stroke-width="1.8" marker-end="url(#arA)"/>
+  <text x="312" y="128" text-anchor="middle" fill="#5b9bff" font-size="10.5" font-weight="700">/retrieve (참조)</text>
+
+  <!-- 다운스트림 메시 -->
+  <rect x="700" y="70" width="240" height="60" rx="11" fill="#161b2c" stroke="#2a3350"/>
+  <text x="820" y="95" text-anchor="middle" fill="#e8ebf5" font-size="12" font-weight="700">오케스트레이터 / 다른 에이전트</text>
+  <text x="820" y="114" text-anchor="middle" fill="#71809f" font-size="10.5">capability_protocol · agent_composer</text>
+  <rect x="700" y="210" width="240" height="60" rx="11" fill="#161b2c" stroke="#2a3350"/>
+  <text x="820" y="235" text-anchor="middle" fill="#e8ebf5" font-size="12" font-weight="700">logos_api / logos_web</text>
+  <text x="820" y="254" text-anchor="middle" fill="#71809f" font-size="10.5">사용자 요청 → 에이전트 메시</text>
+  <path d="M700,100 L262,80" fill="none" stroke="#3a4260" stroke-width="1.4" marker-end="url(#arA)"/>
+  <path d="M700,240 C500,300 320,290 262,285" fill="none" stroke="#3a4260" stroke-width="1.4" marker-end="url(#arA)"/>
+</svg>
+<div class="cap">프린터 하나(온톨로지)를 여러 드라이버(어댑터 에이전트)가 <b>참조</b>로 꽂아 쓴다. 계산기가 각 에이전트에 <b>복사</b>되지 않는다.</div>
+</div>
+
+<table>
+  <thead><tr><th>담는 방식</th><th>무엇을 넣나</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pill pg">✅ 참조</span></td><td>계산기의 <b>HTTP 클라이언트만</b> (<code>call_tool_http("/retrieve")</code>)</td><td>계산기 한 곳, 모든 에이전트 공유. 고치면 전원 수혜. 같은 출처·같은 결정론</td></tr>
+    <tr><td><span class="pill nx">❌ 복사</span></td><td>검색 <b>코드 자체</b>를 에이전트 안에 재구현</td><td>에이전트마다 계산기 중복 · N배 유지·N배 버그 · 출처 제각각</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn" style="background:linear-gradient(90deg,#2a1618,#161b2c);border:1px solid #7a3540">
+  <div class="t" style="color:#fb7185">복사로 담았다가 실패한 실증 — aicoach</div>
+  <p style="margin:.3em 0 0">aicoach 는 검색 계산기를 자기 코드에 <b>복사</b>했다: <i>"Mirrors the Logos
+  SimpleKnowledgeGraphEngine API (…) without pulling its heavy transitive deps"</i>
+  (<code>backend/app/kg/graph.py:1-10</code>). 결과 — 온톨로지 프로젝트 3개, Logos/ontology 채택 <b>0</b>.
+  각자 계산기를 내장하니 공유가 안 됐다. 최근 작업(aicoach 라이브 직접 사용, 복사본 삭제)이 바로
+  이 <b>복사 → 참조</b> 전환이다.</p>
+</div>
+
+<div class="callout">
+  <div class="t">환각이 0인 이유 — 검색을 결정론 도구로 떼어놓았기 때문</div>
+  <p style="margin:.3em 0 0">에이전트가 검색까지 LLM 으로 "직접" 하면 출처를 <b>지어낸다</b>. 검색을 결정론
+  계산기로 떼어놓으니 → 같은 질의에 같은 근거 + <b>출처(청크·조항)</b>. 에이전트는 그 발췌 <b>안에서만</b>
+  답을 조립하고 문장마다 <code>[N]</code> 인용하므로 환각이 0 이다. <b>계산기를 도구로 만든 것이
+  agentic AI 를 신뢰 가능하게 만든다</b> — 에이전트가 계산기를 품되, 계산기가 되지는 않는다.</p>
+</div>
+
+<!-- ─────────────────────────── 7. 캐시 계층 (제안) ─────────────────────────── -->
+<h2><span class="n">7</span> 캐시 계층 <span class="tag">제안 · 미구현</span></h2>
+<p class="lead">현재 <code>/retrieve</code>(ES 하이브리드 + 그래프 확장 + RRF)와 쿼리 임베딩은
+<b>매 요청 전액 재계산</b>한다. <code>CacheManager</code> 인터페이스는 있으나 서빙 경로에서
+인스턴스화·사용되지 않는다(구현≠사용). 여기에 두 층의 캐시를 붙이면 반복·유사 질의의 지연을 크게 줄인다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 1000 300" role="img" aria-label="제안 캐시 계층">
+  <defs>
+    <marker id="ar4" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#71809f"/></marker>
+  </defs>
+  <rect x="30" y="128" width="110" height="44" rx="10" fill="#12203a" stroke="#2f4d80"/>
+  <text x="85" y="155" text-anchor="middle" fill="#8fb4ff" font-size="12" font-weight="800">요청</text>
+
+  <!-- L1 임베딩 캐시 -->
+  <rect x="200" y="40" width="250" height="80" rx="10" fill="#1a1230" stroke="#4a3670"/>
+  <text x="215" y="63" fill="#c084fc" font-size="12" font-weight="800">L1 · 쿼리 임베딩 캐시</text>
+  <text x="215" y="84" fill="#e8ebf5" font-size="11">키 = model + text · LRU</text>
+  <text x="215" y="102" fill="#aab3cf" font-size="10">결정적 → 무효화 불필요 · 안전</text>
+
+  <!-- L2 결과 캐시 -->
+  <rect x="200" y="175" width="250" height="90" rx="10" fill="#1a1230" stroke="#4a3670"/>
+  <text x="215" y="198" fill="#c084fc" font-size="12" font-weight="800">L2 · retrieve 결과 캐시</text>
+  <text x="215" y="219" fill="#e8ebf5" font-size="11">키 = ns + query + params + <tspan fill="#5eead4">gen</tspan></text>
+  <text x="215" y="238" fill="#aab3cf" font-size="10">소유 NS: 쓰기마다 gen++ → 자동 무효화</text>
+  <text x="215" y="254" fill="#aab3cf" font-size="10">aicoach 원천: 짧은 TTL (외부 쓰기 관측 불가)</text>
+
+  <!-- 컴퓨트 -->
+  <rect x="530" y="90" width="200" height="120" rx="10" fill="#131a2c" stroke="#3a4a76"/>
+  <text x="545" y="113" fill="#5eead4" font-size="12" font-weight="800">MISS → 계산</text>
+  <text x="545" y="135" fill="#e8ebf5" font-size="10.5">임베딩(모델)</text>
+  <text x="545" y="153" fill="#e8ebf5" font-size="10.5">ES 하이브리드 + 그래프 확장</text>
+  <text x="545" y="171" fill="#e8ebf5" font-size="10.5">RRF 융합</text>
+  <text x="545" y="195" fill="#71809f" font-size="10">캐시 다운 → 그대로 계산 (degrade-safe)</text>
+
+  <rect x="800" y="128" width="170" height="44" rx="10" fill="#12261e" stroke="#2f6d4a"/>
+  <text x="885" y="149" text-anchor="middle" fill="#5eead4" font-size="12" font-weight="800">응답 + 캐시 채움</text>
+  <text x="885" y="164" text-anchor="middle" fill="#aab3cf" font-size="9">HIT 시 이 경로 건너뜀</text>
+
+  <line x1="140" y1="150" x2="198" y2="90" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar4)"/>
+  <line x1="140" y1="150" x2="198" y2="210" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar4)"/>
+  <line x1="450" y1="150" x2="528" y2="150" stroke="#71809f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar4)"/>
+  <text x="489" y="142" text-anchor="middle" fill="#fb7185" font-size="9">miss</text>
+  <line x1="730" y1="150" x2="798" y2="150" stroke="#71809f" stroke-width="1.5" marker-end="url(#ar4)"/>
+</svg>
+<div class="cap">그림 4 — 제안 캐시 2층. HIT 이면 임베딩·ES·그래프·RRF 를 통째로 건너뛴다.</div>
+</div>
+
+<h3>설계 원칙 (이 프로젝트의 기존 규율과 정합)</h3>
+<ul>
+  <li><b>무효화가 핵심.</b> 소유 NS 는 네임스페이스별 <b>generation 카운터</b>를 쓰기(인제스트·재색인·PATCH·삭제)마다 증가시키고, 캐시 키에 포함 → stale 이 <b>절대 서빙되지 않는다</b>(명시적 purge 불필요). 기존 <code>content_hash</code>/mtime 접근과 같은 결.</li>
+  <li><b>aicoach 원천은 TTL.</b> 쓰기가 aicoach 쪽에서 일어나 온톨로지가 관측하지 못한다 → generation 훅이 안 뜬다. 짧은 TTL(예 60–300s)로 신선도를 담보. (커널/원천 경계의 정직한 한계)</li>
+  <li><b>결정적 층은 무효화 불요.</b> 쿼리 임베딩은 같은 (model, text)면 항상 같다 → LRU 만으로 안전.</li>
+  <li><b>degrade-safe.</b> 캐시 미스·백엔드 다운 → 그냥 계산. 캐시는 절대 하드 의존이 아니다(ES degrade 철학과 동일).</li>
+  <li><b>있는 걸 쓴다.</b> 새 추상 대신 이미 스캐폴딩된 <code>CacheManager</code> 인터페이스를 배선 — "구현≠사용"을 반복하지 않는다.</li>
+  <li><b>먼저 측정.</b> TTL·LRU 크기·<code>RRF_K</code>처럼 상수는 골든셋으로 측정해 정한다(지어낸 상수 금지). 우선 인프로세스 LRU, 다중 인스턴스가 되면 그때 Redis.</li>
+</ul>
+
+<div class="callout propose">
+  <div class="t">권장 순서</div>
+  <p style="margin:0">① L1 임베딩 LRU (가장 싸고 안전, 즉시 이득) → ② NS generation 카운터 도입(쓰기 지점에 훅)
+  → ③ L2 결과 캐시(소유 NS = gen 키, aicoach = TTL) → ④ <code>/admin/system</code>에 hit-rate 노출로 효과 측정.
+  전부 additive · degrade-safe.</p>
+</div>
+
+<div class="foot">
+  Logos Ontology System · 사실의 층. 근거: <code>ontology/CLAUDE.md</code> ·
+  <code>core/graph_store.py</code> · <code>core/graph_retrieval.py</code> · <code>core/interfaces.py</code>(CacheManager).
+  관련 문서: service-boundaries.html · axis5-engine-architecture.html · vector-storage-explainer.html.
+  캐시 계층(6절)은 <b>제안</b>이며 아직 구현되지 않았다.
+</div>
+
+</div>
+</body>
+</html>

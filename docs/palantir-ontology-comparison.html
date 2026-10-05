@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>팔란티어의 온톨로지 관리 — 대조와 우리의 다음 단계</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#161b2c; --panel2:#1d2437; --line:#2a3350;
+    --ink:#e8ebf5; --ink2:#aab3cf; --faint:#71809f;
+    --accent:#7c8cff; --accent2:#5eead4;
+    --pg:#5b9bff; --es:#f5b74e; --nx:#9aa4c0; --vec:#c084fc;
+    --green:#34d399; --amber:#fbbf24; --red:#fb7185;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0e1220 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 90px}
+  header.hero{margin-bottom:40px}
+  .eyebrow{color:var(--accent2);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2.05rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .2em;line-height:1.15}
+  h1 .grad{background:linear-gradient(90deg,var(--pg),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:820px}
+  h2{font-size:1.35rem;font-weight:750;margin:56px 0 8px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:.8rem;color:var(--bg);background:var(--accent);border-radius:7px;padding:2px 9px;font-weight:800}
+  h3{font-size:1.02rem;font-weight:700;margin:26px 0 6px;color:var(--ink)}
+  p{color:var(--ink2);margin:.5em 0}
+  .lead{color:var(--ink);font-size:1.05rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin:16px 0}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin:20px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:12px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:#0b0f1c;
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c7d0ee}
+  .tw{overflow-x:auto;margin:14px 0}
+  table{width:100%;border-collapse:collapse;font-size:.92rem;min-width:640px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-weight:650;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td b{color:var(--ink)}
+  ul,ol{color:var(--ink2);padding-left:1.2em}
+  li{margin:.35em 0}
+  .tag{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:5px;
+    letter-spacing:.04em;vertical-align:middle;white-space:nowrap}
+  .t-doc{background:rgba(52,211,153,.14);color:var(--green);border:1px solid rgba(52,211,153,.35)}
+  .t-blog{background:rgba(251,191,36,.14);color:var(--amber);border:1px solid rgba(251,191,36,.35)}
+  .t-unk{background:rgba(251,113,133,.13);color:var(--red);border:1px solid rgba(251,113,133,.32)}
+  .verdict{font-weight:700;white-space:nowrap}
+  .v-ok{color:var(--green)} .v-part{color:var(--amber)} .v-gap{color:var(--red)} .v-na{color:var(--faint)}
+  blockquote{margin:16px 0;padding:14px 18px;border-left:3px solid var(--accent);
+    background:var(--panel2);border-radius:0 10px 10px 0;color:var(--ink)}
+  blockquote .src{display:block;margin-top:8px;color:var(--faint);font-size:.8rem}
+  .callout{border-left:3px solid var(--amber);background:rgba(251,191,36,.07);
+    padding:14px 18px;border-radius:0 10px 10px 0;margin:18px 0}
+  .callout.good{border-color:var(--green);background:rgba(52,211,153,.07)}
+  .callout.bad{border-color:var(--red);background:rgba(251,113,133,.07)}
+  .callout b{color:var(--ink)}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:16px 0}
+  .num{font-variant-numeric:tabular-nums}
+  footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:.85rem}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0 0;font-size:.8rem;color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Ontology · 외부 대조 분석</div>
+  <h1>팔란티어는 온톨로지를 <span class="grad">어떻게 관리하는가</span></h1>
+  <p class="sub">Foundry / AIP 의 온톨로지 관리 방식을 공식 문서 기준으로 정리하고, 우리 시스템과 대조한다.
+  결론부터: <b>객체 모델의 구조는 이미 같다.</b> 벌어진 곳은 <b>변경 통제·측정·생애주기</b>이고,
+  가장 큰 문제는 우리가 가진 구조를 <b>채우지 못한 채 재고 있었다</b>는 사실이었다.</p>
+  <div class="legend">
+    <span><span class="tag t-doc">문서</span> 공식 문서에서 확인</span>
+    <span><span class="tag t-blog">블로그</span> 2차 출처(블로그·강연)</span>
+    <span><span class="tag t-unk">미확인</span> 확인하지 못함</span>
+  </div>
+</header>
+
+<h2><span class="n">1</span> 온톨로지는 데이터가 아니라 타입 스키마다</h2>
+<p>네 가지 원시 타입이 전부 <b>스키마</b>로 정의된다 <span class="tag t-doc">문서</span>:
+<b>Object Type</b>(실세계 개체의 스키마), <b>Property</b>(특성의 스키마),
+<b>Link Type</b>(관계의 스키마), 그리고 결정적으로 <b>Action Type</b> —
+“사용자가 한 번에 할 수 있는 변경 묶음의 스키마”다. 여기에 <b>Function</b>(온톨로지에
+결합된 코드 로직)과 <b>Interface</b>(다형성)가 더해지고, 관리 도구는 <b>Ontology Manager</b>다.</p>
+
+<div class="callout">
+  <b>“복사가 아닌 의미 계층”은 절반만 맞다.</b> 문서는 온톨로지가 “통합된 디지털 자산 위에 앉아
+  실세계와 연결한다”고 쓰지만, 동시에 <b>Object Storage V2</b>가 “온톨로지를 뒷받침하는 차세대 정본
+  저장소”이고 <b>Object Data Funnel</b>이 파이프라인과 사용자 편집을 읽어 <b>색인</b>한다고 명시한다
+  <span class="tag t-doc">문서</span>. 즉 “복사 아님”은 <b>거버넌스상의 주장</b>이고, 물리적으로는
+  전용 인덱스로 물화된다. 우리도 KG 체크포인트 + 벡터 캐시 + 청크 JSONL 로 같은 일을 한다 —
+  차이가 아니라 동일한 현실이다.
+</div>
+
+<div class="fig">
+<svg viewBox="0 0 900 300" role="img" aria-label="팔란티어 계층: 파이프라인, 온톨로지 타입 계층, 소비자">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#7c8cff"/>
+    </marker>
+  </defs>
+  <rect x="30" y="228" width="840" height="52" rx="9" fill="#1d2437" stroke="#2a3350"/>
+  <text x="450" y="250" text-anchor="middle" fill="#aab3cf" font-size="13" font-weight="700">데이터 파이프라인 · 데이터셋 (트랜잭션 = 버전)</text>
+  <text x="450" y="268" text-anchor="middle" fill="#71809f" font-size="11">Pipeline Builder · 브랜치/커밋 구조 · Time Travel 은 여기서 가능</text>
+
+  <rect x="30" y="112" width="840" height="86" rx="9" fill="#161b2c" stroke="#5b9bff"/>
+  <text x="450" y="134" text-anchor="middle" fill="#5b9bff" font-size="13" font-weight="800">온톨로지 (타입 스키마) — Ontology Manager</text>
+  <g font-size="11.5" fill="#e8ebf5" text-anchor="middle">
+    <rect x="52" y="146" width="146" height="38" rx="7" fill="#0b0f1c" stroke="#2a3350"/><text x="125" y="170">Object Type</text>
+    <rect x="212" y="146" width="146" height="38" rx="7" fill="#0b0f1c" stroke="#2a3350"/><text x="285" y="170">Property</text>
+    <rect x="372" y="146" width="146" height="38" rx="7" fill="#0b0f1c" stroke="#2a3350"/><text x="445" y="170">Link Type</text>
+    <rect x="532" y="146" width="160" height="38" rx="7" fill="#0b0f1c" stroke="#5eead4"/><text x="612" y="170" fill="#5eead4">Action Type</text>
+    <rect x="706" y="146" width="142" height="38" rx="7" fill="#0b0f1c" stroke="#2a3350"/><text x="777" y="170">Interface</text>
+  </g>
+
+  <rect x="30" y="22" width="840" height="62" rx="9" fill="#1d2437" stroke="#2a3350"/>
+  <text x="450" y="44" text-anchor="middle" fill="#aab3cf" font-size="13" font-weight="700">소비자 — Object Explorer · Workshop · OSDK · AIP 에이전트</text>
+  <text x="450" y="63" text-anchor="middle" fill="#71809f" font-size="11">모두 같은 타입 정의를 상속한다 · 쓰기 규칙은 Action Type 에 붙어 있다</text>
+
+  <line x1="450" y1="228" x2="450" y2="200" stroke="#7c8cff" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="450" y1="112" x2="450" y2="86" stroke="#7c8cff" stroke-width="2" marker-end="url(#ar)"/>
+</svg>
+<div class="cap">타입 계층이 가운데 있고, 위아래가 모두 그것을 통해 말한다. 쓰기 검증이 Action Type 에 있어 <b>모든 소비자가 같은 규칙을 상속</b>한다.</div>
+</div>
+
+<h2><span class="n">2</span> 변경 통제 — 온톨로지 수정이 Pull Request 다</h2>
+<p><b>온톨로지 브랜치</b>는 “메인에서 파생된 별도 버전”이고, 전역 브랜치 제안을 만들면
+<b>온톨로지 제안(Proposal)</b>이 자동 생성된다. 문서가 스스로 “버전 관리 시스템의
+<b>Pull Request 와 유사</b>”하다고 쓴다 <span class="tag t-doc">문서</span>.</p>
+<ul>
+  <li>리뷰어는 각 작업을 <b>건별 또는 일괄로 승인/거절</b>하고 작업 단위로 코멘트한다.</li>
+  <li>승인 권한은 <b>리소스 소유권에서 나온다</b> — 승인자는 기본적으로 해당 리소스의 editor 또는 owner여야 한다.</li>
+  <li>병합 전 <b>merge check</b>가 실행돼 리소스가 <code>main</code>에 병합 가능한지 검증한다.</li>
+  <li>가시성이 비대칭이다: 제안의 제목·설명은 온톨로지 접근자면 보이지만, 변경 내용은 해당 리소스 Viewer 이상이어야 보인다.</li>
+</ul>
+
+<h3>생애주기 상태는 문서가 아니라 기계가 강제한다</h3>
+<p>모든 object/property/link/action/interface 에 <b>타입 상태</b>가 붙는다:
+<code>Promoted</code> · <code>Active</code> · <code>Experimental</code> · <code>Deprecated</code> · <code>Example</code>
+<span class="tag t-doc">문서</span>.</p>
+<div class="grid2">
+  <div class="card"><b style="color:var(--green)">Active</b>
+    <p>“사용자 애플리케이션에서 실제로 쓰이며 <b>주요 파괴적 변경을 하지 않는다</b>.”
+    active/promoted 리소스는 <b>삭제도, API 이름 변경도 불가</b>하다.</p></div>
+  <div class="card"><b style="color:var(--amber)">Deprecated</b>
+    <p>사유 설명 + <b>삭제 기한</b>을 요구하고, 선택적으로 <b>대체 리소스</b>를 지정한다.
+    “언젠가 정리하자”가 불가능한 구조다.</p></div>
+</div>
+<div class="callout bad">
+  <b>우리에게 없는 것.</b> 우리는 검수 묘비(tombstone)로 “틀린 개체의 부활”만 막는다.
+  “이 노드는 운영에서 쓰이므로 개명·삭제 금지”라는 <b>계약이 코드에 없다</b>.
+  실제로 오늘 만든 병합 기능은 노드를 지우는데, 그 노드를 누가 쓰고 있는지 아무도 모른다.
+</div>
+
+<h2><span class="n">3</span> 계보와 시점 — 어디서 왔고, 그때는 어땠나</h2>
+<p><b>Data Lineage</b>는 “데이터가 플랫폼을 어떻게 흐르는지 총체적으로 보는 대화형 도구”이며,
+결정적으로 <b>object type 과 dataset 을 같은 그래프에</b> 그린다 — 객체 타입에서 원천 인제스트까지
+거슬러 올라갈 수 있다 <span class="tag t-doc">문서</span>.</p>
+<p>시점 되감기는 <b>데이터셋 층에서</b> 지원된다: 데이터셋은 브랜치 위의 트랜잭션으로 버전화되고
+(“Git 저장소·브랜치·커밋과 유사”), Time Travel 로 “이전 시점의 데이터를 조회하고, 버전 범위의 변경을
+비교하고, 특정 행/값이 언제 바뀌었는지 찾는다” <span class="tag t-doc">문서</span>.
+다만 <b>객체 단위 as-of 쿼리</b>(“이 직원의 2024-03-01 상태”)는 확인하지 못했다
+<span class="tag t-unk">미확인</span>.</p>
+<div class="callout">
+  <b>대조.</b> 우리는 <b>더 정밀한 축</b>과 <b>더 빈 축</b>을 동시에 갖는다.
+  정밀한 쪽 — 청크의 <code>char_start/char_end</code> 불변식으로 <b>문자 오프셋 단위 인용</b>이 되고
+  (팔란티어는 “원본 PDF 를 나란히 렌더해 대조”한다), 이미지는 <code>(page, bbox)</code>로 주소화된다.
+  빈 쪽 — <b>빌드 계보가 없다</b>. 어느 빌드가 이 노드를 만들었고 어떤 LLM·스키마였는지 되짚을 수 없다.
+</div>
+
+<h2><span class="n">4</span> 품질 측정 — 팔란티어는 골든셋을 제품화했다</h2>
+<p><b>AIP Evals</b>는 “LLM 의 비결정적 성질을 다루기 위해 설계된” 평가 환경이다
+<span class="tag t-doc">문서</span>. 구조는 우리 골든셋과 사실상 같다:</p>
+<div class="tw"><table>
+<thead><tr><th>AIP Evals</th><th>우리 (core/search_qa.py)</th></tr></thead>
+<tbody>
+<tr><td><b>Test case</b> — 정해진 입력과 기대 출력</td><td><code>GoldenCase(query, expected_node_id, accepted)</code></td></tr>
+<tr><td><b>Evaluation function</b> — 실제 vs 기대 비교 후 케이스별 지표</td><td><code>evaluate_cases()</code> → hit@1 · hit@k · MRR · per_case</td></tr>
+<tr><td><b>Target function</b> — 평가 대상(여러 개 가능)</td><td><code>channels = {semantic, retrieve, chunk}</code></td></tr>
+<tr><td><b>버전·모델·반복 간 비교</b> (분산까지)</td><td><span class="v-gap">없음</span> — 매번 현재 코드만 잰다</td></tr>
+<tr><td><b>Experiments</b> — 파라미터 조합 <b>그리드 서치</b></td><td><code>scripts/eval_sweep.py</code> (<span class="v-part">부분</span>: <code>entry_ratio</code>만)</td></tr>
+</tbody></table></div>
+<div class="callout bad">
+  <b>우리 스크립트가 스스로 남긴 고백.</b> <code>scripts/eval_sweep.py</code> 헤더에 이렇게 적혀 있다 —
+  “<code>RRF_K</code>·<code>BM25_WEIGHT</code>는 현재 하드코딩 상수라 스윕 대상이 아니다(리팩터 필요).”
+  게다가 그 스윕은 <b>노드 단위로만</b> 채점하는데, 노드 채점은 구조상
+  <code>semantic == retrieve</code>로 퇴화한다(retrieve 의 노드 랭킹이 semantic 진입 노드에서 파생).
+  즉 <b>우리 차별점을 재지 않는 스윕</b>이었다.
+</div>
+
+<h2><span class="n">5</span> LLM 결합 — 환각 통제는 프롬프트가 아니라 구조다</h2>
+<blockquote>
+  LLM 은 도구에 직접 접근하지 못한다. LLM 은 도구 사용을 <b>요청</b>할 수 있을 뿐이고,
+  그 호출은 <b>호출 사용자의 권한 안에서</b> AIP Logic 이 실행한다.
+  <span class="src">Palantir Docs — AIP Logic / blocks <span class="tag t-doc">문서</span></span>
+</blockquote>
+<p>세 가지 기제가 명시된다 <span class="tag t-blog">블로그</span>:
+① <b>grounding</b> — 검증된 데이터를 요청하는 도구를 준다,
+② <b>결정적 로직에 위임</b> — LLM 은 “다음 토큰을 예측”하므로 계산은 함수에 맡긴다,
+③ <b>사람 검토</b> — AI 가 제안한 Action 을 전문가가 승인/거절한다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 900 250" role="img" aria-label="LLM 도구 호출이 사용자 권한으로 실행되는 구조">
+  <defs>
+    <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#5eead4"/>
+    </marker>
+    <marker id="ar3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#9aa4c0"/>
+    </marker>
+  </defs>
+  <rect x="24" y="96" width="176" height="60" rx="10" fill="#161b2c" stroke="#c084fc"/>
+  <text x="112" y="121" text-anchor="middle" fill="#c084fc" font-size="13" font-weight="800">LLM</text>
+  <text x="112" y="140" text-anchor="middle" fill="#71809f" font-size="10.5">자격증명 없음</text>
+
+  <rect x="266" y="86" width="196" height="80" rx="10" fill="#1d2437" stroke="#5eead4"/>
+  <text x="364" y="112" text-anchor="middle" fill="#5eead4" font-size="12.5" font-weight="800">런타임 (AIP Logic)</text>
+  <text x="364" y="131" text-anchor="middle" fill="#aab3cf" font-size="10.5">호출 사용자 권한으로 실행</text>
+  <text x="364" y="149" text-anchor="middle" fill="#71809f" font-size="10.5">Action 검증 · 보안 정책 적용</text>
+
+  <rect x="528" y="86" width="176" height="80" rx="10" fill="#161b2c" stroke="#5b9bff"/>
+  <text x="616" y="112" text-anchor="middle" fill="#5b9bff" font-size="12.5" font-weight="800">온톨로지</text>
+  <text x="616" y="131" text-anchor="middle" fill="#aab3cf" font-size="10.5">검증된 객체 · 링크</text>
+  <text x="616" y="149" text-anchor="middle" fill="#71809f" font-size="10.5">행·열 단위 보안</text>
+
+  <rect x="756" y="86" width="120" height="80" rx="10" fill="#1d2437" stroke="#fbbf24"/>
+  <text x="816" y="118" text-anchor="middle" fill="#fbbf24" font-size="12.5" font-weight="800">사람</text>
+  <text x="816" y="139" text-anchor="middle" fill="#71809f" font-size="10.5">쓰기 승인</text>
+
+  <line x1="200" y1="118" x2="258" y2="118" stroke="#5eead4" stroke-width="2" marker-end="url(#ar2)"/>
+  <text x="229" y="108" text-anchor="middle" fill="#5eead4" font-size="9.5">요청</text>
+  <line x1="462" y1="118" x2="520" y2="118" stroke="#5eead4" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="520" y1="142" x2="466" y2="142" stroke="#9aa4c0" stroke-width="1.6" marker-end="url(#ar3)" stroke-dasharray="4 3"/>
+  <text x="493" y="160" text-anchor="middle" fill="#71809f" font-size="9.5">근거</text>
+  <line x1="704" y1="126" x2="750" y2="126" stroke="#fbbf24" stroke-width="2" marker-end="url(#ar2)"/>
+
+  <text x="450" y="42" text-anchor="middle" fill="#e8ebf5" font-size="12.5" font-weight="700">모델은 요청만 한다 — 실행 권한은 런타임이 쥔다</text>
+  <text x="450" y="62" text-anchor="middle" fill="#71809f" font-size="11">도달 가능한 표면을 좁히고, 쓰기를 타입화·검증하고, 사람 승인을 걸어 환각을 구조로 막는다</text>
+  <text x="450" y="212" text-anchor="middle" fill="#aab3cf" font-size="11.5">우리 대응: acp/logos_api 가 런타임 · 온톨로지 9274 가 근거 · <tspan fill="#fb7185">쓰기 검증·승인 계층은 비어 있다</tspan></text>
+</svg>
+<div class="cap">우리 서비스 경계와 같은 형태다. 다만 우리의 “쓰기”는 관리 콘솔의 수동 편집뿐이고, 타입화된 Action·검증 규칙·승인 큐가 없다.</div>
+</div>
+
+<h2><span class="n">6</span> 비정형 문서 — 우리와 같은 결론에 도달했다</h2>
+<p>문서 처리 파이프라인이 구체적으로 규정돼 있다 <span class="tag t-doc">문서</span>:
+PDF 를 <b>media set</b> 으로 가져오고(<b>media reference</b> 로 참조 — “복사하지 않고 사용”),
+Pipeline Builder 의 <b>Text Extraction</b>(OCR 포함) → <b>Chunk String</b>(크기·겹침·구분자 설정).
+근거로 “임베딩 모델은 최대 입력 길이가 있고, <b>결정적으로 작은 조각이 검색에서 더 의미적으로
+구별된다</b>”를 든다.</p>
+<p>그리고 결정적인 한 수: <b>각 청크가 고유 id 를 가진 온톨로지 객체가 되고, 원본 문서로 링크되며,
+임베딩은 vector property 로 저장된다.</b> 인용은 <b>원본 PDF 를 검색 결과 옆에 렌더</b>해 대조한다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 900 220" role="img" aria-label="청크가 객체가 되는 모델과 우리 구조의 대응">
+  <rect x="24" y="30" width="416" height="164" rx="11" fill="#161b2c" stroke="#5b9bff"/>
+  <text x="232" y="54" text-anchor="middle" fill="#5b9bff" font-size="12.5" font-weight="800">팔란티어</text>
+  <g font-size="11" fill="#e8ebf5" text-anchor="middle">
+    <rect x="46" y="70" width="120" height="34" rx="6" fill="#0b0f1c" stroke="#2a3350"/><text x="106" y="91">Document 객체</text>
+    <rect x="186" y="70" width="112" height="34" rx="6" fill="#0b0f1c" stroke="#2a3350"/><text x="242" y="91">Chunk 객체</text>
+    <rect x="318" y="70" width="100" height="34" rx="6" fill="#0b0f1c" stroke="#c084fc"/><text x="368" y="91" fill="#c084fc">vector 속성</text>
+  </g>
+  <text x="232" y="128" text-anchor="middle" fill="#aab3cf" font-size="10.5">청크=객체 · 출처=Link Type · 임베딩=Property</text>
+  <text x="232" y="148" text-anchor="middle" fill="#71809f" font-size="10.5">검색·권한·계보·인용이 같은 객체 모델에서 파생</text>
+  <text x="232" y="172" text-anchor="middle" fill="#5eead4" font-size="10.5">인용 단위: 원본 PDF 나란히 렌더</text>
+
+  <rect x="460" y="30" width="416" height="164" rx="11" fill="#161b2c" stroke="#5eead4"/>
+  <text x="668" y="54" text-anchor="middle" fill="#5eead4" font-size="12.5" font-weight="800">우리</text>
+  <g font-size="11" fill="#e8ebf5" text-anchor="middle">
+    <rect x="482" y="70" width="112" height="34" rx="6" fill="#0b0f1c" stroke="#2a3350"/><text x="538" y="91">KG 노드</text>
+    <rect x="614" y="70" width="120" height="34" rx="6" fill="#0b0f1c" stroke="#2a3350"/><text x="674" y="91">StoredChunk</text>
+    <rect x="754" y="70" width="100" height="34" rx="6" fill="#0b0f1c" stroke="#c084fc"/><text x="804" y="91" fill="#c084fc">벡터 백엔드</text>
+  </g>
+  <text x="668" y="128" text-anchor="middle" fill="#aab3cf" font-size="10.5">청크=레코드 · 출처=node_ids 링크 · 임베딩=별도 백엔드</text>
+  <text x="668" y="148" text-anchor="middle" fill="#fb7185" font-size="10.5">그 링크가 채워진 비율 = 29%</text>
+  <text x="668" y="172" text-anchor="middle" fill="#5eead4" font-size="10.5">인용 단위: 문자 오프셋 (더 정밀)</text>
+</svg>
+<div class="cap">모델은 동형이다. 우리가 더 정밀한 인용 단위를 갖고도 값을 못 낸 이유는 <b>연결 층이 비어 있었기 때문</b>이다.</div>
+</div>
+
+<h2><span class="n">7</span> 대조표 — 어디가 같고 어디가 벌어졌나</h2>
+<div class="tw"><table>
+<thead><tr><th style="width:30%">축</th><th style="width:26%">팔란티어</th><th style="width:30%">우리</th><th>판정</th></tr></thead>
+<tbody>
+<tr><td><b>객체 모델</b> (청크=객체, 출처=링크, 임베딩=속성)</td><td>하나의 거버넌스 경로</td><td><code>chunk_store</code> + <code>node_ids</code> + 벡터 백엔드</td><td class="verdict v-ok">구조 일치</td></tr>
+<tr><td><b>인용 정밀도</b></td><td>원본 PDF 나란히 렌더</td><td>문자 오프셋 불변식 + <code>(page,bbox)</code></td><td class="verdict v-ok">우리가 우위</td></tr>
+<tr><td><b>품질 측정</b></td><td>AIP Evals + Experiments(그리드)</td><td>골든셋 46건 + <code>eval_sweep.py</code></td><td class="verdict v-part">부분</td></tr>
+<tr><td><b>생애주기</b></td><td>Active = 개명·삭제 기계적 차단</td><td>검수 묘비만</td><td class="verdict v-gap">결손</td></tr>
+<tr><td><b>변경 통제</b></td><td>브랜치 → 제안 → 승인 → merge check</td><td>건별 검수(<code>review_store</code>)</td><td class="verdict v-gap">결손</td></tr>
+<tr><td><b>계보</b></td><td>온톨로지+데이터셋 한 그래프, 시점 되감기</td><td>청크 provenance 만</td><td class="verdict v-gap">결손</td></tr>
+<tr><td><b>감사</b></td><td>읽기까지 기록(<code>dataLoad</code>)</td><td>검수·변경 행위만</td><td class="verdict v-gap">결손</td></tr>
+<tr><td><b>타입화된 쓰기</b></td><td>Action Type + 제출 검증 규칙</td><td>수동 노드 편집</td><td class="verdict v-gap">결손</td></tr>
+<tr><td><b>보안</b></td><td>행·열 단위 정책, 원천과 독립</td><td><code>PROTECTED_NAMESPACES</code></td><td class="verdict v-na">우리 역할 아님<br><span style="font-size:.85em">인증은 logos_api 몫 (서비스 경계)</span></td></tr>
+</tbody></table></div>
+
+<h2><span class="n">8</span> 이 대조가 찾아낸 실제 결함</h2>
+<p>“청크 객체가 문서 객체와 연결되지 않은 상태”는 팔란티어 모델에서 Data Lineage 에 즉시 드러나는
+데이터 결함이다. <b>우리는 같은 모델을 갖고 있으면서 그것을 보는 창이 없었다.</b>
+그래서 창을 만들었고, 첫 측정에서 이렇게 나왔다 — <code>ins_cancer_demo</code> 라이브:</p>
+<div class="tw"><table>
+<thead><tr><th>지표</th><th>값</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td>추출 커버리지</td><td class="num"><b style="color:var(--red)">29.3%</b> (92 청크 중 27)</td><td>/retrieve 의 그래프 채널이 코퍼스의 <b>3분의 1</b> 위에서 돌고 있었다</td></tr>
+<tr><td>고아 노드 (근거 청크 없음)</td><td class="num"><b>34 / 106</b> (32%)</td><td>그래프엔 있는데 “어디서 알았는지” 답할 수 없는 노드</td></tr>
+<tr><td>추출 실패 청크 (본문 200자↑)</td><td class="num"><b>30</b></td><td>짧은 조각 35 는 별도 집계 — 비율이 거짓말하지 않게</td></tr>
+<tr><td>중복 노드 후보 군집</td><td class="num"><b>9</b></td><td><code>납입최고</code> 계열은 <b>6형제</b>였다</td></tr>
+<tr><td>끊긴 인용 (dangling)</td><td class="num">0</td><td>이 축은 건강했다</td></tr>
+</tbody></table></div>
+
+<div class="callout bad">
+  <b>골든셋이 깨져 있던 진짜 이유.</b> 정답 라벨은 <code>Disease:유방의 악성 신생물</code>인데
+  저장된 노드는 <code>Disease:C50( 유방의 악성 신생물 )</code>과 <code>Disease:유방암</code>이었다 —
+  <b>같은 개념의 세 이름</b>. 라벨이 근거를 못 찾으니 청크 채점은 46건 전부 스킵됐고,
+  우리는 그것을 “라벨링 UI 가 없어서”라고 오진하고 있었다. UI 를 먼저 만들었다면
+  <b>깨진 데이터 위에 화면을 얹었을 것</b>이다.
+</div>
+
+<h3>만든 것 — 진단(제시) + 병합(적용), 둘을 분리해서</h3>
+<div class="grid2">
+  <div class="card"><b>진단</b> <code>GET /graphs/{ns}/health</code>
+    <p>추출 커버리지 · 고아 노드 · 추출 실패 청크 · 중복 군집 · dangling.
+    LLM 0콜, 결정적, 무저장. <b>개수는 자르지 않고 목록만 표본</b>으로 —
+    표본을 전부로 오해하면 “다 봤다”가 된다.</p></div>
+  <div class="card"><b>병합</b> <code>POST /graphs/{ns}/nodes/merge</code>
+    <p><code>dry_run</code> 기본 <b>True</b>. 옮겨질 엣지, 흡수될 별칭, 재지정될 청크·골든셋 참조,
+    그리고 <b>사람이 정해야 할 프로퍼티 충돌</b>까지 미리 보여준다.</p></div>
+</div>
+<ul>
+  <li><b>합치지 않고 제시한다.</b> 자동 병합은 되돌릴 수 없다. 실제로 9군집 중
+  <code>C73( 갑상선의 악성 신생물 )</code> ↔ <code>C73(...) 중 중증 갑상선암을 제외한 갑상선암</code>은
+  <b>다른 개념</b>이다(하나는 제외 집합) — 기계가 판정하면 안 되는 이유의 실물이다.</li>
+  <li><b>진 노드의 이름은 별칭으로 흡수한다.</b> 지우면 그 표기로 검색하던 질의를 잃는다.
+  별칭은 질의 확장이 읽으므로 <b>중복이 동의어로 승격</b>돼 회수율이 오른다.</li>
+  <li><b>묘비를 남기지 않는다.</b> 병합은 “틀렸다”(reject)가 아니라 “같은 것이었다”(absorb)다.
+  묘비를 남기면 그 이름이 재빌드에서 영구 차단되는데, 이제 이긴 노드의 별칭으로 살아 있어야 한다.</li>
+  <li><b>정의문을 이어 붙이지 않는다.</b> 두 정의를 합치면 원문에 없는 문장이 생겨 환각이 된다 —
+  이긴 쪽을 남기고 진 쪽 값은 <b>충돌로 보고</b>해 감사에 남긴다.</li>
+  <li><b>청크·골든셋 참조를 함께 옮긴다.</b> 노드만 지우면 청크는 허공을 가리키고 라벨은 조용히 무효가 된다.
+  골든셋은 추가전용 로그라 재지정도 <b>이벤트</b>로 남긴다(로그가 원본이라는 계약).</li>
+</ul>
+<div class="callout">
+  <b>병합이 유일한 선택지는 아니다.</b> <code>GoldenCase.accepted</code> 필드는 같은 개념이 여러 노드로
+  갈린 경우를 정답 집합으로 허용하고, 그 주석이 바로 이 사례를 예로 든다.
+  <b>채점만 살리려면</b> accepted 가 가볍고, <b>그래프 채널의 근거가 쪼개지는 문제까지</b> 고치려면
+  병합이 맞다 — 판단은 사람 몫이다.
+</div>
+
+<h2><span class="n">9</span> 다음 단계</h2>
+<div class="tw"><table>
+<thead><tr><th style="width:8%">순위</th><th style="width:34%">항목</th><th>근거</th></tr></thead>
+<tbody>
+<tr><td><b>1</b></td><td><b>중복 노드 병합 실행</b> — 9군집을 사람이 판정</td><td class="v-ok" style="color:var(--ink2)">도구는 완성. 판정은 사람이어야 하고, C73 사례가 그 이유다</td></tr>
+<tr><td><b>2</b></td><td><b>추출 커버리지 회복</b> — 본문 200자↑ 인데 노드 0인 청크 30개 재추출</td><td>그래프 채널이 29% 위에서 돈다. 우리 차별점이 3분의 1 데이터 위에 있다</td></tr>
+<tr><td><b>3</b></td><td><b>knob 주입 + 청크 타깃 스윕</b> — <code>RRF_K</code>·<code>BM25_WEIGHT</code> 파라미터화</td><td>팔란티어 Experiments 의 우리 버전. 1·2 이후여야 숫자에 의미가 생긴다</td></tr>
+<tr><td><b>4</b></td><td><b>타입 생애주기 상태</b> — Active/Deprecated, 개명·삭제 차단, 대체 지정</td><td>팔란티어가 기계로 강제하는 것을 우리는 문서로도 안 한다. 작고 값이 크다</td></tr>
+<tr><td><b>5</b></td><td>이미지 UI 노출</td><td>백엔드는 이미 <code>meta</code>를 싣는다. <b>실데이터에 이미지가 0건</b>이라 렌더할 것이 없다 — 실제 PDF 인제스트가 먼저</td></tr>
+</tbody></table></div>
+
+<div class="callout good">
+  <b>우리 색깔 — 잃지 않아야 하는 것.</b> 팔란티어는 “원본 PDF 를 나란히 보여줘 사람이 대조”하게 한다.
+  우리는 <code>original[char_start:char_end] == chunk.text</code>라는 <b>기계 검증 가능한 불변식</b>으로
+  인용을 <b>조항·문자 단위</b>로 고정하고, 온톨로지 확장(별칭·is_a 폐포) · 벡터 · 키워드
+  <b>세 신호를 RRF 로 융합</b>한다. 팔란티어의 문서 스택에도, aicoach 에도 이 결합은 없다.
+  보강해야 할 것은 이 축을 <b>버리는 방향이 아니라 채우고 재는 방향</b>이다.
+</div>
+
+<footer>
+  출처: palantir.com/docs (Ontology core concepts · Ontology Manager · Object Storage V2 · Data Lineage ·
+  Branching · Metadata statuses · Object security policies · Audit logs · Action submission criteria ·
+  AIP Evals · AIP Logic blocks · Agent Studio tools · Document processing · Media sets),
+  Palantir 엔지니어링 블로그(“Reducing Hallucinations with the Ontology in Palantir AIP”).
+  <br>내부 실측: <code>ins_cancer_demo</code> 라이브 (<code>GET /graphs/{ns}/health</code>), 2026-07-29.
+  <br>미확인 항목: 객체 단위 as-of 쿼리 · AIP Evals 의 LLM-as-judge 기본 제공 여부 ·
+  Data Lineage 와 별개인 “이 객체 타입을 쓰는 앱” 전용 뷰 · 속성 단위 읽기 감사 granularity.
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온톨로지 경쟁 비교 — 제안서 참고자료</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#161b2c; --panel2:#1b2236; --line:#2a3350; --ink:#e8ebf5; --ink2:#aab3cf;
+    --faint:#71809f; --accent:#7c8cff; --accent2:#5eead4; --green:#34d399; --amber:#fbbf24; --red:#fb7185;
+    --pg:#5b9bff; --es:#f5b74e; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0e1220 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;line-height:1.65}
+  .wrap{max-width:1120px;margin:0 auto;padding:48px 26px 90px}
+  .eyebrow{color:var(--accent2);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2.05rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .18em;line-height:1.15}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:800px}
+  h2{font-size:1.32rem;font-weight:750;margin:50px 0 10px;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:.8rem;color:var(--bg);background:var(--accent);border-radius:7px;padding:2px 9px;font-weight:800}
+  h3{font-size:1.02rem;font-weight:700;margin:22px 0 6px}
+  p{color:var(--ink2);margin:.5em 0}
+  .lead{color:var(--ink);font-size:1.05rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin:16px 0}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin:20px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:10px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.85em;background:#0b0f1c;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c7d0ee}
+  .tblwrap{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse;font-size:.87rem;min-width:820px}
+  th,td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
+  th{color:var(--faint);font-weight:700;font-size:.76rem;position:sticky;top:0;background:var(--panel2)}
+  td:first-child,th:first-child{text-align:left;font-weight:600;color:var(--ink);white-space:nowrap;position:sticky;left:0;background:var(--panel)}
+  th.us,td.us{background:#13213c}
+  th.us{color:var(--pg)}
+  .mk{font-weight:800;font-size:1rem}
+  .yy{color:#34d399} .y{color:#8fd9b5} .mid{color:var(--amber)} .no{color:#6b7590}
+  .note{display:block;color:var(--faint);font-size:.72rem;font-weight:400;margin-top:2px}
+  .adv{border-left:3px solid var(--accent2);padding:6px 0 6px 16px;margin:16px 0}
+  .adv b{color:var(--accent2)}
+  .gov{background:linear-gradient(90deg,#13213c,#161b2c);border:1px solid #2f4d80;border-radius:var(--radius);padding:16px 20px;margin:12px 0}
+  .gov .t{color:var(--pg);font-weight:750;font-size:.92rem;margin-bottom:2px}
+  .gov p{margin:.2em 0;font-size:.92rem}
+  .paste{background:#0b0f1c;border:1px dashed #3a4470;border-radius:var(--radius);padding:20px 22px;margin:14px 0;color:#d3daf0;font-size:.98rem;line-height:1.8}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--faint);font-size:.8rem;margin:8px 2px}
+  .legend span b{font-size:1rem}
+  .foot{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:.82rem}
+  a{color:var(--accent)}
+  .warn{background:#211a10;border:1px solid #5a4d1c;border-radius:var(--radius);padding:14px 18px;color:#e6c886;font-size:.9rem;margin:14px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Ontology · 제안서 참고자료 (정부과제)</div>
+  <h1>왜 이 온톨로지인가 — 경쟁 시스템과의 비교</h1>
+  <p class="sub">RDF/OWL 트리플스토어, 순수 벡터 RAG, LLM 지식그래프 빌더, 상용 플랫폼(Palantir),
+     그래프DB 와 나란히 놓고 본다. 경쟁자의 진짜 강점은 인정하되, <b>정부·공공이 실제로 요구하는 축</b>
+     (검증 가능성·출처 추적·온프레미스 주권·감사·한국어)에서 우리의 우위를 정직하게 정리한다.</p>
+</header>
+
+<div class="warn">
+  ⚠️ 제안서 인용 원칙 — 이 문서는 <b>구현·검증된 것</b>과 <b>설계·로드맵</b>을 구분한다.
+  “✓ 강함”은 이 저장소에서 라이브로 검증된 기능(711 테스트, demo_ko 라이브 전환)에 한한다.
+  과장은 정부 제안서의 신뢰를 깎는다 — 표의 △/✗ 를 숨기지 말 것.
+</div>
+
+<h2><span class="n">1</span> 경쟁 지형 (한눈에)</h2>
+<div class="fig">
+<svg viewBox="0 0 900 520" role="img" aria-label="포지셔닝 사분면">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a95bf"/></marker>
+  </defs>
+  <!-- axes -->
+  <line x1="90" y1="470" x2="850" y2="470" stroke="#3a4470" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="120" y1="490" x2="120" y2="40" stroke="#3a4470" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="855" y="474" fill="#71809f" font-size="12" text-anchor="end" dy="18">자동화·실용성 (수작업 → LLM 자동 구축) →</text>
+  <text x="120" y="30" fill="#71809f" font-size="12" text-anchor="middle">↑ 검증 가능성 (신뢰등급·출처추적)</text>
+  <!-- quadrant guide -->
+  <line x1="485" y1="60" x2="485" y2="470" stroke="#232c46" stroke-dasharray="4 5"/>
+  <line x1="120" y1="265" x2="850" y2="265" stroke="#232c46" stroke-dasharray="4 5"/>
+  <text x="300" y="80" fill="#3f496b" font-size="11" text-anchor="middle">형식적이지만 수작업</text>
+  <text x="690" y="80" fill="#3f496b" font-size="11" text-anchor="middle">검증가능 + 자동  ← 목표 지대</text>
+  <text x="690" y="455" fill="#3f496b" font-size="11" text-anchor="middle">편하지만 근거 약함</text>
+
+  <!-- points -->
+  <!-- RDF/OWL: high verify, low automation -->
+  <g><circle cx="270" cy="130" r="9" fill="#9aa4c0"/><text x="286" y="128" fill="#c3cae0" font-size="12.5" font-weight="600">RDF/OWL 트리플스토어</text><text x="286" y="144" fill="#71809f" font-size="10.5">형식추론 강함 · 전문가 수작업</text></g>
+  <!-- Neo4j/Neptune: mid -->
+  <g><circle cx="430" cy="330" r="9" fill="#9aa4c0"/><text x="446" y="328" fill="#c3cae0" font-size="12.5" font-weight="600">그래프DB (Neo4j·Neptune)</text><text x="446" y="344" fill="#71809f" font-size="10.5">그래프 질의 성숙 · 온톨로지/출처는 별도</text></g>
+  <!-- Vector RAG: high automation low verify -->
+  <g><circle cx="720" cy="410" r="9" fill="#9aa4c0"/><text x="720" y="392" fill="#c3cae0" font-size="12.5" font-weight="600" text-anchor="middle">순수 벡터 RAG</text><text x="720" y="426" fill="#71809f" font-size="10.5" text-anchor="middle">쉽고 의미검색 · 출처·구조 약함</text></g>
+  <!-- LLM KG (GraphRAG) -->
+  <g><circle cx="640" cy="300" r="9" fill="#9aa4c0"/><text x="656" y="298" fill="#c3cae0" font-size="12.5" font-weight="600">LLM KG 빌더 (GraphRAG)</text><text x="656" y="314" fill="#71809f" font-size="10.5">자동 구축 · 신뢰등급/하이브리드 부재</text></g>
+  <!-- Palantir -->
+  <g><circle cx="730" cy="150" r="9" fill="#f5b74e"/><text x="714" y="148" fill="#f3dfae" font-size="12.5" font-weight="700" text-anchor="end">Palantir Foundry</text><text x="714" y="164" fill="#b99a55" font-size="10.5" text-anchor="end">강력하나 독점·고비용·해외 SaaS</text></g>
+  <!-- Ours -->
+  <g><circle cx="770" cy="110" r="13" fill="#7c8cff" stroke="#c7d0ee" stroke-width="2"/><text x="752" y="106" fill="#c7d0ee" font-size="14" font-weight="800" text-anchor="end">본 온톨로지</text><text x="752" y="124" fill="#9fb0ff" font-size="10.5" text-anchor="end">검증가능 + 자동 + 개방·온프레미스</text></g>
+</svg>
+<div class="cap">그림 — 우측 상단(검증가능 + 자동 구축)은 상용 독점(Palantir)만 점유하던 지대다.
+  본 온톨로지는 그 지대를 <b>개방·온프레미스·한국어</b>로 채운다.</div>
+</div>
+
+<h2><span class="n">2</span> 기능 비교 매트릭스</h2>
+<div class="legend">
+  <span><b class="yy">✓✓</b> 강함/차별점</span>
+  <span><b class="y">✓</b> 지원</span>
+  <span><b class="mid">△</b> 부분/별도구성</span>
+  <span><b class="no">✗</b> 없음/해당없음</span>
+</div>
+<div class="tblwrap">
+<table>
+  <thead><tr>
+    <th>역량 (정부·공공 관점)</th>
+    <th class="us">본 온톨로지</th>
+    <th>RDF/OWL<br>트리플스토어</th>
+    <th>순수 벡터<br>RAG</th>
+    <th>LLM KG 빌더<br>(GraphRAG)</th>
+    <th>Palantir<br>Foundry</th>
+    <th>그래프DB<br>(Neo4j·Neptune)</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>LLM 자동 구축 (문서→그래프)</td>
+      <td class="us"><span class="mk yy">✓✓</span></td><td><span class="mk no">✗</span><span class="note">수작업</span></td>
+      <td><span class="mk y">✓</span></td><td><span class="mk yy">✓✓</span></td><td><span class="mk y">✓</span></td><td><span class="mk no">✗</span><span class="note">별도</span></td></tr>
+    <tr><td>신뢰 등급 (권위/요약/미상)</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">노드 1급 속성 + 파셋</span></td><td><span class="mk mid">△</span><span class="note">커스텀</span></td>
+      <td><span class="mk no">✗</span></td><td><span class="mk no">✗</span></td><td><span class="mk y">✓</span></td><td><span class="mk no">✗</span></td></tr>
+    <tr><td>출처 추적 (원문 문자 오프셋)</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">노드→청크→원문</span></td><td><span class="mk mid">△</span></td>
+      <td><span class="mk mid">△</span><span class="note">청크 단위</span></td><td><span class="mk mid">△</span></td><td><span class="mk y">✓</span></td><td><span class="mk no">✗</span></td></tr>
+    <tr><td>하이브리드 검색 (키워드+벡터+그래프)</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">BM25+벡터+is_a, RRF</span></td><td><span class="mk no">✗</span></td>
+      <td><span class="mk mid">△</span><span class="note">벡터 위주</span></td><td><span class="mk mid">△</span></td><td><span class="mk y">✓</span></td><td><span class="mk mid">△</span></td></tr>
+    <tr><td>형식 추론 (OWL/DL reasoner)</td>
+      <td class="us"><span class="mk mid">△</span><span class="note">is_a 폐포·그래프확장</span></td><td><span class="mk yy">✓✓</span><span class="note">강점</span></td>
+      <td><span class="mk no">✗</span></td><td><span class="mk no">✗</span></td><td><span class="mk mid">△</span></td><td><span class="mk mid">△</span></td></tr>
+    <tr><td>대용량 서빙 (인덱스, 수천만)</td>
+      <td class="us"><span class="mk y">✓</span><span class="note">PG 인덱스+ES · 3.6K 노드 라이브</span></td><td><span class="mk mid">△</span></td>
+      <td><span class="mk y">✓</span></td><td><span class="mk mid">△</span></td><td><span class="mk yy">✓✓</span></td><td><span class="mk yy">✓✓</span></td></tr>
+    <tr><td>감사·검수 루프 (묘비·이력)</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">confirm/reject/tombstone</span></td><td><span class="mk mid">△</span></td>
+      <td><span class="mk no">✗</span></td><td><span class="mk no">✗</span></td><td><span class="mk y">✓</span></td><td><span class="mk mid">△</span></td></tr>
+    <tr><td>온프레미스·데이터 주권</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">전면 자체호스팅</span></td><td><span class="mk y">✓</span></td>
+      <td><span class="mk mid">△</span><span class="note">대개 SaaS</span></td><td><span class="mk mid">△</span></td><td><span class="mk mid">△</span><span class="note">고비용</span></td><td><span class="mk mid">△</span><span class="note">Neptune=AWS</span></td></tr>
+    <tr><td>한국어 최적화</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">ko-sroberta·한글 검색·골든셋</span></td><td><span class="mk mid">△</span></td>
+      <td><span class="mk mid">△</span></td><td><span class="mk mid">△</span></td><td><span class="mk mid">△</span></td><td><span class="mk mid">△</span></td></tr>
+    <tr><td>개방성 · 벤더 lock-in 없음</td>
+      <td class="us"><span class="mk yy">✓✓</span></td><td><span class="mk y">✓</span></td>
+      <td><span class="mk mid">△</span></td><td><span class="mk mid">△</span></td><td><span class="mk no">✗</span><span class="note">독점</span></td><td><span class="mk mid">△</span></td></tr>
+    <tr><td>경량 채택 (의존성·degrade)</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">extras+lazy, 없으면 degrade</span></td><td><span class="mk no">✗</span><span class="note">무거움·전문가</span></td>
+      <td><span class="mk mid">△</span></td><td><span class="mk no">✗</span><span class="note">무거움</span></td><td><span class="mk no">✗</span></td><td><span class="mk mid">△</span></td></tr>
+    <tr><td>에이전트 런타임 연동 (grounded 도구)</td>
+      <td class="us"><span class="mk yy">✓✓</span><span class="note">브리지 에이전트</span></td><td><span class="mk mid">△</span></td>
+      <td><span class="mk y">✓</span></td><td><span class="mk y">✓</span></td><td><span class="mk y">✓</span></td><td><span class="mk mid">△</span></td></tr>
+  </tbody>
+</table>
+</div>
+<p style="color:var(--faint);font-size:.82rem">※ 경쟁 제품의 평가는 일반적 구성 기준의 개괄이며, 버전·구성에 따라 달라질 수 있다.
+   RDF/OWL 의 형식 추론과 Palantir·그래프DB 의 대용량 서빙은 우리가 인정하는 상대 강점이다.</p>
+
+<h2><span class="n">3</span> 경쟁 우위 — 정부·공공이 요구하는 축</h2>
+
+<div class="adv"><b>1. “그럴듯한 답”이 아니라 “인용 가능한 답”</b><br>
+  모든 사실이 <b>신뢰 등급 + 원문 문자 오프셋</b>까지 추적된다. 감사·규제 대응이 필수인 공공에서,
+  순수 벡터 RAG 의 환각 위험을 구조적으로 차단한다 — 답에 <b>출처와 신뢰도가 함께</b> 나온다.</div>
+
+<div class="adv"><b>2. 데이터 주권 · 온프레미스 · 해외 SaaS 불요</b><br>
+  전 구성요소가 자체호스팅 가능(PostgreSQL·Elasticsearch·자체 임베더). Palantir 같은 독점·해외
+  플랫폼 의존 없이, <b>국내 폐쇄망·기관 내부망</b>에 그대로 올린다. 벤더 lock-in 없음.</div>
+
+<div class="adv"><b>3. 문자 그대로 맞아야 하는 질의 (조문번호·고유명사)</b><br>
+  법령 조문번호, 기관명, 고시 번호처럼 <b>문자 그대로</b> 맞아야 하는 질의를 임베딩만으로는 놓친다.
+  BM25(키워드) + 벡터(의미) + 그래프(별칭·상하위) <b>세 신호를 RRF 로 융합</b>해 잡는다.</div>
+
+<div class="adv"><b>4. 감사·검수 루프가 내장</b><br>
+  LLM 추출분을 인간이 confirm/reject 하고, 삭제는 <b>묘비(tombstone)+이력</b>으로 남는다.
+  “누가 왜 이 사실을 승인/기각했나”가 감사 가능 — 공공 데이터 거버넌스 요건에 부합.</div>
+
+<div class="adv"><b>5. 무겁지 않게 채택 (degrade 설계)</b><br>
+  무거운 구성요소(임베더·ES·PG·torch)는 전부 <b>선택적</b>이고, 없으면 죽지 않고 <b>품질만 내려간다</b>.
+  소규모 기관은 가볍게, 대규모는 인덱스 서빙으로 — 같은 코드가 규모에 맞춰 확장.</div>
+
+<div class="adv"><b>6. 한국어 우선</b><br>
+  한국어 임베더(ko-sroberta), 한글 정확 검색, 한국어 도메인 골든셋 기반 튜닝.
+  영어권 도구를 이식한 것이 아니라 한국어 문서를 1차 대상으로 설계.</div>
+
+<h2><span class="n">4</span> 정부과제 정합성</h2>
+<div class="gov"><div class="t">데이터 주권 · 정보보안</div><p>폐쇄망 온프레미스 배포, 해외 클라우드 의존 제거, 벤더 lock-in 없음.</p></div>
+<div class="gov"><div class="t">설명가능성 · 감사</div><p>모든 사실에 출처·신뢰등급, 판정 이력·묘비로 의사결정 추적 가능.</p></div>
+<div class="gov"><div class="t">국산·개방 기술</div><p>오픈 구성요소 기반 자체 개발, 한국어 최적화, 소스 통제권 보유.</p></div>
+<div class="gov"><div class="t">단계적 도입</div><p>degrade 설계로 소규모 PoC→대규모 확장까지 동일 코드베이스.</p></div>
+
+<h2><span class="n">5</span> 제안서 삽입용 문단 (그대로 붙여쓰기)</h2>
+<div class="paste">
+본 사업의 지식 표현 계층은 <b>검증 가능성과 자동 구축을 동시에</b> 달성하는 온톨로지 엔진을 채택한다.
+문서로부터 LLM 이 개체·관계를 자동 추출하되, 모든 사실은 <b>신뢰 등급과 원문 출처(문자 단위)까지 추적</b>되어
+설명가능성과 감사 요건을 충족한다. 검색은 키워드(BM25)·의미(벡터)·온톨로지 그래프의 <b>세 신호를 융합</b>하여,
+법령 조문번호·고유명사처럼 문자 그대로 일치해야 하는 질의와 의미 유사 질의를 함께 처리한다.
+저장 계층은 PostgreSQL 을 진실 원본, Elasticsearch 를 검색 투영으로 분리한 구조로 <b>대용량 인덱스 서빙</b>을 제공하며,
+모든 구성요소가 <b>온프레미스 자체호스팅</b> 가능해 데이터 주권과 정보보안 요건을 만족한다.
+상용 독점 플랫폼과 달리 벤더 lock-in 이 없고, 한국어를 1차 대상으로 최적화되어 있다.
+</div>
+<p style="color:var(--faint);font-size:.82rem">※ “대용량 인덱스 서빙”의 현재 실측 근거: 단일 네임스페이스 3,623 노드 PG 전환,
+   진짜 인덱스 카운트(근사 아님)·이웃질의 O(degree)·검색 recall@5=1.000. 목표 규모(수천만)는
+   인덱스 구조상 확장 가능함을 뜻하며, 과제 규모에 맞춰 실측치와 함께 명시할 것.</p>
+
+<h2><span class="n">6</span> 정직한 한계 (제안서 신뢰를 위해)</h2>
+<div class="card">
+  <p style="margin-top:0"><b style="color:var(--amber)">형식 추론</b> — 완전한 OWL/DL reasoner 는 목표가 아니다. is_a 폐포·그래프 확장 수준의 실용 추론에 집중한다. 엄격한 논리 추론이 핵심 요구면 RDF/OWL 스택과의 결합을 검토.</p>
+  <p><b style="color:var(--amber)">검증 규모</b> — 인덱스 구조로 수천만까지 설계. 라이브 검증은 현재 <b>단일 네임스페이스 3,623 노드/6,852 엣지</b>(heritage_us) PG 전환 + 진짜 인덱스 카운트·이웃질의(허브 deg 1,963, 318 ms) 단계다. 대규모 서빙 최적화(수동변경 이중기록·<b>증분 미러</b>—미변경 쓰기 0)는 완료. 실제 수천만 부하 실측은 데이터가 그 규모에 이를 때.</p>
+  <p><b style="color:var(--amber)">관련도 튜닝</b> — known-item 검색 소여는 <b>recall@5 = 1.000</b>(200 질의)으로 측정됐으나, RRF·검색 가중치의 <b>도메인 관련도 튜닝은 사람이 라벨한 골든셋</b>이 필요하다(측정 하네스는 준비됨). 과제 데이터에 맞춘 튜닝을 전제로 한다.</p>
+</div>
+
+<div class="foot">
+  관련: <a href="axis5-engine-architecture.html">엔진 아키텍처 & 차별점</a> ·
+  <a href="axis5-progress.html">진행 현황(P0–P4)</a><br>
+  제안서 작성 시 이 문서의 △/✗ 와 “정직한 한계”를 함께 반영해 과장 없이 인용할 것.
+</div>
+
+</div>
+</body>
+</html>

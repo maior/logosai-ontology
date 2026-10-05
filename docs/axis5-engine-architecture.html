@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온톨로지 저장 엔진 아키텍처 — PG=진실 · ES=투영</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#161b2c; --panel2:#1d2437; --line:#2a3350;
+    --ink:#e8ebf5; --ink2:#aab3cf; --faint:#71809f;
+    --accent:#7c8cff; --accent2:#5eead4; --pg:#5b9bff; --es:#f5b74e; --nx:#9aa4c0;
+    --green:#34d399; --amber:#fbbf24; --red:#fb7185;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c1020,#0e1220 40%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 90px}
+  header.hero{margin-bottom:40px}
+  .eyebrow{color:var(--accent2);font-size:.8rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+  h1{font-size:2.1rem;font-weight:800;letter-spacing:-.02em;margin:.3em 0 .2em;line-height:1.15}
+  h1 .grad{background:linear-gradient(90deg,var(--pg),var(--es));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--ink2);font-size:1.05rem;max-width:760px}
+  h2{font-size:1.35rem;font-weight:750;margin:52px 0 8px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  h2 .n{font-size:.8rem;color:var(--bg);background:var(--accent);border-radius:7px;padding:2px 9px;font-weight:800}
+  h3{font-size:1.02rem;font-weight:700;margin:26px 0 6px;color:var(--ink)}
+  p{color:var(--ink2);margin:.5em 0}
+  .lead{color:var(--ink);font-size:1.05rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin:16px 0}
+  .fig{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin:20px 0;overflow-x:auto}
+  .fig svg{display:block;margin:0 auto;max-width:100%;height:auto}
+  .cap{color:var(--faint);font-size:.82rem;text-align:center;margin-top:10px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:#0b0f1c;
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#c7d0ee}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.92rem}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-weight:650;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td b{color:var(--ink)}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;border:1px solid}
+  .pill.pg{color:var(--pg);border-color:#2f4d80;background:#12203a}
+  .pill.es{color:var(--es);border-color:#5c4a1f;background:#2a220f}
+  .pill.nx{color:var(--nx);border-color:#3a4260;background:#1a2036}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .diff{border-left:3px solid var(--accent2);padding:4px 0 4px 16px;margin:16px 0}
+  .diff b{color:var(--accent2)}
+  .kv{display:flex;gap:10px;font-size:.9rem;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .kv .k{color:var(--faint);min-width:150px;flex-shrink:0}
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:.82rem}
+  .callout{background:linear-gradient(90deg,#12203a,#161b2c);border:1px solid #2f4d80;border-radius:var(--radius);padding:18px 22px;margin:18px 0}
+  .callout .t{color:var(--pg);font-weight:750;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Ontology Storage Engine · 축 5</div>
+  <h1>사실의 층을 다시 짓다 — <span class="grad">PostgreSQL = 진실, Elasticsearch = 투영</span></h1>
+  <p class="sub">인메모리 그래프의 한계를 넘어, 수천만 객체를 인덱스로 서빙하는 저장 엔진.
+     팔란티어 파운드리의 원리를 우리 규모로 이식하되, <b>신뢰 등급·근거 추적·커널 경계</b>라는
+     우리만의 축으로 차별화한다.</p>
+</header>
+
+<div class="callout">
+  <div class="t">한 문장 요약</div>
+  온톨로지의 단 하나의 일은 <b>“물으면 검증 가능한 사실을, 출처와 함께, 빠르고 결정적으로 돌려주는 것”</b>이다.
+  이 엔진은 그 답을 <b>스캔이 아니라 인덱스</b>로, <b>휘발이 아니라 트랜잭션</b>으로 만든다.
+</div>
+
+<h2><span class="n">1</span> 왜 다시 지었나</h2>
+<p class="lead">기존 온톨로지는 네임스페이스마다 <b>인메모리 NetworkX 그래프 + 통짜 JSON 체크포인트</b>였다.
+  기능이 아니라 구조가 한계였다.</p>
+<div class="grid2">
+  <div class="card">
+    <h3>기존 (Before)</h3>
+    <div class="kv"><span class="k">저장</span><span>프로세스 RAM 안 그래프 전체</span></div>
+    <div class="kv"><span class="k">카운트·필터</span><span>O(N) 파이썬 스캔 → <code>COUNT_CAP</code> 근사 밴드에이드</span></div>
+    <div class="kv"><span class="k">영속</span><span>JSON 통째 재기록 (트랜잭션·무결성 없음)</span></div>
+    <div class="kv"><span class="k">검색</span><span>부분일치 문자열 스캔</span></div>
+    <div class="kv"><span class="k">상한</span><span style="color:var(--red)">수십만 ~ 백만</span></div>
+  </div>
+  <div class="card">
+    <h3>재설계 (After)</h3>
+    <div class="kv"><span class="k">저장</span><span>PostgreSQL 인덱스 테이블 (진실)</span></div>
+    <div class="kv"><span class="k">카운트·필터</span><span>인덱스 GROUP BY → <b style="color:var(--green)">진짜 카운트</b></span></div>
+    <div class="kv"><span class="k">영속</span><span>ACID 트랜잭션 · 행 단위</span></div>
+    <div class="kv"><span class="k">검색</span><span>Elasticsearch BM25 + 파셋 aggregation</span></div>
+    <div class="kv"><span class="k">상한</span><span style="color:var(--green)">인덱스로 수천만 확장</span></div>
+  </div>
+</div>
+
+<h2><span class="n">2</span> 아키텍처 — 세 개의 층</h2>
+<p>소비자(관리 콘솔·브리지 에이전트)는 <b>GraphStore seam</b>이라는 단일 인터페이스만 본다.
+   그 뒤에서 백엔드가 바뀌어도 반환 payload 는 동일하다 — 소비자는 저장소를 모른다.</p>
+
+<div class="fig">
+<svg viewBox="0 0 920 560" role="img" aria-label="저장 엔진 층 다이어그램">
+  <defs>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#8a95bf"/>
+    </marker>
+    <linearGradient id="gseam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3a4470"/><stop offset="1" stop-color="#2a3358"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Consumers -->
+  <rect x="60" y="30" width="800" height="86" rx="12" fill="#141a2b" stroke="#2a3350"/>
+  <text x="80" y="58" fill="#71809f" font-size="12" font-weight="700" letter-spacing="1">소비자 (백엔드를 모른다)</text>
+  <rect x="82" y="66" width="230" height="38" rx="8" fill="#1d2437" stroke="#2a3350"/>
+  <text x="197" y="90" fill="#e8ebf5" font-size="13" text-anchor="middle">관리 콘솔 (9275)</text>
+  <rect x="330" y="66" width="230" height="38" rx="8" fill="#1d2437" stroke="#2a3350"/>
+  <text x="445" y="90" fill="#e8ebf5" font-size="13" text-anchor="middle">브리지 에이전트 (ACP)</text>
+  <rect x="578" y="66" width="260" height="38" rx="8" fill="#1d2437" stroke="#2a3350"/>
+  <text x="708" y="90" fill="#e8ebf5" font-size="13" text-anchor="middle">logos_api / 앞으로 올 소비자</text>
+
+  <!-- Seam -->
+  <rect x="60" y="156" width="800" height="72" rx="12" fill="url(#gseam)" stroke="#4a558a"/>
+  <text x="80" y="182" fill="#c7d0ee" font-size="12" font-weight="700" letter-spacing="1">GraphStore SEAM · object_search()  — 단일 계약, 반환 payload 동일</text>
+  <rect x="82" y="190" width="360" height="30" rx="7" fill="#232c4a" stroke="#4a558a"/>
+  <text x="262" y="210" fill="#e8ebf5" font-size="12.5" text-anchor="middle">list_nodes · list_edges · list_neighbors (브라우즈)</text>
+  <rect x="458" y="190" width="380" height="30" rx="7" fill="#232c4a" stroke="#4a558a"/>
+  <text x="648" y="210" fill="#e8ebf5" font-size="12.5" text-anchor="middle">object_search (BM25 랭킹 + 파셋)</text>
+
+  <!-- arrows consumers->seam -->
+  <line x1="460" y1="116" x2="460" y2="154" stroke="#8a95bf" stroke-width="1.6" marker-end="url(#ah)"/>
+
+  <!-- Stores -->
+  <!-- PG -->
+  <rect x="60" y="300" width="250" height="180" rx="12" fill="#0f1c34" stroke="#2f4d80"/>
+  <text x="185" y="330" fill="#5b9bff" font-size="15" font-weight="800" text-anchor="middle">PostgreSQL</text>
+  <text x="185" y="350" fill="#8fb4f0" font-size="11.5" text-anchor="middle">진실 원본 · ACID</text>
+  <rect x="80" y="364" width="210" height="44" rx="7" fill="#12203a" stroke="#2f4d80"/>
+  <text x="185" y="381" fill="#cfe0ff" font-size="11.5" text-anchor="middle">ontology.node (type·name·trust</text>
+  <text x="185" y="397" fill="#cfe0ff" font-size="11.5" text-anchor="middle">+ properties jsonb)</text>
+  <rect x="80" y="416" width="210" height="44" rx="7" fill="#12203a" stroke="#2f4d80"/>
+  <text x="185" y="433" fill="#cfe0ff" font-size="11.5" text-anchor="middle">ontology.edge (source·pred·target)</text>
+  <text x="185" y="449" fill="#8fb4f0" font-size="10.5" text-anchor="middle">idx: edge_out · edge_in · edge_pred</text>
+
+  <!-- ES -->
+  <rect x="335" y="300" width="250" height="180" rx="12" fill="#241d0d" stroke="#5c4a1f"/>
+  <text x="460" y="330" fill="#f5b74e" font-size="15" font-weight="800" text-anchor="middle">Elasticsearch</text>
+  <text x="460" y="350" fill="#e6c886" font-size="11.5" text-anchor="middle">검색·파셋 투영 · 재생성 가능</text>
+  <rect x="355" y="364" width="210" height="44" rx="7" fill="#2a220f" stroke="#5c4a1f"/>
+  <text x="460" y="381" fill="#f3dfae" font-size="11.5" text-anchor="middle">ontology-obj-{ns}</text>
+  <text x="460" y="397" fill="#e6c886" font-size="10.5" text-anchor="middle">BM25(name) + type/trust keyword</text>
+  <rect x="355" y="416" width="210" height="44" rx="7" fill="#2a220f" stroke="#5c4a1f"/>
+  <text x="460" y="433" fill="#f3dfae" font-size="11.5" text-anchor="middle">terms aggregation → 파셋</text>
+  <text x="460" y="449" fill="#e6c886" font-size="10.5" text-anchor="middle">청크 벡터(semantic)와 별도</text>
+
+  <!-- NX -->
+  <rect x="610" y="300" width="250" height="180" rx="12" fill="#171d30" stroke="#3a4260"/>
+  <text x="735" y="330" fill="#9aa4c0" font-size="15" font-weight="800" text-anchor="middle">NetworkX</text>
+  <text x="735" y="350" fill="#8791ad" font-size="11.5" text-anchor="middle">폴백 · 빌드/추론 캐시</text>
+  <rect x="630" y="364" width="210" height="44" rx="7" fill="#1a2036" stroke="#3a4260"/>
+  <text x="735" y="381" fill="#c3cae0" font-size="11.5" text-anchor="middle">MultiDiGraph (인메모리)</text>
+  <text x="735" y="397" fill="#8791ad" font-size="10.5" text-anchor="middle">PG 불가 시 자동 degrade</text>
+  <rect x="630" y="416" width="210" height="44" rx="7" fill="#1a2036" stroke="#3a4260"/>
+  <text x="735" y="433" fill="#c3cae0" font-size="11.5" text-anchor="middle">빌더가 추출 병합하는 곳</text>
+  <text x="735" y="449" fill="#8791ad" font-size="10.5" text-anchor="middle">→ PG·ES 로 미러</text>
+
+  <!-- arrows seam->stores -->
+  <line x1="200" y1="230" x2="185" y2="298" stroke="#5b9bff" stroke-width="1.8" marker-end="url(#ah)"/>
+  <text x="150" y="270" fill="#5b9bff" font-size="10.5">브라우즈·이웃</text>
+  <line x1="560" y1="230" x2="460" y2="298" stroke="#f5b74e" stroke-width="1.8" marker-end="url(#ah)"/>
+  <text x="500" y="270" fill="#f5b74e" font-size="10.5">검색·파셋</text>
+  <line x1="720" y1="230" x2="735" y2="298" stroke="#9aa4c0" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+  <text x="740" y="270" fill="#9aa4c0" font-size="10.5">degrade</text>
+
+  <!-- mirror arrows NX -> PG/ES -->
+  <path d="M630,438 C520,500 300,500 250,462" fill="none" stroke="#5b9bff" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#ah)"/>
+  <path d="M660,452 C580,516 470,500 460,462" fill="none" stroke="#f5b74e" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#ah)"/>
+  <text x="430" y="528" fill="#71809f" font-size="10.5" text-anchor="middle">dual-write 미러 (빌드/인제스트 후 · best-effort)</text>
+</svg>
+<div class="cap">그림 1 — 소비자는 seam 만 본다. 백엔드(PG·ES·NX)는 교체·degrade 되어도 계약이 같다.</div>
+</div>
+
+<h2><span class="n">3</span> 데이터 흐름 — 쓰기와 읽기</h2>
+<div class="fig">
+<svg viewBox="0 0 920 300" role="img" aria-label="데이터 흐름">
+  <defs>
+    <marker id="ah2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#8a95bf"/>
+    </marker>
+  </defs>
+  <!-- write lane -->
+  <text x="40" y="44" fill="#5eead4" font-size="12" font-weight="800" letter-spacing="1">쓰기 (WRITE)</text>
+  <g font-size="12.5" text-anchor="middle">
+    <rect x="40" y="56" width="130" height="46" rx="9" fill="#161b2c" stroke="#2a3350"/><text x="105" y="84" fill="#e8ebf5">문서 업로드</text>
+    <rect x="205" y="56" width="130" height="46" rx="9" fill="#161b2c" stroke="#2a3350"/><text x="270" y="78" fill="#e8ebf5">감식·추출</text><text x="270" y="94" fill="#71809f" font-size="10.5">LLM</text>
+    <rect x="370" y="56" width="150" height="46" rx="9" fill="#171d30" stroke="#3a4260"/><text x="445" y="78" fill="#c3cae0">NetworkX 병합</text><text x="445" y="94" fill="#8791ad" font-size="10.5">빌더</text>
+    <rect x="560" y="42" width="150" height="34" rx="9" fill="#0f1c34" stroke="#2f4d80"/><text x="635" y="64" fill="#cfe0ff">PostgreSQL (진실)</text>
+    <rect x="560" y="86" width="150" height="34" rx="9" fill="#241d0d" stroke="#5c4a1f"/><text x="635" y="108" fill="#f3dfae">ES 객체 인덱스</text>
+  </g>
+  <line x1="170" y1="79" x2="203" y2="79" stroke="#8a95bf" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <line x1="335" y1="79" x2="368" y2="79" stroke="#8a95bf" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <line x1="520" y1="72" x2="558" y2="60" stroke="#5b9bff" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <line x1="520" y1="86" x2="558" y2="100" stroke="#f5b74e" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <text x="748" y="82" fill="#71809f" font-size="10.5">멱등 미러</text>
+
+  <line x1="20" y1="150" x2="900" y2="150" stroke="#2a3350" stroke-width="1"/>
+
+  <!-- read lane -->
+  <text x="40" y="192" fill="#7c8cff" font-size="12" font-weight="800" letter-spacing="1">읽기 (READ)</text>
+  <g font-size="12.5" text-anchor="middle">
+    <rect x="40" y="206" width="150" height="46" rx="9" fill="#161b2c" stroke="#2a3350"/><text x="115" y="234" fill="#e8ebf5">질의 (콘솔·에이전트)</text>
+    <rect x="360" y="184" width="200" height="40" rx="9" fill="#0f1c34" stroke="#2f4d80"/><text x="460" y="203" fill="#cfe0ff">브라우즈·이웃·카운트</text><text x="460" y="217" fill="#8fb4f0" font-size="10.5">PG 인덱스 (O(degree))</text>
+    <rect x="360" y="234" width="200" height="40" rx="9" fill="#241d0d" stroke="#5c4a1f"/><text x="460" y="253" fill="#f3dfae">검색·파셋</text><text x="460" y="267" fill="#e6c886" font-size="10.5">ES BM25 + aggregation</text>
+    <rect x="620" y="206" width="240" height="46" rx="9" fill="#232c4a" stroke="#4a558a"/><text x="740" y="234" fill="#e8ebf5">동일 payload → 소비자</text>
+  </g>
+  <line x1="190" y1="222" x2="358" y2="204" stroke="#5b9bff" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <line x1="190" y1="236" x2="358" y2="254" stroke="#f5b74e" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <line x1="560" y1="204" x2="618" y2="222" stroke="#8a95bf" stroke-width="1.6" marker-end="url(#ah2)"/>
+  <line x1="560" y1="254" x2="618" y2="236" stroke="#8a95bf" stroke-width="1.6" marker-end="url(#ah2)"/>
+</svg>
+<div class="cap">그림 2 — 빌더는 NetworkX 에 병합하고, 그 결과를 PG(진실)+ES(투영)로 멱등 미러한다.
+  읽기는 브라우즈=PG 인덱스, 검색=ES BM25 로 갈라진다.</div>
+</div>
+
+<h2><span class="n">4</span> 핵심 설계 결정</h2>
+<table>
+  <thead><tr><th>결정</th><th>선택</th><th>왜</th></tr></thead>
+  <tbody>
+    <tr><td><b>진실 원본</b></td><td><span class="pill pg">PostgreSQL</span></td>
+      <td>ACID·무결성·트랜잭션. 검수/묘비/감사가 자연스럽다. ES 는 재색인으로 언제든 복구되는 <b>투영</b>이라 진실이 될 수 없다.</td></tr>
+    <tr><td><b>노드 검색</b></td><td><span class="pill es">ES BM25</span></td>
+      <td>고유명사·조문번호는 <b>문자 그대로</b> 맞아야 한다 — 임베딩만으로는 놓친다. 청크 벡터 검색은 별도 인덱스가 담당.</td></tr>
+    <tr><td><b>이전 단위</b></td><td>네임스페이스</td>
+      <td><code>ONTOLOGY_PG_NAMESPACES</code> 로 하나씩 전환. 전역 플래그를 안 건드리고 무중단 점진 이전.</td></tr>
+    <tr><td><b>실패 모드</b></td><td>degrade</td>
+      <td>PG/ES 불가 시 <span class="pill nx">NetworkX</span> 로 자동 강등 — 온톨로지가 인프라 때문에 같이 죽지 않는다.</td></tr>
+    <tr><td><b>스키마 배치</b></td><td>기존 DB 안 <code>ontology</code> 스키마</td>
+      <td>least-invasive. <code>namespace</code> 컬럼으로 다중화(DB/스키마-per-namespace 아님).</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="n">5</span> 차별점 — “우리만의” 사실의 층</h2>
+<p class="lead">단순히 팔란티어를 베낀 게 아니다. 같은 뼈대 위에 온톨로지만의 축을 세웠다.</p>
+
+<div class="diff"><b>1. 신뢰 등급을 1급 시민으로</b><br>
+  모든 노드가 <code>trust</code>(authoritative·unknown·summary·unset)를 갖고, 수집 시점에 지정된다.
+  ES 파셋이 신뢰 분포를 즉시 보여준다 — “이 답이 얼마나 믿을 만한가”가 검색 결과에 딸려 온다.</div>
+
+<div class="diff"><b>2. 근거(provenance) 사슬</b><br>
+  노드 → 청크 → <b>원문 문자 오프셋</b>까지 이어진다. “어디서 알았나”에 출처로 답한다.
+  순수 벡터 RAG 가 “그럴듯한 답”을 줄 때, 이 엔진은 <b>인용 가능한 답</b>을 준다.</div>
+
+<div class="diff"><b>3. 온톨로지·벡터·키워드 세 신호의 결합</b><br>
+  BM25(문자 그대로) + dense_vector(의미) + 그래프 확장(별칭·is_a 폐포)을 RRF 로 융합한다.
+  세 신호 중 하나만 쓰는 시스템이 놓치는 질의를 잡는다.</div>
+
+<div class="diff"><b>4. 커널 경계 — 무겁지 않게 채택 가능</b><br>
+  psycopg·elasticsearch·torch 는 전부 <b>선택적 extras + lazy import</b>. 커널을 <code>import</code> 해도
+  이들이 없어야 죽지 않고, 없으면 품질만 내려간다(degrade). 온톨로지 채택을 막던 “heavy transitive deps” 문제를 구조로 제거.</div>
+
+<div class="diff"><b>5. 브라우즈 ≠ 검색</b><br>
+  정확 필터+페이지네이션(결정적, PG 인덱스)과 관련도 랭킹(ES BM25)을 분리했다.
+  팔란티어 Object Explorer 의 좌측 파셋·중앙 목록·랭킹 검색을 우리 데이터 모델로 재현.</div>
+
+<div class="card" style="margin-top:26px">
+  <h3>검증된 사실 (라이브 · 실측)</h3>
+  <div class="kv"><span class="k">대용량 전환</span><span><code>heritage_us</code> <b>3,623 노드 / 6,852 엣지</b> PG 진실 전환 — 브라우즈 total=3,623 · <b>capped=false</b>(진짜 인덱스 카운트) · HTTP 255 ms</span></div>
+  <div class="kv"><span class="k">이웃 질의</span><span><code>EXPLAIN</code> → <b>Index Scan using edge_out</b> · 최고차수 허브(deg 1,963) 318 ms · O(degree)</span></div>
+  <div class="kv"><span class="k">백엔드 동등성</span><span>memory ↔ PostgreSQL 반환 payload 바이트 동일 · <code>COLLATE "C"</code> 로 정렬 순서까지 일치 (계약 테스트)</span></div>
+  <div class="kv"><span class="k">검색·파셋</span><span>heritage_us <code>museum</code> → 55 hits 57 ms, BM25 랭킹 + <code>type</code> 파셋 {museum:17·…}</span></div>
+  <div class="kv"><span class="k">검색 품질</span><span>known-item 200 질의 <b>recall@5 = 1.000</b> · MRR 0.99 (heritage_us/kr)</span></div>
+  <div class="kv"><span class="k">구조화 검색</span><span>프로퍼티 값 + 관계 제약(<code>/query</code>) — 관계 “→State” 1,985 · museum+관계 42 · PG jsonb+EXISTS</span></div>
+  <div class="kv"><span class="k">쓰기 이중기록</span><span>생성·거절·엣지·개명이 PG 에 이중기록(라이브 E2E) · 개요·stats·node_detail 도 PG 인덱스(전체 로드 없음)</span></div>
+  <div class="kv"><span class="k">증분 미러</span><span><code>content_hash</code> diff — 미변경 재동기화 <b>쓰기 0</b>(heritage_us 2차 “노드 ~0/-0”)</span></div>
+  <div class="kv"><span class="k">코호트 추출</span><span>검색 결과 → RL/LLM 학습데이터 (museum 42노드 → 254행)</span></div>
+  <div class="kv"><span class="k">3 네임스페이스 라이브</span><span><code>demo_ko</code>·<code>heritage_kr</code>·<code>heritage_us</code> PG 서빙 (sentinel 로 PG 경로 증명)</span></div>
+  <div class="kv"><span class="k">테스트</span><span>721 passed / 1 xfailed (PG·ES 통합 포함)</span></div>
+</div>
+
+<div class="foot">
+  온톨로지 저장 엔진 재설계(축 5) · PostgreSQL=진실 · Elasticsearch=투영 · NetworkX=폴백<br>
+  커널 경계 준수 · 서비스 역할 경계: 인증·테넌시는 logos_api, 온톨로지는 내부 사실의 층.
+</div>
+
+</div>
+</body>
+</html>
