@@ -399,7 +399,9 @@ class OntologyBuilderService:
         (SELECT 1 / _cluster/health 왕복 시간만)."""
         import time as _time
 
-        result: Dict[str, Any] = {}
+        from ..core import health_signals
+        result: Dict[str, Any] = {"components": health_signals.snapshot(),
+                                  "degraded": health_signals.degraded()}
 
         # PostgreSQL — SELECT 1 왕복
         try:

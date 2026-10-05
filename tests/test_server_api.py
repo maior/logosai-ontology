@@ -70,6 +70,25 @@ def client(tmp_path):
     return TestClient(app)
 
 
+@pytest.fixture()
+def default_checkpoint(tmp_path, monkeypatch):
+    """'default'(에이전트 그래프)를 이 테스트가 직접 만든다.
+
+    list_namespaces 는 서비스 data_dir 이 아니라 **전역** 체크포인트 폴더
+    (knowledge_graph_clean._DEFAULT_DATA_DIR)와 프로세스 전역 엔진 목록(_kg_instances)에서
+    'default' 를 찾는다. conftest 가 그 폴더를 빈 세션 tmp 로 돌리므로, 전엔 앞서 돈 다른
+    테스트가 'default' 엔진을 우연히 만들어 둔 경우에만 통과했다 — 이 파일을 단독으로 돌리면
+    실패했다(2026-10-05). 앞 테스트에 기대지 않도록 폴더와 엔진 목록을 이 테스트 것으로 바꾼다.
+    """
+    from ontology.engines import knowledge_graph_clean as kgc
+    root = tmp_path / "kg_global"
+    root.mkdir()
+    (root / "kg_checkpoint.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(kgc, "_DEFAULT_DATA_DIR", root)
+    monkeypatch.setattr(kgc, "_kg_instances", {})
+    return root
+
+
 def unique_ns():
     return f"testns_{uuid.uuid4().hex[:8]}"
 
@@ -405,7 +424,7 @@ class TestExportMapAPI:
 # ─── 7. Namespaces · Node detail ────────────────────────────────────
 
 class TestNamespacesAndNodeDetail:
-    def test_list_namespaces_includes_built(self, client):
+    def test_list_namespaces_includes_built(self, client, default_checkpoint):
         dataset_id = upload_sample(client)
         namespace = unique_ns()
         build(client, dataset_id, namespace)
@@ -625,13 +644,27 @@ class TestHierarchyRollup:
 # ─── 11. 네임스페이스 목록에서 시스템 그래프 제외 ───────────────────
 
 class TestNamespaceListingFilters:
-    def test_default_included_in_listing(self, client):
+    def test_default_included_in_listing(self, client, default_checkpoint):
         # default(에이전트 그래프)도 목록에 노출 — 사용자가 열람 가능
         dataset_id = upload_sample(client)
         build(client, dataset_id, unique_ns())
         names = [n["namespace"] for n in
                  client.get("/api/v1/ontology/namespaces").json()["namespaces"]]
         assert "default" in names
+
+    def test_default_absent_without_checkpoint(self, client, tmp_path, monkeypatch):
+        """대조군 — 체크포인트도 'default' 엔진도 없으면 목록에 없다. 위 두 테스트가
+        다른 테스트의 흔적이 아니라 자기가 만든 체크포인트 덕에 통과한다는 증거."""
+        from ontology.engines import knowledge_graph_clean as kgc
+        empty = tmp_path / "kg_empty"
+        empty.mkdir()
+        monkeypatch.setattr(kgc, "_DEFAULT_DATA_DIR", empty)
+        monkeypatch.setattr(kgc, "_kg_instances", {})
+        ns = unique_ns()
+        build(client, upload_sample(client), ns)
+        names = [n["namespace"] for n in
+                 client.get("/api/v1/ontology/namespaces").json()["namespaces"]]
+        assert ns in names and "default" not in names
 
     def test_builder_namespaces_still_listed(self, client):
         ns = unique_ns()

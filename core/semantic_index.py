@@ -234,6 +234,7 @@ def compose_node_text(node_id: str, attrs: Dict[str, Any]) -> str:
 
 def _build_embed_fn(model_id: str) -> Optional[EmbedFn]:
     """실제 임베더 하나를 만든다 (없으면 None). 캐시는 get_embed_fn 이 한다."""
+    from .health_signals import report
     try:
         from sentence_transformers import SentenceTransformer
         model = SentenceTransformer(model_id, device="cpu")
@@ -243,9 +244,13 @@ def _build_embed_fn(model_id: str) -> Optional[EmbedFn]:
                               dtype=np.float32)
 
         logger.info(f"🔎 Semantic index embedder loaded: {model_id}")
+        report(f"embedder:{model_id}", True, "loaded")
         return embed
     except Exception as e:
         logger.warning(f"⚠️ Semantic embedder unavailable ({e}) — semantic search disabled")
+        # 의미 검색이 통째로 꺼지는 지점이다 — 경고 한 줄로 끝내면 안 된다 (2026-10-05:
+        # scipy 가 깨져 전 네임스페이스 검색이 0건이었는데 이틀 가까이 아무도 몰랐다)
+        report(f"embedder:{model_id}", False, f"{type(e).__name__}: {e}")
         return None
 
 

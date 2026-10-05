@@ -6,29 +6,13 @@ sys.path so that `from ontology.ml.config import ...` resolves
 correctly (Python finds ontology/ under Logos/).
 """
 import importlib
-import sys
 import os
+import runpy
+import sys
 import types
 
-_ontology_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_logos_root = os.path.dirname(_ontology_root)
-
-# 1. Block Logos/__init__.py from being loaded by inserting a dummy module.
-#    This prevents the broken `from .agent import LogosAIAgent` inside it.
-for mod_name in list(sys.modules.keys()):
-    if mod_name == "Logos" or mod_name.startswith("Logos."):
-        del sys.modules[mod_name]
-
-_dummy_logos = types.ModuleType("Logos")
-_dummy_logos.__path__ = [_logos_root]
-_dummy_logos.__file__ = os.path.join(_logos_root, "__init__.py")
-_dummy_logos.__package__ = "Logos"
-sys.modules["Logos"] = _dummy_logos
-
-# 2. Ensure Logos/ is in sys.path so `from ontology.x import y` works.
-#    (ontology/ lives at Logos/ontology/)
-if _logos_root not in sys.path:
-    sys.path.insert(0, _logos_root)
+# 1·2. Logos/__init__.py 차단 + sys.path — agents/conftest.py 와 같은 파일을 쓴다
+runpy.run_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "_logos_import_guard.py"))
 
 
 # ─── 데이터 격리 (autouse) ──────────────────────────────────────────

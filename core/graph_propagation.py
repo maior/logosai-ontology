@@ -108,13 +108,19 @@ def propagate(bipartite, seeds: Mapping[str, float],
     if not personalization:
         return {}
 
+    from .health_signals import report
     try:
-        return nx.pagerank(bipartite, alpha=damping,
-                           personalization=personalization,
-                           max_iter=max_iter)
+        masses = nx.pagerank(bipartite, alpha=damping,
+                             personalization=personalization,
+                             max_iter=max_iter)
     except Exception as e:            # 수렴 실패 등 — 채널 하나를 잃을 뿐이다
         logger.warning(f"⚠️ Graph propagation failed ({e}) — 확산 채널 생략")
+        # 채널 하나를 잃을 뿐이지만, 소리 없이 잃으면 안 된다 (2026-10-05: scipy 가
+        # 깨져 확산이 통째로 꺼져 있었는데 경고 한 줄뿐이었다)
+        report("graph_propagation", False, f"{type(e).__name__}: {e}")
         return {}
+    report("graph_propagation", True)
+    return masses
 
 
 def background_masses(bipartite, damping: float = DEFAULT_DAMPING,
@@ -129,11 +135,15 @@ def background_masses(bipartite, damping: float = DEFAULT_DAMPING,
 
     if bipartite is None or bipartite.number_of_edges() == 0:
         return {}
+    from .health_signals import report
     try:
-        return nx.pagerank(bipartite, alpha=damping, max_iter=max_iter)
+        masses = nx.pagerank(bipartite, alpha=damping, max_iter=max_iter)
     except Exception as e:
         logger.warning(f"⚠️ Background PageRank failed ({e}) — lift 생략")
+        report("graph_propagation", False, f"{type(e).__name__}: {e}")
         return {}
+    report("graph_propagation", True)
+    return masses
 
 
 def lift(masses: Mapping[str, float],

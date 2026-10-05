@@ -10,6 +10,9 @@ GET  /graphs/{namespace}/data     시각화용 nodes+links
 POST /graphs/{namespace}/search   의미 검색
 """
 
+import asyncio
+import functools
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
@@ -20,6 +23,22 @@ from .service import (COVERAGE_MIN_LEN, PROTECTED_NAMESPACES,
 from ..builder.pipeline import PROVIDERS
 
 router = APIRouter()
+
+
+# ── 읽기 전용 작업 스레드 (2026-10-05) ──────────────────────────────────
+# 무거운 동기 서비스 함수(임베딩 계산·첫 모델 로딩·그래프 순회)를 async 엔드포인트에서
+# 직접 부르면 그동안 이벤트 루프 전체가 멈춘다 — 실측: 검색 1회(2.89s) 동안 다른 요청도
+# 2.87s 묶였다. 읽기(GET + 검색·골든셋 평가·검색 실험 — 자기 전용 기록에만 쓴다)만 여기로 보낸다. 스레드는 1개라 읽기끼리는 지금처럼
+# 한 번에 하나다(모델 이중 로딩·읽기 간 경쟁 없음). 쓰기는 루프에 그대로 둔다 — 서비스에
+# 잠금이 없어 쓰기 직렬화는 루프의 암묵적 직렬화에 기댄다.
+# 계약: tests/test_server_read_offload.py
+_READ_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ontology-read")
+
+
+async def _read(fn, *args, **kwargs):
+    """동기 읽기 함수를 작업 스레드에서 실행한다 (예외는 그대로 전파)."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_READ_EXECUTOR, functools.partial(fn, *args, **kwargs))
 
 _service: Optional[OntologyBuilderService] = None
 
@@ -90,7 +109,7 @@ async def upload_dataset(
 async def list_datasets(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return {"datasets": service.list_datasets()}
+    return {"datasets": (await _read(service.list_datasets))}
 
 
 class IngestRequest(BaseModel):
@@ -210,7 +229,7 @@ async def start_build(
 async def list_schemas(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return {"presets": service.list_schema_presets()}
+    return {"presets": (await _read(service.list_schema_presets))}
 
 
 @router.get("/jobs")
@@ -222,7 +241,7 @@ async def list_jobs(
 
     인메모리 레지스트리라 서버 재시작 시 비는 것이 정상이다. 상세(파일별 결과
     등)는 GET /jobs/{job_id} 로."""
-    return service.list_jobs(limit=limit)
+    return (await _read(service.list_jobs, limit=limit))
 
 
 @router.get("/jobs/{job_id}")
@@ -230,7 +249,7 @@ async def get_job(
     job_id: str,
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    job = service.get_job(job_id)
+    job = (await _read(service.get_job, job_id))
     if job is None:
         raise HTTPException(status_code=404, detail=f"job '{job_id}' not found")
     return job
@@ -242,7 +261,7 @@ async def get_graph(
     limit: int = Query(default=10, ge=1, le=200),
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return service.get_graph_summary(namespace, limit=limit)
+    return (await _read(service.get_graph_summary, namespace, limit=limit))
 
 
 @router.get("/graphs/{namespace}/data")
@@ -251,14 +270,14 @@ async def get_graph_data(
     limit: int = Query(default=300, ge=1, le=2000),
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return service.get_graph_data(namespace, limit=limit)
+    return (await _read(service.get_graph_data, namespace, limit=limit))
 
 
 @router.get("/namespaces")
 async def list_namespaces(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return {"namespaces": service.list_namespaces()}
+    return {"namespaces": (await _read(service.list_namespaces))}
 
 
 @router.get("/graphs/{namespace}/node")
@@ -267,7 +286,7 @@ async def get_node_detail(
     id: str = Query(..., min_length=1),
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    detail = service.get_node_detail(namespace, id)
+    detail = (await _read(service.get_node_detail, namespace, id))
     if detail is None:
         raise HTTPException(status_code=404, detail=f"node '{id}' not found")
     return detail
@@ -280,7 +299,7 @@ async def hierarchy_rollup(
     limit: int = Query(default=50, ge=1, le=500),
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    result = service.get_hierarchy_rollup(namespace, class_id, limit=limit)
+    result = (await _read(service.get_hierarchy_rollup, namespace, class_id, limit=limit))
     if result is None:
         raise HTTPException(status_code=404, detail=f"class '{class_id}' not found")
     return result
@@ -291,7 +310,7 @@ async def get_map(
     namespace: str,
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return service.get_map_data(namespace)
+    return (await _read(service.get_map_data, namespace))
 
 
 @router.get("/graphs/{namespace}/export")
@@ -303,11 +322,11 @@ async def export_graph(
     if format == "turtle":
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse(
-            service.export_graph(namespace, "turtle"),
+            (await _read(service.export_graph, namespace, "turtle")),
             media_type="text/turtle; charset=utf-8",
             headers={"Content-Disposition":
                      f'attachment; filename="ontology_{namespace}.ttl"'})
-    return service.export_graph(namespace, "json")
+    return (await _read(service.export_graph, namespace, "json"))
 
 
 @router.post("/graphs/{namespace}/records")
@@ -385,12 +404,12 @@ async def download_dataset(
                   "rel_predicate": c_rel_predicate, "rel_target": c_rel_target,
                   "rel_target_type": c_rel_target_type, "rel_direction": c_rel_direction}
     try:
-        result = service.build_training_dataset(
+        result = (await _read(service.build_training_dataset, 
             namespace,
             formats=[f.strip() for f in formats.split(",") if f.strip()],
             node_types=[t.strip() for t in node_types.split(",")] if node_types else None,
             predicates=[p.strip() for p in predicates.split(",")] if predicates else None,
-            include_evidence=include_evidence, cohort=cohort)
+            include_evidence=include_evidence, cohort=cohort))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     body = "\n".join(_json.dumps(r, ensure_ascii=False) for r in result["rows"])
@@ -408,9 +427,9 @@ async def search_graph(
 ):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be blank")
-    results = service.semantic_search(
+    results = (await _read(service.semantic_search, 
         namespace, request.query, top_k=request.top_k,
-        node_types=request.node_types)
+        node_types=request.node_types))
     return {"namespace": namespace, "query": request.query, "results": results}
 
 
@@ -423,7 +442,7 @@ async def get_chunk(
     chunk_id: str,
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    chunk = service.get_chunk(namespace, chunk_id)
+    chunk = (await _read(service.get_chunk, namespace, chunk_id))
     if chunk is None:
         raise HTTPException(status_code=404, detail=f"chunk not found: {chunk_id}")
     return chunk
@@ -436,7 +455,7 @@ async def get_node_chunks(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """이 노드가 추출된 원문 청크들 — 상세 패널의 '근거' 탭."""
-    return service.get_node_chunks(namespace, node_id)
+    return (await _read(service.get_node_chunks, namespace, node_id))
 
 
 @router.get("/graphs/{namespace}/chunks")
@@ -449,7 +468,7 @@ async def search_chunks(
     """원문 구절 검색 — 의미(임베딩) 또는 하이브리드(ES)."""
     if not query.strip():
         raise HTTPException(status_code=400, detail="query must not be blank")
-    return service.search_chunks(namespace, query, top_k=top_k)
+    return (await _read(service.search_chunks, namespace, query, top_k=top_k))
 
 
 # ─── Review (검수 루프) ──────────────────────────────────────────────
@@ -469,7 +488,7 @@ async def get_review_queues(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """검수 큐 집계 — "오늘 뭘 검수해야 하나". 기존 경로 위임 + 셈 (LLM 0콜)."""
-    result = service.review_queues(namespace)
+    result = (await _read(service.review_queues, namespace))
     if result.get("error") == "namespace_not_found":
         raise HTTPException(status_code=404, detail=f"namespace not found: {namespace}")
     return result
@@ -483,7 +502,7 @@ async def get_review_queue(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """검수 대기 노드 — LLM 추출로 들어와 아직 판정 없는 것 + 근거 개수."""
-    return service.get_review_queue(namespace, trust=trust, limit=limit)
+    return (await _read(service.get_review_queue, namespace, trust=trust, limit=limit))
 
 
 @router.post("/graphs/{namespace}/review/confirm")
@@ -555,7 +574,7 @@ async def lint_consistency(
     않는다 — precheck/coverage(POST, LLM 비용 + 기록)와 대비되는 지점.
     """
     try:
-        return service.lint_consistency(namespace, schema_mode=schema_mode)
+        return (await _read(service.lint_consistency, namespace, schema_mode=schema_mode))
     except ValueError as e:
         # custom 은 body 가 필요해 GET 으로 못 받는다 → 프리셋 이름만 허용
         raise HTTPException(status_code=400, detail=str(e))
@@ -573,7 +592,7 @@ async def graph_health(
     서버 상태를 바꾸지 않는다. LLM 0콜이므로 상한이 필요 없고, 목록만 sample 로
     자른다 — **개수는 자르지 않는다**(표본을 전부로 오해하면 '다 봤다'가 된다).
     """
-    return service.graph_health(namespace, sample=sample)
+    return (await _read(service.graph_health, namespace, sample=sample))
 
 
 class CoverageRequest(BaseModel):
@@ -680,7 +699,7 @@ async def coverage_gate(
     빌드 시점 스냅샷은 잡 리포트의 coverage_gate 에, 현재 상태는 여기.
     같은 자(graph_health) + 네임스페이스별 임계. 임계 미설정 = unconfigured.
     """
-    return _unwrap_write(service.coverage_gate(namespace))
+    return _unwrap_write((await _read(service.coverage_gate, namespace)))
 
 
 @router.get("/graphs/{namespace}/coverage-expectations")
@@ -689,7 +708,7 @@ async def get_coverage_expectations_settings(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """커버리지 임계 — 오버라이드 + 실효값 + 전역 기본값 (retrieval-config 대칭)."""
-    return _unwrap_write(service.get_coverage_expectations_settings(namespace))
+    return _unwrap_write((await _read(service.get_coverage_expectations_settings, namespace)))
 
 
 class CoverageExpectationsRequest(BaseModel):
@@ -719,7 +738,7 @@ async def get_retrieval_settings(
     셋을 다 주는 이유: 화면이 "무엇을 내가 정했고, 무엇이 기본값이며, 지금 실제로
     쓰이는 값은 무엇인가"를 구별해 보여줘야 한다.
     """
-    return _unwrap_write(service.get_retrieval_settings(namespace))
+    return _unwrap_write((await _read(service.get_retrieval_settings, namespace)))
 
 
 class RetrievalConfigRequest(BaseModel):
@@ -871,7 +890,7 @@ async def review_structural(
     기각). evidence_matched·lifecycle 등 판단 재료 동봉 — 판정은 사람이,
     적용은 P-2 개명 경로가 한다.
     """
-    return _unwrap_write(service.review_structural(namespace))
+    return _unwrap_write((await _read(service.review_structural, namespace)))
 
 
 class ApproveStructuralRequest(BaseModel):
@@ -910,7 +929,7 @@ async def review_duplicates(
     similar(포함 등·C73 경고). 분류는 신호이지 판정이 아니다 — 적용은
     /nodes/merge (dry_run 기본) 로, 판단은 사람이 한다.
     """
-    return _unwrap_write(service.review_duplicates(namespace))
+    return _unwrap_write((await _read(service.review_duplicates, namespace)))
 
 
 @router.get("/graphs/{namespace}/review/orphans")
@@ -925,7 +944,7 @@ async def find_orphan_nodes(
     없는 노드". 세 갈래로 나눠 준다: candidates(회복 가능) ·
     shadowed(더 긴 이름의 부분문자열 = 오추출 의심) · unquotable(원문에 없음).
     """
-    return _unwrap_write(service.find_orphan_nodes(namespace, limit=limit))
+    return _unwrap_write((await _read(service.find_orphan_nodes, namespace, limit=limit)))
 
 
 class OrphanLink(BaseModel):
@@ -965,7 +984,7 @@ async def get_review_history(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """감사 이력(최신 먼저) — 누가 언제 무엇을 어떤 근거로 판정했는가."""
-    return service.get_review_history(namespace, node_id=node_id, limit=limit)
+    return (await _read(service.get_review_history, namespace, node_id=node_id, limit=limit))
 
 
 class TriageRequest(BaseModel):
@@ -1028,7 +1047,7 @@ async def recommendation_quality(
     않는다 (lint_consistency 와 같은 계약). 일괄 승인 UI 의 안전핀 —
     표본 n 이 작으면 일괄 버튼을 열지 않는 근거 데이터가 이것이다.
     """
-    return _unwrap_write(service.recommendation_quality(namespace))
+    return _unwrap_write((await _read(service.recommendation_quality, namespace)))
 
 
 # ─── 검색 QA (⑤ — 골든셋) ───────────────────────────────────────────
@@ -1069,7 +1088,7 @@ async def list_golden_cases(
     namespace: str,
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
-    return service.get_golden_cases(namespace)
+    return (await _read(service.get_golden_cases, namespace))
 
 
 @router.post("/graphs/{namespace}/qa/cases")
@@ -1148,10 +1167,10 @@ async def evaluate_golden_set(
     """골든셋 평가 — 결정적 (hit@1 / hit@k / MRR + 케이스별 순위).
     검색 변경 전후로 이걸 돌리면 회귀가 숫자로 보인다.
     target=chunk 면 청크 단위로 채점한다 — 그래프 조건화의 효과가 드러나는 자리."""
-    return service.evaluate_golden_set(namespace, k=request.k,
+    return (await _read(service.evaluate_golden_set, namespace, k=request.k,
                                        include_drafts=request.include_drafts,
                                        target=request.target,
-                                       statuses=request.statuses)
+                                       statuses=request.statuses))
 
 
 class RunExperimentsRequest(BaseModel):
@@ -1176,10 +1195,10 @@ async def run_retrieval_experiments(
     3종(설정·그래프·골든셋)과 표본 경고가 박히고, eval_history 는 우회한다
     (운영 품질 블록 오염 방지). 응답에 파레토 프런티어 동봉.
     """
-    return _unwrap_write(service.run_retrieval_experiments(
+    return _unwrap_write((await _read(service.run_retrieval_experiments, 
         namespace, axes=request.axes, k=request.k, target=request.target,
         statuses=request.statuses, max_combos=request.max_combos,
-        actor=request.actor))
+        actor=request.actor)))
 
 
 @router.get("/graphs/{namespace}/experiments")
@@ -1190,8 +1209,8 @@ async def get_experiments(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """실험 레코드 조회 (최신 먼저, layer=retrieval|routing 필터)."""
-    return _unwrap_write(service.get_experiments(namespace, limit=limit,
-                                                 layer=layer))
+    return _unwrap_write((await _read(service.get_experiments, namespace, limit=limit,
+                                                 layer=layer)))
 
 
 @router.get("/graphs/{namespace}/experiments/recommendation")
@@ -1206,8 +1225,8 @@ async def recommend_retrieval_config(
     현재 그래프 지문과 같은 레코드만 후보 (다르면 stale — 재실험 먼저).
     표본 부족이면 제안 대신 경고.
     """
-    return _unwrap_write(service.recommend_retrieval_config(
-        namespace, quality=quality, cost=cost))
+    return _unwrap_write((await _read(service.recommend_retrieval_config, 
+        namespace, quality=quality, cost=cost)))
 
 
 @router.get("/graphs/{namespace}/qa/history")
@@ -1221,7 +1240,7 @@ async def get_eval_history(
     점수만 남기면 "그때 그 숫자가 어떤 설정에서 나온 것인가"를 잃는다.
     임베더·entry_k·max_terms·확산 플래그가 전부 지표를 움직인다(각각 실측).
     """
-    return _unwrap_write(service.get_eval_history(namespace, limit=limit))
+    return _unwrap_write((await _read(service.get_eval_history, namespace, limit=limit)))
 
 
 @router.post("/graphs/{namespace}/qa/verify")
@@ -1251,7 +1270,7 @@ async def list_documents(
     문서는 KG 노드가 아니라 `chunk.source` 축의 뷰다 — 노드로 만들면 슈퍼허브가
     되어 채널 B·확산을 오염시킨다 (core/document_view 의 측정 근거 참고).
     """
-    return _unwrap_write(service.list_documents(namespace))
+    return _unwrap_write((await _read(service.list_documents, namespace)))
 
 
 @router.get("/graphs/{namespace}/coverage-map")
@@ -1266,7 +1285,7 @@ async def get_coverage_map(
     관리 콘솔의 "비어 있는 구간이 어느 절인가" 화면 데이터. 없는 source 는
     빈 결과가 아니라 소리내어 거부한다 (오타 = "전부 커버됨" 오독 방지).
     """
-    result = service.coverage_map(namespace, source=source or "")
+    result = (await _read(service.coverage_map, namespace, source=source or ""))
     if result.get("error") == "namespace_not_found":
         raise HTTPException(status_code=404, detail=f"namespace not found: {namespace}")
     if result.get("error") == "source_not_found":
@@ -1287,7 +1306,7 @@ async def compare_documents(
     대조도 성기다 — 문서별 coverage(/documents)를 함께 볼 것. 없는 문서는
     소리내어 거부한다(오타가 빈 결과를 내면 "전부 커버됨"으로 오독된다).
     """
-    return _unwrap_write(service.compare_documents(namespace, a, b))
+    return _unwrap_write((await _read(service.compare_documents, namespace, a, b)))
 
 
 @router.get("/graphs/{namespace}/retrieve")
@@ -1306,7 +1325,7 @@ async def retrieve(
     """
     if not query.strip():
         raise HTTPException(status_code=400, detail="query must not be blank")
-    return service.retrieve(namespace, query, top_k=top_k, source=source)
+    return (await _read(service.retrieve, namespace, query, top_k=top_k, source=source))
 
 
 # ─── 관리 콘솔 (frontend /ontology-admin 전용 소비자) ────────────────
@@ -1320,7 +1339,7 @@ async def admin_overview(
     깨진 네임스페이스는 그 행만 error 로 degrade 한다 — 한 그래프의 손상이
     대시보드 전체를 죽이면 관리자는 정확히 그 순간에 장님이 된다.
     """
-    return service.get_admin_overview()
+    return (await _read(service.get_admin_overview))
 
 
 @router.get("/admin/system")
@@ -1332,7 +1351,7 @@ async def admin_system(
     각 저장 백엔드는 독립적으로 degrade 한다({available:false}) — ES 가 죽어도
     PG·VectorDB 는 살고, 어느 하나의 부재가 500 이 되지 않는다.
     """
-    return service.system_overview()
+    return (await _read(service.system_overview))
 
 
 @router.get("/admin/health")
@@ -1341,7 +1360,7 @@ async def admin_health(
 ):
     """연결 헬스 — PG/ES 핑 레이턴시(ms) + 임베딩 모델. system_overview 보다
     가벼운 프로브(SELECT 1 / _cluster/health 왕복만). 각 백엔드 독립 degrade."""
-    return service.health_check()
+    return (await _read(service.health_check))
 
 
 @router.get("/graphs/{namespace}/stats")
@@ -1354,7 +1373,7 @@ async def get_namespace_stats(
     미지 네임스페이스는 404 — 조회가 빈 엔진을 만들어 등록하면 그 자체가
     유령 네임스페이스 오염이다.
     """
-    stats = service.get_namespace_stats(namespace)
+    stats = (await _read(service.get_namespace_stats, namespace))
     if stats is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1367,7 +1386,7 @@ async def list_tombstones(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """묘비 목록 — 거절된 노드의 사유·시점·판정자. 부활 차단의 열람 창구."""
-    return service.list_tombstones(namespace)
+    return (await _read(service.list_tombstones, namespace))
 
 
 # 쓰기 계열(생성·수정·엣지) 공통 에러 → HTTP 매핑
@@ -1410,7 +1429,7 @@ async def get_schema_overview(
 ):
     """스키마(TBox) 요약 — 관측된 클래스·프로퍼티 사용·술어 시그니처·
     is_a 계층. 선언이 아니라 관측을 보고한다 (관측이 그래프의 진실이다)."""
-    schema = service.get_schema_overview(namespace)
+    schema = (await _read(service.get_schema_overview, namespace))
     if schema is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1433,9 +1452,9 @@ async def list_nodes(
     + 페이지네이션. trust=unset 은 등급 미부여 노드를, property=X 는 그
     프로퍼티가 채워진 노드만(각 항목에 prop_value 동봉) 고른다.
     kind=class|instance 는 클래스(타입 정의)만/인스턴스(실제 객체)만 고른다."""
-    result = service.list_nodes(namespace, q=q, node_type=node_type,
+    result = (await _read(service.list_nodes, namespace, q=q, node_type=node_type,
                                 trust=trust, prop=property, kind=kind,
-                                offset=offset, limit=limit)
+                                offset=offset, limit=limit))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1452,8 +1471,8 @@ async def list_edges(
 ):
     """엣지 목록 — 술어(+선택적 시그니처)로 거른 관계들. 양끝 노드의 이름·
     타입이 해석돼 실려온다. 술어를 '나열만' 하던 스키마에 관리 진입점을 준다."""
-    result = service.list_edges(namespace, predicate=predicate,
-                                source_type=source_type, target_type=target_type)
+    result = (await _read(service.list_edges, namespace, predicate=predicate,
+                                source_type=source_type, target_type=target_type))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1469,7 +1488,7 @@ async def list_neighbors(
 ):
     """앵커 노드의 이웃 서브그래프 (앵커→이웃 확장 3D 기반). 비용은 그 노드의
     차수에 비례 — 전체 그래프를 읽지 않는다. 이웃이 limit 초과면 truncated."""
-    result = service.list_neighbors(namespace, node_id, limit=limit)
+    result = (await _read(service.list_neighbors, namespace, node_id, limit=limit))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1592,7 +1611,7 @@ async def list_saved_views(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """이 네임스페이스의 저장된 탐색 목록 (최신 먼저)."""
-    result = service.list_saved_views(namespace)
+    result = (await _read(service.list_saved_views, namespace))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1633,7 +1652,7 @@ async def get_llm_config(
     service: OntologyBuilderService = Depends(get_ontology_service),
 ):
     """현재 LLM 설정 + 키 존재 여부(마스킹). 원문 키는 반환하지 않는다."""
-    return service.get_llm_config()
+    return (await _read(service.get_llm_config))
 
 
 @router.put("/admin/llm")
@@ -1690,7 +1709,7 @@ async def index_status(
 ):
     """검색 인덱스 상태(관측) — ES 노드 인덱스 문서수·동기 여부, 원문 청크 수,
     벡터검색 가용성. 관리 콘솔에서 인덱스 건강/drift 를 본다."""
-    result = service.index_status(namespace)
+    result = (await _read(service.index_status, namespace))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1731,11 +1750,11 @@ async def query_nodes(
     (rel_predicate/target/target_type/direction)으로 노드를 찾는다. PG 는
     jsonb + EXISTS 인덱스 질의. 예: '경주에 located_in 된 노드' =
     rel_predicate=located_in&rel_target=Region:경주&rel_direction=in."""
-    result = service.query_nodes(
+    result = (await _read(service.query_nodes, 
         namespace, node_type=node_type, trust=trust, prop_key=prop_key,
         prop_value=prop_value, prop_op=prop_op, rel_predicate=rel_predicate,
         rel_target=rel_target, rel_target_type=rel_target_type,
-        rel_direction=rel_direction, offset=offset, limit=limit)
+        rel_direction=rel_direction, offset=offset, limit=limit))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
@@ -1754,8 +1773,8 @@ async def object_search(
 ):
     """객체 검색(축 5, P3) — ES BM25 관련도 + 타입/신뢰 파셋(aggregation).
     ES 없으면 PG/memory substring 으로 폴백(source 필드로 구분)."""
-    result = service.object_search(namespace, q=q, node_type=node_type,
-                                   trust=trust, top_k=top_k, offset=offset)
+    result = (await _read(service.object_search, namespace, q=q, node_type=node_type,
+                                   trust=trust, top_k=top_k, offset=offset))
     if result is None:
         raise HTTPException(status_code=404,
                             detail=f"namespace '{namespace}' not found")
